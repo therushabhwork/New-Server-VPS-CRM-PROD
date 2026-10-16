@@ -3462,7 +3462,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
     setIsImportingDeals(true)
     try {
       const data = await file.arrayBuffer()
-      const workbook = XLSX.read(data, { type: 'array' })
+      const workbook = XLSX.read(data, { type: 'array', cellDates: true, dateNF: 'yyyy-mm-dd' })
       const sheetEntries = []
       workbook.SheetNames.forEach((sName) => {
         const cleanSName = String(sName || '').trim().toLowerCase()
@@ -3493,7 +3493,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
 
           let matchCount = 0
           if (rowStr.includes('project name') || rowStr.includes('deal name') || rowStr.includes('title')) matchCount++
-          if (rowStr.includes('deal date') || rowStr.includes('date')) matchCount++
+          if (rowStr.includes('deal date') || rowStr.includes('added date') || rowStr.includes('add date') || rowStr.includes('date')) matchCount++
           if (rowStr.includes('customer name') || rowStr.includes('account name') || rowStr.includes('customer')) matchCount++
           if (rowStr.includes('deal owner') || rowStr.includes('owner')) matchCount++
           if (rowStr.includes('deal value') || rowStr.includes('amount') || rowStr.includes('value')) matchCount++
@@ -3586,21 +3586,92 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
 
       const formatExcelDate = (val) => {
         if (!val) return ''
-        if (typeof val === 'number') {
-          const date = new Date(Math.round((val - 25569) * 86400 * 1000))
-          if (!isNaN(date.getTime())) return date.toISOString().slice(0, 10)
+        if (val instanceof Date && !isNaN(val.getTime())) {
+          return new Date(Date.UTC(val.getFullYear(), val.getMonth(), val.getDate(), 12, 0, 0)).toISOString()
         }
+
+        const numVal = typeof val === 'number' ? val : Number(String(val).trim())
+        if (!isNaN(numVal) && numVal > 20000 && numVal < 80000) {
+          const jsDate = new Date(Math.round((numVal - 25569) * 86400 * 1000))
+          if (!isNaN(jsDate.getTime())) {
+            return new Date(Date.UTC(jsDate.getUTCFullYear(), jsDate.getUTCMonth(), jsDate.getUTCDate(), 12, 0, 0)).toISOString()
+          }
+        }
+
         const str = String(val).trim()
         if (!str || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') return ''
-        const dmyMatch = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
-        if (dmyMatch) {
-          const [, d, m, y] = dmyMatch
-          return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+
+        const MONTHS = {
+          jan: 0, january: 0,
+          feb: 1, february: 1,
+          mar: 2, march: 2,
+          apr: 3, april: 3,
+          may: 4,
+          jun: 5, june: 5,
+          jul: 6, july: 6,
+          aug: 7, august: 7,
+          sep: 8, sept: 8, september: 8,
+          oct: 9, october: 9,
+          nov: 10, november: 10,
+          dec: 11, december: 11,
         }
+
+        // DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY (with optional 2 or 4 digit year and optional time)
+        const dmyMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(am|pm))?)?$/i)
+        if (dmyMatch) {
+          const [, dayStr, monthStr, yearStr] = dmyMatch
+          let year = Number(yearStr)
+          if (year < 100) year += 2000
+          let day = Number(dayStr)
+          let month = Number(monthStr)
+          if (month > 12 && day <= 12) {
+            const temp = day
+            day = month
+            month = temp
+          }
+          const jsDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0))
+          if (!isNaN(jsDate.getTime())) return jsDate.toISOString()
+        }
+
+        // Textual months DD-MMM-YYYY
+        const textMonthMatch1 = str.match(/^(\d{1,2})[-/\s.]([A-Za-z]+)[-/\s.](\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(am|pm))?)?$/i)
+        if (textMonthMatch1) {
+          const [, dStr, mStr, yStr] = textMonthMatch1
+          const mIdx = MONTHS[mStr.toLowerCase()] !== undefined ? MONTHS[mStr.toLowerCase()] : MONTHS[mStr.slice(0, 3).toLowerCase()]
+          if (mIdx !== undefined) {
+            let year = Number(yStr)
+            if (year < 100) year += 2000
+            const jsDate = new Date(Date.UTC(year, mIdx, Number(dStr), 12, 0, 0))
+            if (!isNaN(jsDate.getTime())) return jsDate.toISOString()
+          }
+        }
+
+        // MMM DD, YYYY or MMM DD YYYY
+        const textMonthMatch2 = str.match(/^([A-Za-z]+)[-/\s.](\d{1,2})(?:st|nd|rd|th)?,?[-/\s.](\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(am|pm))?)?$/i)
+        if (textMonthMatch2) {
+          const [, mStr, dStr, yStr] = textMonthMatch2
+          const mIdx = MONTHS[mStr.toLowerCase()] !== undefined ? MONTHS[mStr.toLowerCase()] : MONTHS[mStr.slice(0, 3).toLowerCase()]
+          if (mIdx !== undefined) {
+            let year = Number(yStr)
+            if (year < 100) year += 2000
+            const jsDate = new Date(Date.UTC(year, mIdx, Number(dStr), 12, 0, 0))
+            if (!isNaN(jsDate.getTime())) return jsDate.toISOString()
+          }
+        }
+
+        // YYYY-MM-DD or YYYY/MM/DD
+        const ymdMatch = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(am|pm))?)?$/i)
+        if (ymdMatch) {
+          const [, yearStr, monthStr, dayStr] = ymdMatch
+          const jsDate = new Date(Date.UTC(Number(yearStr), Number(monthStr) - 1, Number(dayStr), 12, 0, 0))
+          if (!isNaN(jsDate.getTime())) return jsDate.toISOString()
+        }
+
         const parsed = new Date(str)
         if (!isNaN(parsed.getTime())) {
-          return parsed.toISOString().slice(0, 10)
+          return parsed.toISOString()
         }
+
         return str
       }
 
@@ -3634,8 +3705,10 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
         const dealNumber = String(getVal(row, 'Deal Number', 'Deal No', 'DealNumber', 'Deal #') || '').trim()
         const dealOwner = String(getVal(row, 'Deal Owner', 'Account Owner', 'Owner Name', 'Owner', 'Assigned To', 'Owner Code', 'ownerCode') || '').trim()
         const coOwners = String(getVal(row, 'Deal Co-Owners', 'Co-Owners', 'Co Owners', 'CoOwners') || '').trim()
-        const rawDealDate = getVal(row, 'Deal Date', 'Date', 'Expected Close Date', 'Close Date')
-        const dealDate = formatExcelDate(rawDealDate)
+        const rawAddedDate = getVal(row, 'Added Date', 'addedDate', 'AddedDate', 'Added_Date', 'Add Date', 'Date Added', 'Account Date', 'accountDate', 'Date')
+        const rawDealDate = getVal(row, 'Deal Date', 'Date', 'Expected Close Date', 'Close Date', 'Added Date')
+        const resolvedAddedDate = formatExcelDate(rawAddedDate || rawDealDate)
+        const dealDate = formatExcelDate(rawDealDate || rawAddedDate)
         const dealType = String(getVal(row, 'Deal Type', 'Type') || '').trim()
         const rawDealVal = getVal(row, 'Deal Value', 'Amount', 'Value', 'Deal Amount')
         const dealValue = Number(String(rawDealVal).replace(/[^0-9.-]+/g, '')) || 0
@@ -3682,6 +3755,15 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
           accountOwner: dealOwner,
           coOwners,
           dealDate,
+          addedDate: resolvedAddedDate || dealDate || undefined,
+          accountDate: resolvedAddedDate || dealDate || undefined,
+          createdAt: resolvedAddedDate || dealDate || undefined,
+          formData: {
+            'Added Date': resolvedAddedDate || dealDate || undefined,
+            'Account Date': resolvedAddedDate || dealDate || undefined,
+            addedDate: resolvedAddedDate || dealDate || undefined,
+            accountDate: resolvedAddedDate || dealDate || undefined,
+          },
           dealType: category || source || dealType || 'SWATI',
           dealValue,
           amount: dealValue,

@@ -123,7 +123,7 @@ const AccountBoardHeaderActions = ({
     try {
       setIsImporting(true)
       const data = await file.arrayBuffer()
-      const workbook = XLSX.read(data, { type: 'array' })
+      const workbook = XLSX.read(data, { type: 'array', cellDates: true, dateNF: 'yyyy-mm-dd' })
       const firstSheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[firstSheetName]
       const raw2DRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })
@@ -132,8 +132,12 @@ const AccountBoardHeaderActions = ({
         const rowStr = (raw2DRows[i] || []).join(' ').toLowerCase()
         if (
           rowStr.includes('account name') ||
+          rowStr.includes('customer name') ||
+          rowStr.includes('company name') ||
           rowStr.includes('project name') ||
           rowStr.includes('added date') ||
+          rowStr.includes('add date') ||
+          rowStr.includes('date added') ||
           rowStr.includes('account date') ||
           rowStr.includes('account category') ||
           rowStr.includes('contact person')
@@ -191,17 +195,24 @@ const AccountBoardHeaderActions = ({
 
       const payloadsToImport = []
       for (const row of validRows) {
-        const getVal = (...keys) => {
+        const getRawVal = (...keys) => {
           const rowKeys = Object.keys(row || {})
           for (const k of keys) {
             const kNorm = normKey(k)
             const matchKey = rowKeys.find((rk) => normKey(rk) === kNorm)
             if (matchKey && row[matchKey] !== undefined && row[matchKey] !== null) {
-              const val = String(row[matchKey]).trim()
-              if (val !== '' && val.toLowerCase() !== 'null' && val.toLowerCase() !== 'undefined') return val
+              const r = row[matchKey]
+              if (r !== '' && String(r).trim().toLowerCase() !== 'null' && String(r).trim().toLowerCase() !== 'undefined') {
+                return r
+              }
             }
           }
           return ''
+        }
+
+        const getVal = (...keys) => {
+          const r = getRawVal(...keys)
+          return r !== '' && r !== undefined && r !== null ? String(r).trim() : ''
         }
 
         const sanitizeEmail = (val) => {
@@ -217,28 +228,82 @@ const AccountBoardHeaderActions = ({
           if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
             return rawDate.toISOString()
           }
+
+          // If number or numeric string (Excel serial day counter, e.g. 45580 or 45580.45833)
+          const numVal = typeof rawDate === 'number' ? rawDate : Number(String(rawDate).trim())
+          if (!isNaN(numVal) && numVal > 20000 && numVal < 80000) {
+            const jsDate = new Date(Math.round((numVal - 25569) * 86400 * 1000))
+            if (!isNaN(jsDate.getTime())) {
+              return new Date(Date.UTC(jsDate.getUTCFullYear(), jsDate.getUTCMonth(), jsDate.getUTCDate(), 12, 0, 0)).toISOString()
+            }
+          }
+
           const str = String(rawDate).trim()
           if (!str || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') return undefined
 
-          if (/^\d{5}$/.test(str) || (typeof rawDate === 'number' && rawDate > 30000 && rawDate < 60000)) {
-            const num = Number(rawDate)
-            const jsDate = new Date(Math.round((num - 25569) * 86400 * 1000))
+          const MONTHS = {
+            jan: 0, january: 0,
+            feb: 1, february: 1,
+            mar: 2, march: 2,
+            apr: 3, april: 3,
+            may: 4,
+            jun: 5, june: 5,
+            jul: 6, july: 6,
+            aug: 7, august: 7,
+            sep: 8, sept: 8, september: 8,
+            oct: 9, october: 9,
+            nov: 10, november: 10,
+            dec: 11, december: 11,
+          }
+
+          // DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY (with optional 2 or 4 digit year and optional time)
+          const dmyMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(am|pm))?)?$/i)
+          if (dmyMatch) {
+            const [, dayStr, monthStr, yearStr] = dmyMatch
+            let year = Number(yearStr)
+            if (year < 100) year += 2000
+            let day = Number(dayStr)
+            let month = Number(monthStr)
+            if (month > 12 && day <= 12) {
+              const temp = day
+              day = month
+              month = temp
+            }
+            const jsDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0))
             if (!isNaN(jsDate.getTime())) return jsDate.toISOString()
           }
 
-          // DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY (with optional time)
-          const dmyMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/)
-          if (dmyMatch) {
-            const [, day, month, year, h = 0, m = 0, s = 0] = dmyMatch
-            const jsDate = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(h), Number(m), Number(s)))
-            if (!isNaN(jsDate.getTime())) return jsDate.toISOString()
+          // DD-MMM-YYYY or DD/MMM/YYYY or DD MMM YYYY (e.g. 15-Oct-2025 or 15-Oct-25 or 15 October 2025)
+          const textMonthMatch1 = str.match(/^(\d{1,2})[-/\s.]([A-Za-z]+)[-/\s.](\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(am|pm))?)?$/i)
+          if (textMonthMatch1) {
+            const [, dStr, mStr, yStr] = textMonthMatch1
+            const mIdx = MONTHS[mStr.toLowerCase()] !== undefined ? MONTHS[mStr.toLowerCase()] : MONTHS[mStr.slice(0, 3).toLowerCase()]
+            if (mIdx !== undefined) {
+              let year = Number(yStr)
+              if (year < 100) year += 2000
+              const jsDate = new Date(Date.UTC(year, mIdx, Number(dStr), 12, 0, 0))
+              if (!isNaN(jsDate.getTime())) return jsDate.toISOString()
+            }
+          }
+
+          // MMM DD, YYYY or MMM DD YYYY (e.g. Oct 15, 2025 or October 15 2025)
+          const textMonthMatch2 = str.match(/^([A-Za-z]+)[-/\s.](\d{1,2})(?:st|nd|rd|th)?,?[-/\s.](\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(am|pm))?)?$/i)
+          if (textMonthMatch2) {
+            const [, mStr, dStr, yStr] = textMonthMatch2
+            const mIdx = MONTHS[mStr.toLowerCase()] !== undefined ? MONTHS[mStr.toLowerCase()] : MONTHS[mStr.slice(0, 3).toLowerCase()]
+            if (mIdx !== undefined) {
+              let year = Number(yStr)
+              if (year < 100) year += 2000
+              const jsDate = new Date(Date.UTC(year, mIdx, Number(dStr), 12, 0, 0))
+              if (!isNaN(jsDate.getTime())) return jsDate.toISOString()
+            }
           }
 
           // YYYY-MM-DD or YYYY/MM/DD (with optional time)
-          const ymdMatch = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/)
+          const ymdMatch = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(am|pm))?)?$/i)
           if (ymdMatch) {
-            const [, year, month, day, h = 0, m = 0, s = 0] = ymdMatch
-            const jsDate = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(h), Number(m), Number(s)))
+            const [, yearStr, monthStr, dayStr] = ymdMatch
+            const jsDate = new Date(Date.UTC(Number(yearStr), Number(monthStr) - 1, Number(dayStr), 12, 0, 0))
             if (!isNaN(jsDate.getTime())) return jsDate.toISOString()
           }
 
@@ -249,8 +314,23 @@ const AccountBoardHeaderActions = ({
         const rawAccNameCandidate = getVal('Account Name', 'AccountName', 'Customer Name', 'customerName', 'Company Name', 'companyName', 'Company', 'company', 'Client Name', 'clientName', 'Name', 'name', 'Account')
         const accountName = isCodePatternStr(rawAccNameCandidate) ? '' : rawAccNameCandidate
 
-        const rawDateInput = getVal('Added Date', 'addedDate', 'AddedDate', 'Added_Date', 'Account Date', 'Date', 'accountDate')
-        const accountDate = parseExcelDateValue(rawDateInput) || rawDateInput || undefined
+        const rawDateInput = getRawVal(
+          'Added Date',
+          'addedDate',
+          'AddedDate',
+          'Added_Date',
+          'Add Date',
+          'Date Added',
+          'Account Date',
+          'Created Date',
+          'Creation Date',
+          'Entry Date',
+          'Lead Date',
+          'Date',
+          'accountDate'
+        )
+        const parsedIsoDate = parseExcelDateValue(rawDateInput)
+        const accountDate = parsedIsoDate || (typeof rawDateInput === 'string' ? rawDateInput : undefined)
         const accountCategory = getVal('Account Category', 'AccountCategory', 'Category', 'accountCategory')
         const contactPerson = getVal('Contact Person', 'ContactPerson', 'Contact', 'contactPerson')
         const phone = getVal('Phone', 'phone', 'Mobile', 'mobile', 'Contact Mobile')

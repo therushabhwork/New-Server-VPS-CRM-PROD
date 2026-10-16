@@ -273,6 +273,100 @@ const emitConvertedDealRealtime = (action, convertedDeal, actor) => {
   }
 }
 
+const parseUniversalImportDate = (rawVal) => {
+  if (!rawVal) return null
+  if (rawVal instanceof Date && !isNaN(rawVal.getTime())) {
+    return rawVal.toISOString()
+  }
+
+  // If number or numeric string (Excel serial day counter, e.g. 45580 or 45580.45833)
+  const numVal = typeof rawVal === 'number' ? rawVal : Number(String(rawVal).trim())
+  if (!isNaN(numVal) && numVal > 20000 && numVal < 80000) {
+    const jsDate = new Date(Math.round((numVal - 25569) * 86400 * 1000))
+    if (!isNaN(jsDate.getTime())) {
+      return new Date(Date.UTC(jsDate.getUTCFullYear(), jsDate.getUTCMonth(), jsDate.getUTCDate(), 12, 0, 0)).toISOString()
+    }
+  }
+
+  const str = String(rawVal).trim()
+  if (!str || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') return null
+
+  // Month dictionary for textual months
+  const MONTHS = {
+    jan: 0, january: 0,
+    feb: 1, february: 1,
+    mar: 2, march: 2,
+    apr: 3, april: 3,
+    may: 4,
+    jun: 5, june: 5,
+    jul: 6, july: 6,
+    aug: 7, august: 7,
+    sep: 8, sept: 8, september: 8,
+    oct: 9, october: 9,
+    nov: 10, november: 10,
+    dec: 11, december: 11,
+  }
+
+  // DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY (with optional 2 or 4 digit year and optional time)
+  const dmyMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(am|pm))?)?$/i)
+  if (dmyMatch) {
+    const [, dayStr, monthStr, yearStr] = dmyMatch
+    let year = Number(yearStr)
+    if (year < 100) year += 2000
+    let day = Number(dayStr)
+    let month = Number(monthStr)
+    if (month > 12 && day <= 12) {
+      const temp = day
+      day = month
+      month = temp
+    }
+    const jsDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0))
+    if (!isNaN(jsDate.getTime())) return jsDate.toISOString()
+  }
+
+  // Match DD-MMM-YYYY or DD/MMM/YYYY or DD MMM YYYY (e.g. 15-Oct-2025 or 15-Oct-25 or 15 October 2025)
+  const textMonthMatch1 = str.match(/^(\d{1,2})[-/\s.]([A-Za-z]+)[-/\s.](\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(am|pm))?)?$/i)
+  if (textMonthMatch1) {
+    const [, dStr, mStr, yStr] = textMonthMatch1
+    const mIdx = MONTHS[mStr.toLowerCase()] !== undefined ? MONTHS[mStr.toLowerCase()] : MONTHS[mStr.slice(0, 3).toLowerCase()]
+    if (mIdx !== undefined) {
+      let year = Number(yStr)
+      if (year < 100) year += 2000
+      const jsDate = new Date(Date.UTC(year, mIdx, Number(dStr), 12, 0, 0))
+      if (!isNaN(jsDate.getTime())) return jsDate.toISOString()
+    }
+  }
+
+  // Match MMM DD, YYYY or MMM DD YYYY (e.g. Oct 15, 2025 or October 15 2025)
+  const textMonthMatch2 = str.match(/^([A-Za-z]+)[-/\s.](\d{1,2})(?:st|nd|rd|th)?,?[-/\s.](\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(am|pm))?)?$/i)
+  if (textMonthMatch2) {
+    const [, mStr, dStr, yStr] = textMonthMatch2
+    const mIdx = MONTHS[mStr.toLowerCase()] !== undefined ? MONTHS[mStr.toLowerCase()] : MONTHS[mStr.slice(0, 3).toLowerCase()]
+    if (mIdx !== undefined) {
+      let year = Number(yStr)
+      if (year < 100) year += 2000
+      const jsDate = new Date(Date.UTC(year, mIdx, Number(dStr), 12, 0, 0))
+      if (!isNaN(jsDate.getTime())) return jsDate.toISOString()
+    }
+  }
+
+  // YYYY-MM-DD or YYYY/MM/DD or YYYY.MM.DD (with optional time)
+  const ymdMatch = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(am|pm))?)?$/i)
+  if (ymdMatch) {
+    const [, yearStr, monthStr, dayStr] = ymdMatch
+    const jsDate = new Date(Date.UTC(Number(yearStr), Number(monthStr) - 1, Number(dayStr), 12, 0, 0))
+    if (!isNaN(jsDate.getTime())) return jsDate.toISOString()
+  }
+
+  // Standard ISO or valid date string fallback
+  const parsed = new Date(str)
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString()
+  }
+
+  return null
+}
+
 module.exports = {
   ...baseService,
   get: (actor, id) => baseService.get(actor, id),
@@ -905,18 +999,29 @@ module.exports = {
       const seriesNum = legacyId < 1001 ? legacyId + 1000 : legacyId
       const recordNumber = existingNum || (collectionName === 'accounts' ? `ACC-${seriesNum}` : collectionName === 'customers' ? `CUST-${seriesNum}` : `DL-${seriesNum}`)
 
-      const rawDateCandidate = cleanStr(
+
+
+      const rawDateCandidate =
         row.accountDate ||
         row.addedDate ||
         row.createdAt ||
         row.formData?.accountDate ||
+        row.formData?.addedDate ||
         row.formData?.['Added Date'] ||
         row.formData?.['Account Date'] ||
-        row.formData?.addedDate
-      )
-      const resolvedAccountDate = rawDateCandidate && !isNaN(new Date(rawDateCandidate).getTime())
-        ? new Date(rawDateCandidate).toISOString()
-        : (rawDateCandidate || null)
+        row.formData?.['Date'] ||
+        row.formData?.Date ||
+        row.formData?.['Add Date'] ||
+        row.formData?.['Date Added'] ||
+        row.data?.accountDate ||
+        row.data?.addedDate ||
+        row.data?.['Added Date'] ||
+        row.data?.['Account Date'] ||
+        row.raw?.accountDate ||
+        row.raw?.addedDate ||
+        row.raw?.['Added Date']
+
+      const resolvedAccountDate = parseUniversalImportDate(rawDateCandidate)
 
       const docPayload = {
         legacyId,
@@ -1115,18 +1220,46 @@ module.exports = {
         // Dual Ingestion into MongoDB `leads` collection for Deals import
         if (collectionName !== 'leads' && Lead) {
           const leadLegacyId = await getNextLegacyId('leads')
+          const rawLeadDateCandidate =
+            row.addedDate ||
+            row.accountDate ||
+            row.createdAt ||
+            row.formData?.['Added Date'] ||
+            row.formData?.addedDate ||
+            row.formData?.['Account Date'] ||
+            row.formData?.accountDate ||
+            row.data?.['Added Date'] ||
+            row.data?.addedDate ||
+            row.dealDate ||
+            docPayload.dealDate
+
+          const resolvedLeadDate = parseUniversalImportDate(rawLeadDateCandidate)
+
           const leadDoc = {
             ...docPayload,
             legacyId: leadLegacyId,
+            accountDate: resolvedLeadDate || undefined,
+            addedDate: resolvedLeadDate || undefined,
             stage: 'new',
             status: 'new',
+            formData: {
+              ...(row.formData || {}),
+              accountDate: resolvedLeadDate || undefined,
+              addedDate: resolvedLeadDate || undefined,
+              'Account Date': resolvedLeadDate || undefined,
+              'Added Date': resolvedLeadDate || undefined,
+            },
             data: {
               ...docPayload.data,
+              accountDate: resolvedLeadDate || undefined,
+              addedDate: resolvedLeadDate || undefined,
+              'Account Date': resolvedLeadDate || undefined,
+              'Added Date': resolvedLeadDate || undefined,
               stage: 'new',
               status: 'new',
               statusLabel: 'New Lead',
             },
-            createdAt: new Date().toISOString(),
+            createdAt: resolvedLeadDate || docPayload.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           }
           await Lead.create(leadDoc)
