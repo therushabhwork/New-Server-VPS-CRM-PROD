@@ -1,0 +1,593 @@
+/* ==========================================================================
+   ADMIN LAUNCHPAD STYLING & STRUCTURE - NEAT, CLEAN & PROFESSIONAL (#c60016)
+   ========================================================================== */
+
+.lp-page {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #FAF7F1;
+  background-image: url('/bg-pattern.png');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  color: #10182b;
+}
+
+.lp-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  background: transparent;
+}
+
+/* Move Integrations Live and Recent Activity downwards on LaunchPad page only */
+.lp-body .right-panel {
+  padding-top: calc(var(--header-height, 56px) + 32px) !important;
+}
+
+.lp-main {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-y: auto;
+  padding: calc(var(--header-height, 56px) + 24px) 1.5rem 2rem 1.5rem;
+  background: transparent;
+}
+
+/* ==========================================================================
+   UNIQUE, NEAT & CLEAN MODERN HEADER BAR (NO LOGO IN HEADER BAR)
+   ========================================================================== */
+
+.lp-page .header,
+html body #root .lp-page .header {
+  height: 64px !important;
+  background: #ffffff !important;
+  border-bottom: 1.5px solid #e2e8f0 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03) !important;
+  padding-left: 1.5rem !important;
+  padding-right: 1.5rem !important;
+}
+
+/* Hide brand logo in top header bar on Launchpad page as requested */
+html body #root .lp-page .hdr-brand-logo,
+.lp-page .hdr-brand-logo {
+  display: none !important;
+}
+
+html body #root .lp-page .hdr-brand-text {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+}
+
+html body #root .lp-page .hdr-brand-title {
+  color: #10182b !important;
+  font-weight: 800 !important;
+  font-size: 1.15rem !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.15 !important;
+}
+
+html body #root .lp-page .hdr-brand-subtitle {
+  color: #c60016 !important;
+  font-weight: 800 !important;
+  font-size: 0.62rem !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+}
+
+/* Search bar inside header */
+html body #root .lp-page .hdr-search-pill-bar {
+  background: #f8fafc !important;
+  border: 1.5px solid #e2e8f0 !important;
+  border-radius: 9999px !important;
+  padding: 0.4rem 0.95rem !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02) !important;
+  transition: all 0.2s ease !important;
+}
+
+html body #root .lp-page .hdr-search-pill-bar:focus-within {
+  border-color: #c60016 !important;
+  box-shadow: 0 4px 12px rgba(198, 0, 22, 0.12) !important;
+  background: #ffffff !important;
+}
+
+html body #root .lp-page .hdr-search-pill-input {
+  color: #0f172a !important;
+  font-size: 0.84rem !important;
+  font-weight: 500 !important;
+}
+
+html body #root .lp-page .hdr-search-pill-input::placeholder {
+  color: #64748b !important;
+}
+
+html body #root .lp-page .hdr-search-pill-icon {
+  color: #c60016 !important;
+}
+
+/* Action Icons (Reminders, Quick Add, Messages, Theme, Back) */
+html body #root .lp-page .hdr-icon-btn.hdr-icon-btn--circle {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  border-radius: 50% !important;
+  background: #ffffff !important;
+  border: 1.5px solid rgba(198, 0, 22, 0.3) !important;
+  color: #c60016 !important;
+  box-shadow: 0 2px 6px rgba(198, 0, 22, 0.06) !important;
+  transition: all 0.18s ease !important;
+}
+
+html body #root .lp-page .hdr-icon-btn.hdr-icon-btn--circle svg,
+html body #root .lp-page .hdr-icon-btn.hdr-icon-btn--circle svg * {
+  color: #c60016 !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+  transition: color 0.18s ease !important;
+}
+
+html body #root .lp-page .hdr-icon-btn.hdr-icon-btn--circle:hover {
+  background: #c60016 !important;
+  border-color: #c60016 !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(198, 0, 22, 0.22) !important;
+}
+
+html body #root .lp-page .hdr-icon-btn.hdr-icon-btn--circle:hover svg,
+html body #root .lp-page .hdr-icon-btn.hdr-icon-btn--circle:hover svg * {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* User profile button in header */
+html body #root .lp-page .hdr-user-btn {
+  background: #f8fafc !important;
+  border: 1.5px solid #e2e8f0 !important;
+  border-radius: 9999px !important;
+  padding: 0.28rem 0.75rem 0.28rem 0.28rem !important;
+  transition: all 0.18s ease !important;
+}
+
+html body #root .lp-page .hdr-user-btn:hover {
+  border-color: #c60016 !important;
+  background: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(198, 0, 22, 0.08) !important;
+}
+
+html body #root .lp-page .hdr-user-avatar-pill {
+  background: #c60016 !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  border-radius: 50% !important;
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+html body #root .lp-page .hdr-back-btn {
+  background: #c60016 !important;
+  border: 1.5px solid #990011 !important;
+  color: #ffffff !important;
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 50% !important;
+  box-shadow: 0 2px 8px rgba(198, 0, 22, 0.25) !important;
+}
+
+html body #root .lp-page .hdr-back-btn svg {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+}
+
+html body #root .lp-page .hdr-back-btn:hover {
+  background: #990011 !important;
+  transform: translateY(-1px) !important;
+}
+
+.lp-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.lp-content--modules-only {
+  padding-top: 0;
+}
+
+/* Modules Shell Container */
+.lp-modules-shell {
+  position: relative;
+  width: 100%;
+}
+
+/* Header / Hero Section - Neat & Professional */
+.lp-modules-header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1.75rem;
+  padding: 1.25rem 1.5rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+}
+
+.lp-modules-copy {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.lp-header-logo {
+  height: 64px;
+  width: auto;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.lp-modules-text-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.lp-modules-kicker {
+  display: inline-block;
+  margin-bottom: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #c60016;
+}
+
+.lp-modules-title {
+  margin: 0;
+  font-size: clamp(1.75rem, 3vw, 2.35rem);
+  font-weight: 800;
+  color: #10182b;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.lp-modules-subtitle {
+  margin: 0.35rem 0 0;
+  max-width: 44rem;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #475569;
+  font-weight: 500;
+}
+
+/* Header Meta Stats */
+.lp-modules-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.lp-modules-meta-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.75rem 1.25rem;
+  min-width: 140px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+}
+
+.lp-meta-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 0.2rem;
+}
+
+.lp-meta-value {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #c60016;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==========================================================================
+   UNIFIED MODULE CARDS GRID - NEAT & CLEAN UI
+   ========================================================================== */
+
+.lp-unified-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+/* Accent Variations with Professional Tints */
+.lp-card--cyan,
+.lp-card--navy,
+.lp-card--amber,
+.lp-card--teal,
+.lp-card--blue,
+.lp-card--steel,
+.lp-card--sky,
+.lp-card--orange {
+  --lp-accent-color: #c60016;
+  --lp-accent-bg: rgba(198, 0, 22, 0.08);
+  --lp-accent-border: rgba(198, 0, 22, 0.3);
+}
+
+/* Card Outer Container */
+.lp-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 170px;
+  background: #ffffff;
+  border: 1.5px solid rgba(198, 0, 22, 0.2);
+  border-radius: 18px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.lp-card:hover {
+  transform: translateY(-4px);
+  border-color: #c60016;
+  box-shadow: 0 10px 24px rgba(198, 0, 22, 0.14);
+}
+
+/* Highlight for Active Default Module Card */
+.lp-card--default-active {
+  border: 2px solid #c60016;
+  box-shadow: 0 6px 20px rgba(198, 0, 22, 0.18);
+  background: #ffffff;
+}
+
+.lp-card--default-active:hover {
+  border-color: #990011;
+  box-shadow: 0 10px 28px rgba(198, 0, 22, 0.24);
+}
+
+/* Card Top Clickable Area */
+.lp-card-top {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 1.25rem 1rem 0.65rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+}
+
+/* Card Icon Container */
+.lp-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #c60016;
+  font-size: 1.2rem;
+  border: 1.5px solid rgba(198, 0, 22, 0.3);
+  box-shadow: 0 2px 8px rgba(198, 0, 22, 0.08);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.lp-card:hover .lp-card-icon {
+  transform: scale(1.08);
+  background: #c60016;
+  color: #ffffff;
+  border-color: #c60016;
+  box-shadow: 0 4px 14px rgba(198, 0, 22, 0.25);
+}
+
+/* Card Title */
+.lp-card-title {
+  font-size: 0.94rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #10182b;
+  text-align: center;
+  letter-spacing: -0.01em;
+  word-break: break-word;
+  transition: color 0.2s ease;
+}
+
+.lp-card:hover .lp-card-title {
+  color: #c60016;
+}
+
+.lp-card-title--full {
+  white-space: normal;
+  overflow: visible;
+}
+
+/* Card Footer / Set Default Button */
+.lp-card-footer {
+  position: relative;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  height: 34px;
+  margin: 0.4rem 0.85rem 0.85rem;
+  padding: 0 0.85rem;
+  border: 1.5px solid #c60016;
+  border-radius: 9999px;
+  background: #ffffff;
+  color: #c60016;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.lp-card-footer:hover {
+  background: #c60016;
+  color: #ffffff;
+  border-color: #c60016;
+}
+
+/* Active Default Module Footer Button */
+.lp-card-footer--active {
+  background: linear-gradient(135deg, #c60016 0%, #990011 100%);
+  border-color: #990011;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(198, 0, 22, 0.25);
+}
+
+.lp-card-footer--active:hover {
+  background: linear-gradient(135deg, #990011 0%, #7a000d 100%);
+  border-color: #7a000d;
+}
+
+.lp-card-footer-icon {
+  font-size: 0.72rem;
+}
+
+/* ==========================================================================
+   RESPONSIVE DESIGN BREAKPOINTS
+   ========================================================================== */
+
+@media (max-width: 1280px) {
+  .lp-unified-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 960px) {
+  .lp-modules-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.25rem;
+  }
+
+  .lp-modules-meta {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .lp-modules-meta-item {
+    flex: 1;
+  }
+
+  .lp-unified-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 580px) {
+  .lp-main {
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+  }
+
+  .lp-modules-copy {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.85rem;
+  }
+
+  .lp-unified-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==========================================================================
+   DARK THEME OVERRIDES
+   ========================================================================== */
+
+[data-theme="dark"] .lp-page {
+  background-color: #0b0f19;
+  background-image: none;
+}
+
+[data-theme="dark"] .lp-modules-header {
+  background: #1e293b;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .lp-modules-title {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .lp-modules-subtitle {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .lp-modules-meta-item {
+  background: #0f172a;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .lp-meta-label {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .lp-meta-value {
+  color: #ff4d5a;
+}
+
+[data-theme="dark"] .lp-card {
+  background: #1e293b;
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="dark"] .lp-card:hover {
+  background: #24334a;
+  border-color: #c60016;
+  box-shadow: 0 10px 24px rgba(198, 0, 22, 0.2);
+}
+
+[data-theme="dark"] .lp-card-title {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .lp-card-footer {
+  background: #0f172a;
+  border-color: #c60016;
+  color: #ff4d5a;
+}
+
+[data-theme="dark"] .lp-card-footer:hover {
+  background: #c60016;
+  color: #ffffff;
+}

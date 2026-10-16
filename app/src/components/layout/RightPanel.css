@@ -1,0 +1,340 @@
+/* ==========================================================================
+   RIGHT PANEL STYLING & STRUCTURE - NEAT, CLEAN & PROFESSIONAL (#c60016)
+   ========================================================================== */
+
+.right-panel {
+  position: sticky;
+  top: 0;
+  width: var(--right-panel-width, 310px);
+  height: calc(100vh - var(--header-height, 56px));
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  padding: calc(var(--header-height, 56px) + 24px) 1.25rem 2rem 0.5rem;
+  overflow: hidden auto;
+  isolation: isolate;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.right-panel::before,
+.right-panel::after {
+  display: none !important;
+}
+
+/* Common Section Shell */
+.right-panel-section {
+  position: relative;
+  z-index: 1;
+  border: 1.5px solid #e2e8f0 !important;
+  border-radius: 20px !important;
+  background: #ffffff !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03) !important;
+}
+
+.right-panel-section--actions {
+  padding: 1.15rem !important;
+}
+
+.right-panel-section--activity {
+  padding: 1.15rem !important;
+  overflow: hidden;
+}
+
+/* Section Headers */
+.right-panel-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.85rem;
+}
+
+.right-panel-section-head span {
+  color: #c60016 !important;
+  font-size: 0.72rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+}
+
+.right-panel-section-head small {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  background: rgba(198, 0, 22, 0.08);
+  color: #c60016 !important;
+  font-size: 0.64rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  border: 1px solid rgba(198, 0, 22, 0.2);
+}
+
+.right-panel-actions {
+  display: grid;
+  gap: 0.85rem;
+}
+
+/* Modern Professional Integration Cards */
+.rp-action-card--integration,
+.rp-ticket-add-btn {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  min-height: 3.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 16px !important;
+  color: #ffffff !important;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid #990011 !important;
+  background: linear-gradient(135deg, #c60016 0%, #990011 100%) !important;
+  box-shadow: 0 6px 18px rgba(198, 0, 22, 0.22) !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+  overflow: hidden;
+}
+
+.rp-action-card--integration:hover,
+.rp-ticket-add-btn:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 10px 24px rgba(198, 0, 22, 0.35) !important;
+}
+
+/* Action Icons Container */
+.rp-action-card--integration .rp-action-card__icon,
+.rp-ticket-add-btn__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  color: #c60016 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1) !important;
+  flex-shrink: 0;
+}
+
+.rp-action-card--integration .rp-action-card__icon svg,
+.rp-action-card--integration .rp-action-card__icon svg *,
+.rp-ticket-add-btn__icon svg,
+.rp-ticket-add-btn__icon svg * {
+  fill: currentColor !important;
+  stroke: currentColor !important;
+  color: #c60016 !important;
+}
+
+/* Action Card Titles & CTAs */
+.rp-action-card--integration .rp-action-card__label,
+.rp-ticket-add-btn strong {
+  display: block !important;
+  color: #ffffff !important;
+  font-size: 0.88rem !important;
+  font-weight: 800 !important;
+  line-height: 1.25 !important;
+}
+
+.rp-action-card--integration .rp-action-card__cta,
+.rp-ticket-add-btn small {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+  margin-top: 0.15rem !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-size: 0.66rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+}
+
+/* ==========================================================================
+   RECENT ACTIVITY LIST & TIMELINE - CLEAN & NEAT
+   ========================================================================== */
+
+.right-panel-activity {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding-left: 0.2rem;
+  padding-right: 0.5rem;
+  max-height: clamp(340px, 50vh, 520px);
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #c60016 #f1f5f9;
+}
+
+.right-panel-activity::-webkit-scrollbar {
+  width: 6px;
+}
+
+.right-panel-activity::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 9999px;
+}
+
+.right-panel-activity::-webkit-scrollbar-thumb {
+  background: #c60016;
+  border-radius: 9999px;
+}
+
+.right-panel-activity::-webkit-scrollbar-thumb:hover {
+  background: #990011;
+}
+
+/* Timeline Vertical Line */
+.right-panel-activity::before {
+  content: '';
+  position: absolute;
+  left: 1.15rem;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  width: 2px;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #c60016 0%, #cbd5e1 100%);
+}
+
+/* Activity Entry Items */
+.rp-entry {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.6rem 0.85rem 0.6rem 2.1rem;
+  border: 1.5px solid #e2e8f0 !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+/* Timeline Node Dot */
+.rp-entry::before {
+  content: '';
+  position: absolute;
+  left: 0.95rem;
+  top: 1.1rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #c60016;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 2px rgba(198, 0, 22, 0.2);
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+
+.rp-entry:hover {
+  transform: translateX(3px) !important;
+  border-color: #c60016 !important;
+  box-shadow: 0 4px 14px rgba(198, 0, 22, 0.12) !important;
+}
+
+/* Activity Badges */
+.rp-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.18rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  align-self: flex-start;
+}
+
+.rp-badge--live {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.rp-badge--message {
+  background: rgba(198, 0, 22, 0.08);
+  color: #c60016;
+  border: 1px solid rgba(198, 0, 22, 0.25);
+}
+
+.rp-badge--support {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.rp-badge--feed {
+  background: rgba(99, 102, 241, 0.12);
+  color: #4f46e5;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.rp-entry-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.rp-entry-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.rp-entry-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 6px;
+  background: rgba(198, 0, 22, 0.08);
+  color: #c60016;
+}
+
+.rp-entry-icon {
+  font-size: 0.78rem;
+}
+
+.rp-entry-text {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #10182b;
+}
+
+.rp-entry-name {
+  font-weight: 800;
+  color: #c60016;
+}
+
+.rp-entry-action {
+  color: #475569;
+}
+
+.rp-entry-time {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Mobile & Responsive Hide */
+@media (max-width: 980px) {
+  .right-panel {
+    display: none !important;
+  }
+}
