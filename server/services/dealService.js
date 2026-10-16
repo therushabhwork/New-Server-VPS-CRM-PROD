@@ -906,9 +906,12 @@ module.exports = {
       const recordNumber = existingNum || (collectionName === 'accounts' ? `ACC-${seriesNum}` : collectionName === 'customers' ? `CUST-${seriesNum}` : `DL-${seriesNum}`)
 
       const rawDateCandidate = cleanStr(
+        row.dealDate ||
         row.accountDate ||
         row.addedDate ||
         row.createdAt ||
+        row.formData?.dealDate ||
+        row.formData?.['Deal Date'] ||
         row.formData?.accountDate ||
         row.formData?.['Added Date'] ||
         row.formData?.['Account Date'] ||
@@ -917,6 +920,7 @@ module.exports = {
       const resolvedAccountDate = rawDateCandidate && !isNaN(new Date(rawDateCandidate).getTime())
         ? new Date(rawDateCandidate).toISOString()
         : (rawDateCandidate || null)
+      const effectiveDealDate = dealDate || (resolvedAccountDate ? resolvedAccountDate.slice(0, 10) : '')
 
       const docPayload = {
         legacyId,
@@ -939,10 +943,10 @@ module.exports = {
         stage: collectionName === 'leads' ? 'new' : 'converted',
         status: collectionName === 'leads' ? 'new' : 'converted',
         probability: probability || 0,
-        expectedCloseDate: dealDate,
-        expectedClosureDate: dealDate,
-        closeDate: dealDate,
-        actualClosureDate: dealDate,
+        expectedCloseDate: effectiveDealDate,
+        expectedClosureDate: effectiveDealDate,
+        closeDate: effectiveDealDate,
+        actualClosureDate: effectiveDealDate,
         assignedTo: resolvedUserId,
         ownerUserId: resolvedUserId,
         createdBy: resolvedUserId,
@@ -951,9 +955,9 @@ module.exports = {
         ownerName: resolvedUserName,
         coOwners,
         notes: description,
-        dealDate,
-        accountDate: collectionName === 'accounts' ? (resolvedAccountDate || undefined) : undefined,
-        addedDate: collectionName === 'accounts' ? (resolvedAccountDate || undefined) : undefined,
+        dealDate: effectiveDealDate,
+        accountDate: resolvedAccountDate || undefined,
+        addedDate: resolvedAccountDate || undefined,
         dealType,
         dealSource,
         source: dealSource,
@@ -1024,16 +1028,17 @@ module.exports = {
           accountNumber: recordNumber,
           customerNumber: recordNumber,
           probability,
-          expectedCloseDate: dealDate,
-          expectedClosureDate: dealDate,
-          closeDate: dealDate,
-          actualClosureDate: dealDate,
+          expectedCloseDate: effectiveDealDate,
+          expectedClosureDate: effectiveDealDate,
+          closeDate: effectiveDealDate,
+          actualClosureDate: effectiveDealDate,
           ownerId: resolvedUserId,
-          dealDate,
-          accountDate: collectionName === 'accounts' ? (resolvedAccountDate || undefined) : undefined,
-          addedDate: collectionName === 'accounts' ? (resolvedAccountDate || undefined) : undefined,
-          'Account Date': collectionName === 'accounts' ? (resolvedAccountDate || undefined) : undefined,
-          'Added Date': collectionName === 'accounts' ? (resolvedAccountDate || undefined) : undefined,
+          dealDate: effectiveDealDate,
+          accountDate: resolvedAccountDate || undefined,
+          addedDate: resolvedAccountDate || undefined,
+          'Account Date': resolvedAccountDate || undefined,
+          'Added Date': resolvedAccountDate || undefined,
+          'Deal Date': effectiveDealDate || undefined,
           dealType,
           phone,
           dealSource,
@@ -1048,7 +1053,7 @@ module.exports = {
           assignedUserId: String(resolvedUserId),
           userId: String(resolvedUserId),
         },
-        createdAt: (collectionName === 'accounts' && resolvedAccountDate) ? resolvedAccountDate : new Date().toISOString(),
+        createdAt: resolvedAccountDate || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }
 
@@ -1062,7 +1067,7 @@ module.exports = {
             ...docPayload,
             legacyId: custLegacyId,
             customerNumber: `CUST-${custLegacyId < 1001 ? custLegacyId + 1000 : custLegacyId}`,
-            createdAt: (collectionName === 'accounts' && resolvedAccountDate) ? resolvedAccountDate : new Date().toISOString(),
+            createdAt: resolvedAccountDate || docPayload.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           }
           await Customer.create(custDoc)
@@ -1074,7 +1079,7 @@ module.exports = {
             ...docPayload,
             legacyId: accLegacyId,
             accountNumber: `ACC-${accLegacyId < 1001 ? accLegacyId + 1000 : accLegacyId}`,
-            createdAt: (collectionName === 'accounts' && resolvedAccountDate) ? resolvedAccountDate : new Date().toISOString(),
+            createdAt: resolvedAccountDate || docPayload.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           }
           await Account.create(accDoc)
@@ -1087,21 +1092,26 @@ module.exports = {
             legacyId: leadLegacyId,
             accountDate: resolvedAccountDate || docPayload.accountDate || undefined,
             addedDate: resolvedAccountDate || docPayload.addedDate || undefined,
+            dealDate: effectiveDealDate || undefined,
             stage: 'new',
             status: 'new',
             formData: {
               ...(row.formData || {}),
               accountDate: resolvedAccountDate || undefined,
               addedDate: resolvedAccountDate || undefined,
+              dealDate: effectiveDealDate || undefined,
               'Account Date': resolvedAccountDate || undefined,
               'Added Date': resolvedAccountDate || undefined,
+              'Deal Date': effectiveDealDate || undefined,
             },
             data: {
               ...docPayload.data,
               accountDate: resolvedAccountDate || undefined,
               addedDate: resolvedAccountDate || undefined,
+              dealDate: effectiveDealDate || undefined,
               'Account Date': resolvedAccountDate || undefined,
               'Added Date': resolvedAccountDate || undefined,
+              'Deal Date': effectiveDealDate || undefined,
               stage: 'new',
               status: 'new',
               statusLabel: 'New Lead',
@@ -1118,15 +1128,33 @@ module.exports = {
           const leadDoc = {
             ...docPayload,
             legacyId: leadLegacyId,
+            dealDate: effectiveDealDate || undefined,
+            accountDate: resolvedAccountDate || undefined,
+            addedDate: resolvedAccountDate || undefined,
             stage: 'new',
             status: 'new',
+            formData: {
+              ...(row.formData || {}),
+              dealDate: effectiveDealDate || undefined,
+              accountDate: resolvedAccountDate || undefined,
+              addedDate: resolvedAccountDate || undefined,
+              'Deal Date': effectiveDealDate || undefined,
+              'Account Date': resolvedAccountDate || undefined,
+              'Added Date': resolvedAccountDate || undefined,
+            },
             data: {
               ...docPayload.data,
+              dealDate: effectiveDealDate || undefined,
+              accountDate: resolvedAccountDate || undefined,
+              addedDate: resolvedAccountDate || undefined,
+              'Deal Date': effectiveDealDate || undefined,
+              'Account Date': resolvedAccountDate || undefined,
+              'Added Date': resolvedAccountDate || undefined,
               stage: 'new',
               status: 'new',
               statusLabel: 'New Lead',
             },
-            createdAt: new Date().toISOString(),
+            createdAt: resolvedAccountDate || docPayload.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           }
           await Lead.create(leadDoc)

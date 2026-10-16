@@ -3634,7 +3634,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
         const dealNumber = String(getVal(row, 'Deal Number', 'Deal No', 'DealNumber', 'Deal #') || '').trim()
         const dealOwner = String(getVal(row, 'Deal Owner', 'Account Owner', 'Owner Name', 'Owner', 'Assigned To', 'Owner Code', 'ownerCode') || '').trim()
         const coOwners = String(getVal(row, 'Deal Co-Owners', 'Co-Owners', 'Co Owners', 'CoOwners') || '').trim()
-        const rawDealDate = getVal(row, 'Deal Date', 'Date', 'Expected Close Date', 'Close Date')
+        const rawDealDate = getVal(row, 'Deal Date', 'DealDate', 'Added Date', 'addedDate', 'Account Date', 'accountDate', 'Date', 'date', 'Created Date', 'Expected Close Date', 'Close Date')
         const dealDate = formatExcelDate(rawDealDate)
         const dealType = String(getVal(row, 'Deal Type', 'Type') || '').trim()
         const rawDealVal = getVal(row, 'Deal Value', 'Amount', 'Value', 'Deal Amount')
@@ -3682,6 +3682,9 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
           accountOwner: dealOwner,
           coOwners,
           dealDate,
+          accountDate: dealDate || undefined,
+          addedDate: dealDate || undefined,
+          createdAt: dealDate && !isNaN(new Date(dealDate).getTime()) ? new Date(dealDate).toISOString() : undefined,
           dealType: category || source || dealType || 'SWATI',
           dealValue,
           amount: dealValue,
@@ -3809,6 +3812,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
     const hasPoValueColumn   = workbookColumns.some((column) => column.key === 'poValue')
     const displayExportRows = exportRows.map((row) => ({
       ...row,
+      dealDate: row.dealDate || row.accountDate || row.addedDate || row.formData?.dealDate || row.formData?.['Deal Date'] || row.data?.dealDate || row.dealDate,
       reasonForLostOrder: getLostOrderReasonLabel(row.reasonForLostOrder),
     }))
 

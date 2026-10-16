@@ -127,18 +127,30 @@ const formatLegacyBoardDate = (value, row = {}) => {
     || row.accountDate
     || row.accountDateDisplay
     || row.addedDate
+    || row.dealDate
     || row.formData?.['Added Date']
     || row.formData?.addedDate
     || row.formData?.['Account Date']
     || row.formData?.accountDate
-    || row.createdAt
-    || row.created_at
+    || row.formData?.['Deal Date']
+    || row.formData?.dealDate
+    || row.data?.accountDate
+    || row.data?.addedDate
+    || row.data?.dealDate
+    || row.data?.['Added Date']
+    || row.data?.['Account Date']
+    || row.data?.['Deal Date']
     || row.raw?.accountDate
     || row.raw?.addedDate
+    || row.raw?.dealDate
     || row.raw?.formData?.['Added Date']
     || row.raw?.formData?.addedDate
     || row.raw?.formData?.['Account Date']
     || row.raw?.formData?.accountDate
+    || row.raw?.formData?.['Deal Date']
+    || row.raw?.formData?.dealDate
+    || row.createdAt
+    || row.created_at
     || row.raw?.createdAt
     || row.raw?.created_at
   if (!dateVal) return emptyValue

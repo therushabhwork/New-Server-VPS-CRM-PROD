@@ -248,7 +248,18 @@ export const exportAllAccountsAndDealsWorkbook = async ({ primary = 'accounts' }
           : String(rawNumber || `DL-${String(idx + 1).padStart(5, '0')}`))
 
     // Resolve Date
-    const rawDate = deal.dealDate || deal.createdAt || deal.quotationDate || ''
+    const rawDate = deal.dealDate
+      || deal.accountDate
+      || deal.addedDate
+      || deal.data?.dealDate
+      || deal.data?.accountDate
+      || deal.data?.addedDate
+      || deal.formData?.dealDate
+      || deal.formData?.['Deal Date']
+      || deal.formData?.['Added Date']
+      || deal.quotationDate
+      || deal.createdAt
+      || ''
     let dealDateDisplay = '-'
     if (rawDate) {
       const d = new Date(rawDate)

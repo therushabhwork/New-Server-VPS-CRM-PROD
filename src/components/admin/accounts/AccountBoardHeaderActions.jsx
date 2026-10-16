@@ -249,7 +249,7 @@ const AccountBoardHeaderActions = ({
         const rawAccNameCandidate = getVal('Account Name', 'AccountName', 'Customer Name', 'customerName', 'Company Name', 'companyName', 'Company', 'company', 'Client Name', 'clientName', 'Name', 'name', 'Account')
         const accountName = isCodePatternStr(rawAccNameCandidate) ? '' : rawAccNameCandidate
 
-        const rawDateInput = getVal('Added Date', 'addedDate', 'AddedDate', 'Added_Date', 'Account Date', 'Date', 'accountDate')
+        const rawDateInput = getVal('Deal Date', 'dealDate', 'Deal_Date', 'deal_date', 'Added Date', 'addedDate', 'AddedDate', 'Added_Date', 'Account Date', 'accountDate', 'Date', 'date', 'Created Date')
         const accountDate = parseExcelDateValue(rawDateInput) || rawDateInput || undefined
         const accountCategory = getVal('Account Category', 'AccountCategory', 'Category', 'accountCategory')
         const contactPerson = getVal('Contact Person', 'ContactPerson', 'Contact', 'contactPerson')
@@ -316,6 +316,7 @@ const AccountBoardHeaderActions = ({
           jobNo: jobNo || undefined,
           accountDate: accountDate || undefined,
           addedDate: accountDate || undefined,
+          dealDate: accountDate || undefined,
           createdAt: accountDate || undefined,
           accountCategory: accountCategory || undefined,
           contactPerson: contactPerson || undefined,
@@ -340,6 +341,7 @@ const AccountBoardHeaderActions = ({
             'Account Name': displayName,
             'Account Date': accountDate,
             'Added Date': accountDate,
+            'Deal Date': accountDate,
             'Account Category': accountCategory,
             'Account Owner': loggedInUserName,
             'Contact Person': contactPerson,
@@ -361,6 +363,7 @@ const AccountBoardHeaderActions = ({
             accountName: displayName,
             accountDate,
             addedDate: accountDate,
+            dealDate: accountDate,
             accountCategory,
             accountOwner: loggedInUserName,
             ownerCode: loggedInOwnerCode,
