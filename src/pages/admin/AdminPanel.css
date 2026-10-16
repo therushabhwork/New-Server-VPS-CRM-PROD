@@ -3325,7 +3325,7 @@ html:not([data-theme="dark"]) select.ap-performance-select option {
   .ap-section-icon svg,
   .ap-integ-arrow svg,
   .ap-home-tab svg,
-  .ap-tab svg,
+  .ap-tab--active svg,
   .ap-title-icon svg
 ) {
   color: #ffffff !important;

@@ -137,6 +137,11 @@ const Sidebar = ({ isAdmin = false }) => {
   const isReportsRoute = isAdmin && location.pathname.startsWith('/admin/reports')
   const isPasswordResetRoute = isAdmin && location.pathname.startsWith('/admin/password-reset-requests')
   const isTeamViewRoute = isAdmin && location.pathname.startsWith('/admin/team-view')
+  const isEmailSettingsRoute = isAdmin && (
+    location.pathname.startsWith('/admin/email-templates')
+    || location.pathname.startsWith('/admin/email-scheduler')
+    || location.pathname.startsWith('/reports/scheduled-emails')
+  )
   const isQuotationRoute = isAdmin && (
     location.pathname.startsWith('/admin/quotation-manager')
     || location.pathname === '/admin/reports/quotation-summary'
@@ -161,6 +166,7 @@ const Sidebar = ({ isAdmin = false }) => {
   const [tasksOpen, setTasksOpen] = useState(isTasksRoute)
   const [reportsOpen, setReportsOpen] = useState(isReportsRoute)
   const [quotationManagerOpen, setQuotationManagerOpen] = useState(isQuotationRoute)
+  const [emailSettingsOpen, setEmailSettingsOpen] = useState(isEmailSettingsRoute)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => (
     localStorage.getItem(isAdmin ? ADMIN_SIDEBAR_COLLAPSE_STORAGE_KEY : USER_SIDEBAR_COLLAPSE_STORAGE_KEY) === 'true'
   ))
@@ -197,6 +203,7 @@ const Sidebar = ({ isAdmin = false }) => {
   useEffect(() => { if (isTasksRoute) setTasksOpen(true) }, [isTasksRoute])
   useEffect(() => { if (isReportsRoute) setReportsOpen(true) }, [isReportsRoute])
   useEffect(() => { if (isQuotationRoute) setQuotationManagerOpen(true) }, [isQuotationRoute])
+  useEffect(() => { if (isEmailSettingsRoute) setEmailSettingsOpen(true) }, [isEmailSettingsRoute])
   useEffect(() => { if (isUserAccountsRoute) setUserAccountsOpen(true) }, [isUserAccountsRoute])
   useEffect(() => { if (isUserCustomersRoute) setUserCustomersOpen(true) }, [isUserCustomersRoute])
   useEffect(() => { if (isUserDealsRoute) setUserDealsOpen(true) }, [isUserDealsRoute])
@@ -281,6 +288,7 @@ const Sidebar = ({ isAdmin = false }) => {
         setReportsOpen(false)
         setTasksOpen(false)
         setQuotationManagerOpen(false)
+        setEmailSettingsOpen(false)
         setUserAccountsOpen(false)
         setUserCustomersOpen(false)
         setUserDealsOpen(false)
@@ -623,14 +631,17 @@ const Sidebar = ({ isAdmin = false }) => {
             <span>Charts</span>
           </NavLink>
 
-          <NavLink
-            to="/admin/email-templates"
-            className={({ isActive }) => `sb-link ${isActive ? 'sb-link--active' : ''}`}
-            title="Email Templates"
+          <SidebarGroup
+            icon={<FaEnvelope />}
+            label="Email Settings"
+            isActive={isEmailSettingsRoute}
+            isOpen={emailSettingsOpen && !isSidebarCollapsed}
+            isCollapsed={isSidebarCollapsed}
+            onToggle={() => setEmailSettingsOpen((previous) => !previous)}
           >
-            <span className="sb-link-icon"><FaEnvelope /></span>
-            <span>Email Templates</span>
-          </NavLink>
+            <SubLink to="/admin/email-templates" label="Email Templates" />
+            <SubLink to="/admin/email-scheduler" label="Email Scheduler" />
+          </SidebarGroup>
 
           {(user?.role === 'super_admin' || user?.actualRole === 'super_admin') ? (
             <NavLink

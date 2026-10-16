@@ -17,6 +17,7 @@ import {
   FaPlay,
   FaTable,
   FaTrash,
+  FaEnvelope,
 } from 'react-icons/fa'
 import { useAuth } from '../../../context/AuthContext'
 import { useData } from '../../../context/DataContext'
@@ -368,6 +369,7 @@ const getReportGroupBy = (report) => (
 )
 
 const ReportCard = ({ report, onViewWeb, onExport, onDelete, isKevalOrAdmin, canDeleteReport }) => {
+  const navigate = useNavigate()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const menuRef = useRef(null)
 
@@ -423,6 +425,17 @@ const ReportCard = ({ report, onViewWeb, onExport, onDelete, isKevalOrAdmin, can
                   <button type="button" className="cr-dropdown-item" onClick={() => { setDropdownOpen(false); onExport(report, 'excel') }}>
                     <FaFileExcel className="cr-dropdown-export-icon" />
                     <span className="cr-dropdown-export-label">Export to Excel</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="cr-dropdown-item"
+                    onClick={() => {
+                      setDropdownOpen(false)
+                      navigate('/admin/email-scheduler')
+                    }}
+                  >
+                    <FaEnvelope className="cr-dropdown-export-icon" />
+                    <span className="cr-dropdown-export-label">Schedule Email</span>
                   </button>
                 </div>
               )}
@@ -1930,7 +1943,6 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
       <header className="cr-list-topbar">
         <h1>Custom Reports</h1>
         <div className="cr-list-topbar-actions">
-          <button type="button" className="cr-list-help">Need Help?</button>
           {canCreateReportTemplate && (
             <SplitDropdown
               label="Add Report Template"

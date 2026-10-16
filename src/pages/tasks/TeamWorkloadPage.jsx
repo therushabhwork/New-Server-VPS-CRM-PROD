@@ -301,7 +301,7 @@ export const TeamWorkloadPage = () => {
           minHeight: '100%',
         }}
       >
-        {/* PANEL 1: Left User Selection Sidebar (Sticky, capped height, internal scrollbar) */}
+        {/* PANEL 1: Left User Selection Sidebar (Sticky, equal height as main dashboard sections) */}
         {isAdmin && (
           <div
             style={{
@@ -309,9 +309,10 @@ export const TeamWorkloadPage = () => {
               minWidth: '280px',
               position: 'sticky',
               top: '0.75rem',
-              alignSelf: 'flex-start',
-              height: 'calc(100vh - 175px)',
-              maxHeight: 'calc(100vh - 175px)',
+              alignSelf: 'stretch',
+              height: 'calc(120vh - 175px)',
+              maxHeight: 'calc(120vh - 175px)',
+              minHeight: '950px',
               display: 'flex',
               flexDirection: 'column',
             }}

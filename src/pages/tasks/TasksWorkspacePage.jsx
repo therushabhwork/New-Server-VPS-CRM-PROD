@@ -620,9 +620,9 @@ export const TasksWorkspacePage = () => {
                         {t.title}
                       </h4>
                       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.4rem', marginTop: '0.35rem', fontSize: '0.7rem' }}>
-                        {t.projectId && <span style={{ color: '#c60016', fontWeight: '700', background: '#fef2f2', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>Project #{t.projectId}</span>}
-                        {t.dealId && <span style={{ color: '#2563eb', fontWeight: '600', background: '#eff6ff', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>Deal #{t.dealId}</span>}
-                        {t.accountId && <span style={{ color: '#7c3aed', fontWeight: '600', background: '#faf5ff', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>Account #{t.accountId}</span>}
+                        {t.projectId && <span style={{ color: '#c60016', fontWeight: '700', background: '#fef2f2', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>Project {t.projectId}</span>}
+                        {t.dealId && <span style={{ color: '#2563eb', fontWeight: '600', background: '#eff6ff', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>Deal {t.dealId}</span>}
+                        {t.accountId && <span style={{ color: '#7c3aed', fontWeight: '600', background: '#faf5ff', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>Account {t.accountId}</span>}
                         {t.quotationId && <span style={{ color: '#059669', fontWeight: '600', background: '#ecfdf5', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>QT #{t.quotationId}</span>}
                       </div>
                     </div>

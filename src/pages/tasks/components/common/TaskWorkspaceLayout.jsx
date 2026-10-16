@@ -132,10 +132,10 @@ export const TaskWorkspaceLayout = ({ children, activeTabKey, activeTab }) => {
                   minHeight: '2.2rem',
                   fontSize: '0.81rem',
                   fontWeight: isActive ? '800' : '600',
-                  color: isActive ? '#c60016' : '#475569',
-                  background: isActive ? '#fef2f2' : '#ffffff',
-                  border: isActive ? '1.5px solid #c60016' : '1px solid #e2e8f0',
-                  boxShadow: isActive ? '0 2px 6px rgba(198, 0, 22, 0.12)' : 'none',
+                  color: isActive ? '#ffffff' : '#475569',
+                  background: isActive ? 'linear-gradient(135deg, #80000e 0%, #c60016 58%, #e11d2e 100%)' : '#ffffff',
+                  border: isActive ? '1.5px solid rgba(198, 0, 22, 0.4)' : '1px solid #e2e8f0',
+                  boxShadow: isActive ? '0 4px 12px rgba(198, 0, 22, 0.25)' : 'none',
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -150,7 +150,7 @@ export const TaskWorkspaceLayout = ({ children, activeTabKey, activeTab }) => {
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: isActive ? '#c60016' : '#64748b',
+                    color: isActive ? '#ffffff' : '#64748b',
                     fontSize: '0.86rem',
                     opacity: 1,
                     visibility: 'visible',
@@ -159,7 +159,15 @@ export const TaskWorkspaceLayout = ({ children, activeTabKey, activeTab }) => {
                 >
                   {tab.icon}
                 </span>
-                <span>{tab.label}</span>
+                <span
+                  style={{
+                    color: isActive ? '#ffffff' : '#475569',
+                    opacity: 1,
+                    visibility: 'visible',
+                  }}
+                >
+                  {tab.label}
+                </span>
               </button>
             )
           })}

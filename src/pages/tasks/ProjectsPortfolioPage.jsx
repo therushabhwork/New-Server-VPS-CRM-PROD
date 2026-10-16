@@ -386,6 +386,14 @@ export const ProjectsPortfolioPage = () => {
                   </p>
                 )}
 
+                {/* Project Manager Section */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <span style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.02em', display: 'block' }}>
+                    Project Manager
+                  </span>
+                  <UserEmailBadge email={proj.projectManagerEmail} size="small" />
+                </div>
+
                 {/* Progress Bar */}
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem', fontSize: '0.76rem' }}>
@@ -644,21 +652,17 @@ export const ProjectsPortfolioPage = () => {
                   )}
                 </div>
 
-                {/* Footer Meta: Project Manager & Due Date */}
-                <div style={{ marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <span style={{ fontSize: '0.68rem', color: '#64748b', display: 'block' }}>Project Manager</span>
-                    <UserEmailBadge email={proj.projectManagerEmail} size="small" />
-                  </div>
-                  {proj.endDate && (
+                {/* Footer Meta: Due Date */}
+                {proj.endDate && (
+                  <div style={{ marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ fontSize: '0.68rem', color: '#64748b', display: 'block' }}>Target Due</span>
                       <span style={{ fontSize: '0.76rem', fontWeight: '700', color: '#1e293b' }}>
                         {new Date(proj.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                       </span>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )
           })}

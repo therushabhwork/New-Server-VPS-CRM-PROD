@@ -28,7 +28,7 @@ const BADGE_STYLES = {
   sla_breached: { bg: 'transparent', text: '#dc2626', border: 'none', label: 'SLA Breached' },
 }
 
-export const TaskStatusBadge = ({ value, type = 'status', className = '' }) => {
+export const TaskStatusBadge = ({ value, type = 'status', className = '', style = {} }) => {
   const normalizedKey = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_')
   const config = BADGE_STYLES[normalizedKey] || {
     bg: '#ffffff',
@@ -45,9 +45,9 @@ export const TaskStatusBadge = ({ value, type = 'status', className = '' }) => {
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        padding: '0.18rem 0.55rem',
+        padding: type === 'sla' ? '0.1rem 0.35rem' : '0.18rem 0.55rem',
         borderRadius: '12px',
-        fontSize: '0.74rem',
+        fontSize: type === 'sla' ? '0.65rem' : '0.74rem',
         fontWeight: '700',
         backgroundColor: config.bg || 'transparent',
         background: config.bg || 'transparent',
@@ -55,6 +55,7 @@ export const TaskStatusBadge = ({ value, type = 'status', className = '' }) => {
         border: hasBorder ? `1px solid ${config.border}` : 'none',
         whiteSpace: 'nowrap',
         lineHeight: 1.2,
+        ...style,
       }}
     >
       {config.label}

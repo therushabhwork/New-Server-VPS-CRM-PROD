@@ -19,6 +19,8 @@ import { UserEmailBadge } from './components/common/UserEmailBadge'
 import { TaskStatusBadge } from './components/common/TaskStatusBadge'
 import workManagementService from '../../services/workManagementService'
 
+import '../admin/AdminPanel.css'
+
 export const AdminTaskDashboard = () => {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
@@ -78,7 +80,7 @@ export const AdminTaskDashboard = () => {
 
   return (
     <TaskWorkspaceLayout activeTabKey="dashboard">
-      {/* LEVEL 1: ORGANIZATION KPI OVERVIEW - SINGLE ROW */}
+      {/* LEVEL 1: ORGANIZATION KPI OVERVIEW - EXACT MATCH TO /admin/monitoring KPI CARDS */}
       <div
         style={{
           display: 'grid',
@@ -91,44 +93,23 @@ export const AdminTaskDashboard = () => {
         {kpiCards.map((kpi, idx) => (
           <div
             key={idx}
-            className="ap-dashboard-card"
+            className="ap-kpi-card"
             style={{
-              padding: '1.1rem 0.85rem',
-              minHeight: '115px',
-              borderRadius: '16px',
-              border: '1.5px solid #e2e8f0',
-              background: '#ffffff',
-              boxShadow: '0 4px 18px rgba(0, 0, 0, 0.03)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.45rem',
+              cursor: 'default',
             }}
           >
-            <div>
-              <span style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.02em', display: 'block' }}>
-                {kpi.label}
-              </span>
-              <div style={{ fontSize: '1.6rem', fontWeight: '800', color: kpi.color, marginTop: '0.35rem' }}>
-                {kpi.value}
-              </div>
-            </div>
-            <div
-              style={{
-                width: '2.4rem',
-                height: '2.4rem',
-                borderRadius: '12px',
-                background: 'rgba(198, 0, 22, 0.06)',
-                color: '#c60016',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '1.1rem',
-                flexShrink: 0,
-              }}
-            >
+            <div className="ap-kpi-icon-wrap">
               {kpi.icon}
             </div>
+            <div className="ap-kpi-main">
+              <div className="ap-kpi-val-row">
+                <span className="ap-kpi-value">{kpi.value}</span>
+              </div>
+              <div className="ap-kpi-title">{kpi.label}</div>
+            </div>
+            <svg className="ap-kpi-wave" viewBox="0 0 100 30" preserveAspectRatio="none">
+              <path d="M0,25 Q30,10 60,20 T100,5 L100,30 L0,30 Z" fill="rgba(198, 0, 22, 0.08)" />
+            </svg>
           </div>
         ))}
       </div>
@@ -186,9 +167,20 @@ export const AdminTaskDashboard = () => {
               className="ap-header-item-btn"
               onClick={fetchData}
               title="Refresh Performance Matrix"
+              aria-label="Refresh Performance Matrix"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '32px',
+                minWidth: '32px',
+                height: '32px',
+                padding: 0,
+                borderRadius: '8px',
+                cursor: 'pointer',
+              }}
             >
               <FaSyncAlt />
-              <span>Refresh</span>
             </button>
           </div>
         }

@@ -389,7 +389,6 @@ const EmailTemplatesPage = () => {
               onBlur={updateEditorBody}
               onPaste={handleEditorPaste}
             />
-            <textarea className="email-template-generated-html" rows={6} value={buildTemplateBodyHtml(form.bodyHtml)} readOnly />
           </div>
           {signatureImage ? (
             <div className="email-template-body-signature-preview">

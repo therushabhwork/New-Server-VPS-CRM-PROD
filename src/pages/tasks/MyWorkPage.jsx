@@ -331,9 +331,9 @@ export const MyWorkPage = () => {
                             Due: {new Date(t.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                           </span>
                         )}
-                        {t.projectId && <span style={{ color: '#c60016', fontWeight: '600' }}>Project #{t.projectId}</span>}
-                        {t.dealId && <span style={{ color: '#2563eb', fontWeight: '600' }}>Deal #{t.dealId}</span>}
-                        {t.accountId && <span style={{ color: '#7c3aed', fontWeight: '600' }}>Account #{t.accountId}</span>}
+                        {t.projectId && <span style={{ color: '#c60016', fontWeight: '600' }}>Project {t.projectId}</span>}
+                        {t.dealId && <span style={{ color: '#2563eb', fontWeight: '600' }}>Deal {t.dealId}</span>}
+                        {t.accountId && <span style={{ color: '#7c3aed', fontWeight: '600' }}>Account {t.accountId}</span>}
                       </div>
                     </div>
                   </div>

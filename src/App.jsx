@@ -67,6 +67,8 @@ import AdminLaunchpad from './pages/admin/launchpad/AdminLaunchpad'
 import DataManagerPage from './pages/admin/data-manager/DataManagerPage'
 import EmailTemplatesPage from './pages/admin/email-templates/EmailTemplatesPage'
 import EmailTemplatesAllPage from './pages/admin/email-templates/EmailTemplatesAllPage'
+import EmailSchedulerPage from './pages/admin/email-scheduler/EmailSchedulerPage'
+import CreateEmailSchedulePage from './pages/admin/email-scheduler/CreateEmailSchedulePage'
 
 import DocumentBasePage from './pages/admin/data-manager/DocumentBasePage'
 import ImageGalleryPage from './pages/admin/data-manager/ImageGalleryPage'
@@ -262,6 +264,8 @@ function App() {
                 <Route path="reports/quotation-summary" element={<QuotationSummaryReportPage basePath="/reports" />} />
 
                 <Route path="reports/customer-map" element={<CustomerMapViewPage />} />
+                <Route path="reports/scheduled-emails" element={<EmailSchedulerPage />} />
+                <Route path="reports/scheduled-emails/new" element={<CreateEmailSchedulePage />} />
                 <Route path="tickets" element={<TicketPage basePath="/tickets" />} />
                 <Route path="ticket" element={<TicketPage basePath="/tickets" />} />
                 <Route path="tickets/add" element={<AddTicketPage basePath="/tickets" />} />
@@ -400,6 +404,8 @@ function App() {
                 <Route path="quotation-manager/view" element={<AdminQuotationsPage />} />
 
                 <Route path="reports/customer-map" element={<CustomerMapViewPage />} />
+                <Route path="reports/scheduled-emails" element={<EmailSchedulerPage />} />
+                <Route path="reports/scheduled-emails/new" element={<CreateEmailSchedulePage />} />
                 <Route path="charts" element={<ChartsPage />} />
                 <Route path="charts/list" element={<ChartsListPage />} />
                 <Route path="view-settings" element={<Navigate to="/admin/monitoring" replace />} />
@@ -414,6 +420,9 @@ function App() {
                 <Route path="messages" element={<AdminMessagesPage />} />
                 <Route path="email-templates" element={<EmailTemplatesPage />} />
                 <Route path="email-templates/all" element={<EmailTemplatesAllPage />} />
+                <Route path="email-scheduler" element={<EmailSchedulerPage />} />
+                <Route path="email-scheduler/new" element={<CreateEmailSchedulePage />} />
+                <Route path="email-scheduler/create" element={<CreateEmailSchedulePage />} />
                 <Route path="integrations/outlook" element={<Navigate to="/admin/settings" replace />} />
                 <Route path="integrations" element={<IntegrationQrPage />} />
                 <Route path="integrations/:channel" element={<IntegrationQrPage />} />

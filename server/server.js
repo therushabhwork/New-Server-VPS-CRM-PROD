@@ -56,6 +56,8 @@ const reportRoutes = require('./routes/reportRoutes')
 const chartRoutes = require('./routes/chartRoutes')
 const accountProjectRoutes = require('./routes/accountProjectRoutes')
 const chartController = require('./controllers/chartController')
+const scheduledReportRoutes = require('./routes/scheduledReportRoutes')
+const reportScheduler = require('./jobs/reportScheduler')
 
 const tryRequire = (moduleName) => {
   try { return require(moduleName) } catch (_) { return null }
@@ -283,6 +285,7 @@ app.use('/api/database', requireBackendReady, databaseRoutes)
 app.use('/api/devices', requireBackendReady, userDeviceRoutes)
 app.use('/api', requireBackendReady, remarkRoutes)
 app.use('/api/reports', requireBackendReady, reportRoutes)
+app.use('/api/scheduled-reports', requireBackendReady, scheduledReportRoutes)
 app.use('/api/charts', requireBackendReady, chartRoutes)
 app.get('/api/dashboard/charts', requireBackendReady, requireAuth, chartController.listDashboardCharts)
 app.use(express.static(clientDistPath))
@@ -322,6 +325,8 @@ server.listen(env.port, () => {
   ensureDatabaseSetup().then((ready) => {
     if (!ready) {
       logger.warn('Backend is running in setup mode until MongoDB becomes available.')
+    } else {
+      reportScheduler.init()
     }
   })
 })

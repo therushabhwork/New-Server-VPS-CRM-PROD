@@ -294,3 +294,40 @@ body:has(.tasks-workspace-root),
   background-color: #94a3b8;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOP NAVIGATION TABS: INACTIVE TAB FA ICONS VISIBILITY & LIGHT GRAY COLOR
+   ═══════════════════════════════════════════════════════════════════════════ */
+body #root :is(.layout--admin, .layout--user) .tasks-workspace-root .ap-tab:not(.ap-tab--active) {
+  color: #475569 !important;
+  background: #ffffff !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+body #root :is(.layout--admin, .layout--user) .tasks-workspace-root .ap-tab:not(.ap-tab--active) :is(span, svg, path, circle, rect, line, polyline, polygon) {
+  color: rgb(100, 116, 139) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+  -webkit-text-fill-color: rgb(100, 116, 139) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+body #root :is(.layout--admin, .layout--user) .tasks-workspace-root .ap-tab.ap-tab--active {
+  background: linear-gradient(135deg, #80000e 0%, #c60016 58%, #e11d2e 100%) !important;
+  border-color: rgba(198, 0, 22, 0.4) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(198, 0, 22, 0.25) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+body #root :is(.layout--admin, .layout--user) .tasks-workspace-root .ap-tab.ap-tab--active :is(span, svg, path, circle, rect, line, polyline, polygon) {
+  color: #ffffff !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+  -webkit-text-fill-color: #ffffff !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+

@@ -55,15 +55,15 @@ export const WorkloadUserList = ({
       style={{
         width: '280px',
         minWidth: '280px',
-        backgroundColor: '#ffffff',
-        border: '1.5px solid #e2e8f0',
+        backgroundColor: 'rgb(255, 255, 255)',
+        border: '1.5px solid rgb(226, 232, 240)',
         borderRadius: '16px',
         display: 'flex',
         flexDirection: 'column',
-        height: 'calc(100vh - 175px)',
-        maxHeight: 'calc(100vh - 175px)',
-        minHeight: '520px',
-        boxShadow: '0 4px 18px rgba(0, 0, 0, 0.03)',
+        height: 'calc(120vh - 175px)',
+        maxHeight: 'calc(120vh - 175px)',
+        minHeight: '950px',
+        boxShadow: 'rgba(0, 0, 0, 0.03) 0px 4px 18px',
         overflow: 'hidden',
       }}
     >

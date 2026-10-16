@@ -114,6 +114,7 @@
 }
 
 .email-template-generated-html {
+  display: none !important;
   min-height: 120px;
   font-family: Consolas, Monaco, monospace !important;
   font-size: .78rem !important;
