@@ -1,5 +1,5 @@
   import React from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import PublicOnlyRoute from './components/common/PublicOnlyRoute'
@@ -138,11 +138,15 @@ const AccountDeletionPage = React.lazy(() => import('./pages/legal/AccountDeleti
 
 const RootRouteHandler = () => {
   const { user, loading } = useAuth()
+  const location = useLocation()
   if (loading) {
     return <Spinner fullScreen text="Loading..." />
   }
   if (!user) {
     return <LandingPage />
+  }
+  if (user.role === 'admin' && location.pathname.startsWith('/quotation-manager')) {
+    return <Navigate to={`/admin${location.pathname}${location.search}`} replace />
   }
   return (
     <ProtectedRoute allowedRoles={['user', 'manager', 'engineer', 'sales']}>

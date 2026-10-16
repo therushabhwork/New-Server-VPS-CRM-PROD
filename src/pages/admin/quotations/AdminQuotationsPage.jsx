@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  FaArrowLeft,
   FaCheck,
   FaChevronDown,
   FaChevronLeft,
@@ -270,12 +271,19 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
     if (viewParam && rows.length > 0) {
       const match = rows.find((r) => (
         String(r.id) === String(viewParam)
-        || String(r.raw?._id) === String(viewParam)
+        || String(r.raw?.id || '') === String(viewParam)
+        || String(r.raw?.legacyId || '') === String(viewParam)
+        || String(r.raw?._id || '') === String(viewParam)
         || String(r.num) === String(viewParam)
+        || String(r.raw?.quotationNumber || '') === String(viewParam)
+        || String(r.raw?.quoteNumber || '') === String(viewParam)
       ))
       if (match) {
         setViewRow(match)
         setViewRowFromUrl(true)
+        if (match.quotationContext && (match.quotationContext === 'deal' || match.quotationContext === 'account')) {
+          setActiveTab(match.quotationContext)
+        }
       }
     } else if ((accountIdParam || accountNoParam || accountNameParam) && rows.length > 0 && !revisionsModalRow && !viewRow) {
       const targetMatch = rows.find((r) => {
@@ -623,6 +631,9 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
   const openQuotationView = (row, syncUrl = true) => {
     setViewRow(row)
     setViewRowFromUrl(syncUrl)
+    if (row?.quotationContext && (row.quotationContext === 'deal' || row.quotationContext === 'account')) {
+      setActiveTab(row.quotationContext)
+    }
     if (syncUrl) {
       updateViewSearchParam(row.id)
     }
@@ -668,12 +679,20 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
     const matchedRow = rows.find((row) => (
       String(row.id) === String(viewQuotationId)
       || String(row.raw?.id || '') === String(viewQuotationId)
+      || String(row.raw?.legacyId || '') === String(viewQuotationId)
+      || String(row.raw?._id || '') === String(viewQuotationId)
+      || String(row.num) === String(viewQuotationId)
+      || String(row.raw?.quotationNumber || '') === String(viewQuotationId)
+      || String(row.raw?.quoteNumber || '') === String(viewQuotationId)
     ))
 
     if (!matchedRow) return
 
     setViewRowFromUrl(true)
     setViewRow((currentValue) => (currentValue?.id === matchedRow.id ? currentValue : matchedRow))
+    if (matchedRow.quotationContext && (matchedRow.quotationContext === 'deal' || matchedRow.quotationContext === 'account')) {
+      setActiveTab(matchedRow.quotationContext)
+    }
   }, [rows, viewQuotationId, viewRowFromUrl])
 
   const buildRelatedQuotationRows = (account) => {
@@ -1123,6 +1142,77 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
         onPrint={handlePrintPdfPage}
         onDownload={handleDownloadPdfPage}
       />
+    )
+  }
+
+  if (viewDocument) {
+    return (
+      <div className="aqp-quotation-full-page">
+        <header className="aqp-quotation-full-page__header">
+          <div className="aqp-quotation-full-page__title-group">
+            <button
+              type="button"
+              className="aqp-quotation-full-page__back-btn"
+              onClick={closeQuotationView}
+              title="Back to Quotations"
+            >
+              <FaArrowLeft className="aqp-btn-icon" />
+              Back to Quotations
+            </button>
+            <span className="aqp-quotation-full-page__title">
+              Quotation - {viewDocument.quotationNumber}
+            </span>
+            <span className="aqp-status-badge aqp-status-badge--info">
+              {viewDocument.statusLabel || viewDocument.status || 'Draft'}
+            </span>
+          </div>
+          <div className="aqp-modal-footer-group">
+            <button
+              type="button"
+              className="aqp-btn aqp-btn--red"
+              style={{ backgroundColor: '#c60016', borderColor: '#a80012', color: '#ffffff' }}
+              onClick={() => handleApproveRevisionItem(viewRow)}
+            >
+              <FaCheck className="aqp-btn-icon" />
+              Approve
+            </button>
+            <button
+              type="button"
+              className="aqp-btn aqp-btn--gray"
+              onClick={handleDeleteViewedQuotation}
+              aria-label="Delete quotation"
+            >
+              <FaTrash className="aqp-btn-icon" />
+              Delete
+            </button>
+            <button
+              type="button"
+              className="aqp-btn aqp-btn--blue"
+              onClick={() => triggerBrowserPdfSave(viewDocument)}
+            >
+              <FaPrint className="aqp-btn-icon" />
+              Print
+            </button>
+            <button
+              type="button"
+              className="aqp-btn aqp-btn--gray"
+              onClick={closeQuotationView}
+            >
+              Close
+            </button>
+          </div>
+        </header>
+
+        <main className="aqp-quotation-full-page__body">
+          <div className="aqp-quotation-full-page__doc-wrap">
+            <QuotationDocument
+              documentData={viewDocument}
+              editable={canUserEditQuotation(user)}
+              onEditField={handleInlineQuotationEdit}
+            />
+          </div>
+        </main>
+      </div>
     )
   }
 
@@ -1725,7 +1815,7 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
         <ModalShell
           title={`Quotation Preview - ${previewDocument.quotationNumber}`}
           onClose={() => setPreviewRow(null)}
-          size="aqp-modal--xl"
+          size="aqp-modal--xl aqp-modal--quotation-view"
           footer={(
             <>
               <button type="button" className="aqp-btn aqp-btn--gray" onClick={() => setPreviewRow(null)}>
@@ -1738,50 +1828,12 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
             </>
           )}
         >
-          <QuotationDocument documentData={previewDocument} />
+          <div className="aqp-view-quotation-document">
+            <QuotationDocument documentData={previewDocument} />
+          </div>
         </ModalShell>
       ) : null}
 
-      {viewDocument ? (
-        <ModalShell
-          title={`View Quotation - ${viewDocument.quotationNumber}`}
-          onClose={closeQuotationView}
-          onDelete={() => handleDeleteQuotation(viewDocument)}
-          size="aqp-modal--xl"
-        >
-          <div className="aqp-view-top-actions">
-            <div className="aqp-modal-footer-group">
-              <button
-                type="button"
-                className="aqp-btn aqp-btn--red"
-                style={{ backgroundColor: '#c60016', borderColor: '#a80012', color: '#ffffff' }}
-                onClick={() => handleApproveRevisionItem(viewRow)}
-              >
-                <FaCheck className="aqp-btn-icon" />
-                Approve
-              </button>
-              <button type="button" className="aqp-btn aqp-btn--gray" onClick={handleDeleteViewedQuotation} aria-label="Delete quotation">
-                <FaTrash className="aqp-btn-icon" />
-                Delete
-              </button>
-              <button type="button" className="aqp-btn aqp-btn--gray" onClick={closeQuotationView}>
-                Close
-              </button>
-              <button type="button" className="aqp-btn aqp-btn--blue" onClick={() => triggerBrowserPdfSave(viewDocument)}>
-                <FaPrint className="aqp-btn-icon" />
-                Print
-              </button>
-            </div>
-          </div>
-          <div className="aqp-view-quotation-document">
-            <QuotationDocument
-              documentData={viewDocument}
-              editable={canUserEditQuotation(user)}
-              onEditField={handleInlineQuotationEdit}
-            />
-          </div>
-        </ModalShell>
-      ) : null}
 
       {accountRow ? (
         <ModalShell

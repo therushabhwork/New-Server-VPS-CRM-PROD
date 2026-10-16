@@ -1244,7 +1244,7 @@
   max-width: 100%;
   display: flex;
   justify-content: center;
-  padding: 0.25rem 0 1.5rem;
+  padding: 0.25rem 0 0.5rem;
   box-sizing: border-box;
 }
 
@@ -1416,6 +1416,33 @@
   max-height: 92vh;
 }
 
+.aqp-modal--quotation-view,
+.aqp-modal:has(.aqp-view-quotation-document) {
+  width: min(1380px, 96vw) !important;
+  max-width: 96vw !important;
+  height: 94vh !important;
+  max-height: 94vh !important;
+  margin: auto !important;
+  border-radius: 8px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.aqp-modal--quotation-view .aqp-modal-body,
+.aqp-modal:has(.aqp-view-quotation-document) .aqp-modal-body {
+  padding: 0.75rem 1rem !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: calc(94vh - 58px) !important;
+  max-height: calc(94vh - 58px) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  display: block !important;
+  box-sizing: border-box !important;
+  background: var(--surface-card) !important;
+}
+
 @keyframes aqp-modal-in {
   from { 
     opacity: 0; 
@@ -1553,11 +1580,15 @@
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
-  margin-bottom: 0.85rem;
-  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.85rem;
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
   background: var(--surface-card);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .aqp-action-item:disabled,
@@ -1576,23 +1607,38 @@
 }
 
 .aqp-view-quotation-document {
-  width: 100%;
-  overflow: auto;
-  display: flex;
-  justify-content: center;
-  background: var(--surface-muted);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  padding: 0.75rem;
-  box-sizing: border-box;
+  width: 100% !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: flex-start !important;
+  background: var(--surface-muted) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 6px !important;
+  padding: 1rem !important;
+  box-sizing: border-box !important;
+  min-height: min-content !important;
+  overflow: visible !important;
 }
 
 .aqp-view-quotation-document .aqp-doc {
-  transform: none;
-  width: min(100%, 980px);
-  margin: 0;
-  padding: 0;
-  background: transparent;
+  transform: none !important;
+  width: 100% !important;
+  max-width: 1020px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  min-height: auto !important;
+  background: transparent !important;
+  box-sizing: border-box !important;
+}
+
+.aqp-view-quotation-document .aqp-doc__frame {
+  width: 100% !important;
+  max-width: 1020px !important;
+  margin: 0 auto !important;
+  background: var(--surface-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+  box-sizing: border-box !important;
 }
 
 .aqp-view-summary__header {
@@ -2359,6 +2405,7 @@
   border-color: var(--admin-red-border, #b91c1c);
   background: var(--admin-red, #dc2626);
   color: #ffffff;
+  padding: 0.6rem 0.85rem 0.5rem;
 }
 
 .aqp-view-quotation-document .aqp-doc__brand-head h2,
@@ -2762,6 +2809,10 @@
   color: var(--text-primary);
   font-size: 0.6rem;
   line-height: 1.5;
+}
+
+.aqp-view-quotation-document .aqp-doc__footer {
+  padding: 0.5rem 1rem 0.55rem;
 }
 
 @media (max-width: 960px) {
@@ -3688,3 +3739,119 @@ html body #root .aqp-search-input:focus {
 .aqp-doc .aqp-doc__kv-row .aqp-doc-editable-value {
   text-align: right !important;
 }
+
+/* ==========================================================================
+   Full Page Quotation View Display
+   ========================================================================== */
+
+.aqp-quotation-full-page {
+  width: 100%;
+  min-height: 100vh;
+  background: var(--surface-muted, #f8fafc);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.aqp-quotation-full-page__header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--surface-card, #ffffff);
+  border-bottom: 1px solid var(--border-subtle, #e2e8f0);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  flex-wrap: wrap;
+}
+
+.aqp-quotation-full-page__title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.aqp-quotation-full-page__back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+  background: var(--surface-muted, #f1f5f9);
+  border: 1px solid var(--border-subtle, #cbd5e1);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.aqp-quotation-full-page__back-btn:hover {
+  background: var(--surface-hover, #e2e8f0);
+  border-color: #94a3b8;
+}
+
+.aqp-quotation-full-page__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+}
+
+.aqp-quotation-full-page__body {
+  flex: 1 1 auto;
+  padding: 1.25rem 1rem 3rem;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.aqp-quotation-full-page__doc-wrap {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.aqp-quotation-full-page__doc-wrap .aqp-doc {
+  width: 100% !important;
+  max-width: 1040px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.aqp-quotation-full-page__doc-wrap .aqp-doc__frame {
+  width: 100% !important;
+  max-width: 1040px !important;
+  margin: 0 auto !important;
+  background: var(--surface-card, #ffffff) !important;
+  border: 1px solid var(--border-subtle, #e2e8f0) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+  border-radius: 4px !important;
+  box-sizing: border-box !important;
+}
+
+[data-theme="dark"] .aqp-quotation-full-page {
+  background: #0f172a;
+}
+
+[data-theme="dark"] .aqp-quotation-full-page__header {
+  background: #1e293b;
+  border-bottom-color: #334155;
+}
+
+[data-theme="dark"] .aqp-quotation-full-page__back-btn {
+  background: #334155;
+  color: #f8fafc;
+  border-color: #475569;
+}
+
+[data-theme="dark"] .aqp-quotation-full-page__title {
+  color: #f8fafc;
+}
+

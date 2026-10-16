@@ -823,9 +823,9 @@ export const buildQuotationDocumentData = (quotation, linkedAccount) => {
     ? quotation.organizationPhone
     : rawData.organizationPhone
 
-  const organizationPhone = (rawOrgPhone !== undefined && rawOrgPhone !== null)
+  const organizationPhone = (rawOrgPhone !== undefined && rawOrgPhone !== null && String(rawOrgPhone).trim() !== '')
     ? String(rawOrgPhone).trim()
-    : userPhone
+    : (userPhone || (isKnownProfileDocument ? (resolvedProfileFallback.organizationPhone || '') : SWATI_PROFILE_FALLBACK.organizationPhone))
   const organizationGstin = isKnownProfileDocument
     ? resolvedProfileFallback.organizationGstin || ''
     : quotation.organizationGstin || resolvedProfileFallback.organizationGstin || SWATI_PROFILE_FALLBACK.organizationGstin
@@ -877,6 +877,7 @@ export const buildQuotationDocumentData = (quotation, linkedAccount) => {
     revisionCode: quotation.revisionCode || (quotation.revisionNo === 0 ? 'R0' : quotation.revisionNo ? `R${quotation.revisionNo}` : 'R0'),
     revisionNo: quotation.revisionNo ?? 0,
     quotationRevisionAmounts: quotation.quotationRevisionAmounts || quotation.data?.quotationRevisionAmounts || {},
+    revisionAmounts: quotation.quotationRevisionAmounts || quotation.data?.quotationRevisionAmounts || {},
     product: quotation.product || '-',
     otherProduct: quotation.otherProduct || '-',
     otherService: quotation.otherService || '-',
@@ -1873,14 +1874,14 @@ export function QuotationDocument({ documentData, editable = false, onEditField 
           </section>
         </div>
 
-        {(documentData.revisionCode || documentData.revisionAmounts) && (
+        {(documentData.revisionCode || documentData.revisionAmounts || documentData.quotationRevisionAmounts) && (
           <div className="aqp-doc__terms" style={{ marginTop: '16px', width: '100%' }}>
             <section className="aqp-doc__terms-card" style={{ width: '100%', gridColumn: '1 / -1' }}>
               <h4>Quotation Revision History</h4>
               <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginTop: '8px', fontSize: '13px' }}>
                 <div><strong>Current Revision:</strong> <span className="aqp-status-badge aqp-status-badge--info">{documentData.revisionCode || 'Normal'}</span></div>
                 <div><strong>Status:</strong> {documentData.statusLabel || documentData.status || 'Draft'}</div>
-                {documentData.revisionAmounts && typeof documentData.revisionAmounts === 'object' && Object.entries(documentData.revisionAmounts).map(([revCode, revAmt]) => (
+                {(documentData.revisionAmounts || documentData.quotationRevisionAmounts) && typeof (documentData.revisionAmounts || documentData.quotationRevisionAmounts) === 'object' && Object.entries(documentData.revisionAmounts || documentData.quotationRevisionAmounts).map(([revCode, revAmt]) => (
                   <div key={revCode}><strong>{revCode} Amount:</strong> {formatCurrency(revAmt, documentData.currency)}</div>
                 ))}
               </div>

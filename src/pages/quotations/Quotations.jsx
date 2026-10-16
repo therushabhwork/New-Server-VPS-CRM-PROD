@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  FaArrowLeft,
   FaChevronDown,
   FaChevronLeft,
   FaChevronRight,
@@ -2334,7 +2335,79 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
         />
       ) : null}
 
-      {!pdfDocument ? (
+      {viewDocument ? (
+        <div className="aqp-quotation-full-page">
+          <header className="aqp-quotation-full-page__header">
+            <div className="aqp-quotation-full-page__title-group">
+              <button
+                type="button"
+                className="aqp-quotation-full-page__back-btn"
+                onClick={closeQuotationView}
+                title="Back to Quotations"
+              >
+                <FaArrowLeft className="aqp-btn-icon" />
+                Back to Quotations
+              </button>
+              <span className="aqp-quotation-full-page__title">
+                Quotation - {viewDocument.quotationNumber}
+              </span>
+              <span className="aqp-status-badge aqp-status-badge--info">
+                {viewDocument.statusLabel || viewDocument.status || 'Draft'}
+              </span>
+            </div>
+            <div className="aqp-modal-footer-group">
+              <button
+                type="button"
+                className="aqp-btn aqp-btn--blue"
+                style={{ backgroundColor: '#16a34a', borderColor: '#15803d', color: '#ffffff' }}
+                onClick={() => handleApproveRevisionItem(viewRow)}
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                className="aqp-btn aqp-btn--outline"
+                onClick={() => handleViewModalAction('preview')}
+              >
+                Preview
+              </button>
+              <button
+                type="button"
+                className="aqp-btn aqp-btn--blue"
+                onClick={() => printQuotationDocument(viewDocument)}
+              >
+                <FaPrint className="aqp-btn-icon" />
+                Print
+              </button>
+              <button
+                type="button"
+                className="aqp-btn aqp-btn--gray"
+                onClick={closeQuotationView}
+              >
+                Close
+              </button>
+            </div>
+          </header>
+
+          {viewDocument.rejectionReason ? (
+            <div className="aqp-view-summary__alert" style={{ margin: '1rem auto 0', maxWidth: '1040px' }}>
+              <strong>Rejection Reason:</strong> {viewDocument.rejectionReason}
+            </div>
+          ) : null}
+
+          <main className="aqp-quotation-full-page__body">
+            <div className="aqp-quotation-full-page__doc-wrap">
+              <QuotationDocument
+                documentData={viewDocument}
+                editable={canUserEditQuotation(user)}
+                onEditField={handleInlineQuotationEdit}
+              />
+            </div>
+          </main>
+        </div>
+      ) : null}
+
+      {!pdfDocument && !viewDocument ? (
       <div className="aqp-page">
         <div className="aqp-titlebar">
           <h1 className="aqp-title">Quotations</h1>
@@ -2518,7 +2591,7 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
         <ModalShell
           title={`Quotation Preview - ${previewDocument.quotationNumber}`}
           onClose={() => setPreviewRow(null)}
-          size="aqp-modal--xl"
+          size="aqp-modal--xl aqp-modal--quotation-view"
           footer={(
             <>
               <button type="button" className="aqp-btn aqp-btn--gray" onClick={() => setPreviewRow(null)}>
@@ -2531,110 +2604,12 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
             </>
           )}
         >
-          <QuotationDocument documentData={previewDocument} />
+          <div className="aqp-view-quotation-document">
+            <QuotationDocument documentData={previewDocument} />
+          </div>
         </ModalShell>
       ) : null}
 
-      {viewDocument ? (
-        <ModalShell
-          title={`View Quote - ${viewDocument.companyName || 'Company'}`}
-          onClose={closeQuotationView}
-          size="aqp-modal--xl"
-        >
-          <div className="aqp-view-top-actions">
-            <div className="aqp-modal-footer-group">
-              <button
-                type="button"
-                className="aqp-btn aqp-btn--blue"
-                style={{ backgroundColor: '#16a34a', borderColor: '#15803d', color: '#ffffff' }}
-                onClick={() => handleApproveRevisionItem(viewRow)}
-              >
-                Approve
-              </button>
-              <button type="button" className="aqp-btn aqp-btn--gray" onClick={closeQuotationView}>
-                Close
-              </button>
-              <button
-                type="button"
-                className="aqp-btn aqp-btn--outline"
-                onClick={() => handleViewModalAction('preview')}
-              >
-                Preview
-              </button>
-              <button
-                type="button"
-                className="aqp-btn aqp-btn--blue"
-                onClick={() => printQuotationDocument(viewDocument)}
-              >
-                <FaPrint className="aqp-btn-icon" />
-                Print
-              </button>
-            </div>
-          </div>
-          <div className="aqp-view-summary">
-            <div className="aqp-view-summary__header">
-
-              <div className="aqp-view-summary__header-info">
-                <div className="aqp-view-summary__quotation-actions">
-                  <div className="aqp-num-cell aqp-num-cell--inline">
-                    <span 
-                      className={`aqp-num-badge ${getActionBadgeClassName(viewRow?.status || viewDocument.statusLabel)}`}
-                      style={{ fontSize: '1.25rem', fontWeight: '600' }}
-                    >
-                      abc - {viewDocument.quotationNumber || '-'}
-                    </span>
-                    <button
-                      type="button"
-                      className={`aqp-dropdown-btn${viewActionMenuOpen ? ' aqp-dropdown-btn--active' : ''}`}
-                      aria-label={`Open actions for ${viewDocument.quotationNumber || 'quotation'}`}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        setViewActionMenuOpen((currentValue) => !currentValue)
-                      }}
-                      aria-expanded={viewActionMenuOpen}
-                      aria-haspopup="menu"
-                    >
-                      <FaChevronDown />
-                    </button>
-                    {viewActionMenuOpen ? (
-                      <div className="aqp-action-menu aqp-action-menu--inline" onClick={(event) => event.stopPropagation()}>
-                        {getVisibleQuotationActions().map((action) => {
-                          const Icon = action.icon
-                          return (
-                            <button
-                              key={action.key}
-                              type="button"
-                              className="aqp-action-item"
-                              onClick={() => handleViewModalAction(action.key)}
-                              disabled={actionLoadingId === viewRow?.id}
-                            >
-                              <Icon className={`aqp-action-icon${action.iconClass ? ` ${action.iconClass}` : ''}`} />
-                              {action.label}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-              <div className="aqp-view-summary__header-status">
-                <StatusBadge status={viewDocument.statusLabel} />
-              </div>
-            </div>
-            {viewDocument.rejectionReason ? (
-              <div className="aqp-view-summary__alert">
-                <strong>Rejection Reason:</strong> {viewDocument.rejectionReason}
-              </div>
-            ) : null}
-          </div>
-          <QuotationDocument
-            documentData={viewDocument}
-            editable={canUserEditQuotation(user)}
-            onEditField={handleInlineQuotationEdit}
-          />
-        </ModalShell>
-      ) : null}
 
       {accountRow ? (
         <ModalShell
