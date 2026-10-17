@@ -7,7 +7,7 @@ const scheduledReportSchema = new mongoose.Schema({
     trim: true,
   },
   companyId: {
-    type: String,
+    type: mongoose.Schema.Types.Mixed,
     default: null,
     index: true,
   },
@@ -22,6 +22,7 @@ const scheduledReportSchema = new mongoose.Schema({
   creatorEmail: {
     type: String,
     default: '',
+    index: true,
   },
 
   // Complete Report Definition from Sources 1, 2, or 3
@@ -65,6 +66,10 @@ const scheduledReportSchema = new mongoose.Schema({
       enum: ['today', 'last_7_days', 'this_month', 'previous_month', 'all_time', 'custom'],
       default: 'last_7_days',
     },
+    dateScopeLabel: {
+      type: String,
+      default: '',
+    },
     customStartDate: {
       type: Date,
       default: null,
@@ -84,6 +89,10 @@ const scheduledReportSchema = new mongoose.Schema({
     time: {
       type: String,
       default: '18:00', // 24-hr HH:mm format (IST)
+    },
+    timeFormatted: {
+      type: String,
+      default: '', // e.g. "10:10 AM IST"
     },
     timezone: {
       type: String,

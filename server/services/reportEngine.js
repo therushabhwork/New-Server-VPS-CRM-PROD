@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const reportFieldDefinitions = require('../config/reportFieldDefinitions');
 const emailService = require('./emailService');
 
+const { getMongoModel: getDbModel } = require('../models/mongoModels');
+
 const MODEL_MAP = {
   account: 'Lead',
   lead: 'Lead',
@@ -16,12 +18,12 @@ const COLLECTION_NAME_MAP = {
   deal: 'deals',
   customer: 'customers',
   quotation: 'quotations',
+  remark: 'leads',
 };
 
 const getMongoModel = (entityType) => {
-  const modelName = MODEL_MAP[entityType] || 'Lead';
-  if (mongoose.models[modelName]) return mongoose.models[modelName];
-  return mongoose.model(modelName);
+  const colName = COLLECTION_NAME_MAP[entityType] || 'leads';
+  return getDbModel(colName);
 };
 
 const formatDateDisplay = (dateInput) => {

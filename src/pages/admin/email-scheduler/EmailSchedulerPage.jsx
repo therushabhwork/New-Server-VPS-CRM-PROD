@@ -5,6 +5,7 @@ import {
   FaPlay,
   FaPause,
   FaHistory,
+  FaTrash,
   FaTrashAlt,
   FaPlus,
   FaSyncAlt,
@@ -247,68 +248,128 @@ export default function EmailSchedulerPage() {
 
       {/* Main Table Card (.ap-card-box) */}
       <div className="ap-card-box">
-        {/* Top Bar of the Table Card (.ap-card-head) */}
-        <div className="ap-card-head" style={{ flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
-          {/* Left: Table Title & Icon */}
-          <div className="ap-card-head-title">
-            <FaEnvelope className="ap-card-head-icon" />
-            <span>Report Schedules</span>
+        {/* Top Bar of the Table Card - Two-Tier Layout */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            width: '100%',
+            marginBottom: '1rem',
+            gap: '8px',
+          }}
+        >
+          {/* Line 1: Section Title on Top Left */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <FaEnvelope style={{ color: '#dc2626', fontSize: '1rem' }} />
+            <span style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+              Report Schedules
+            </span>
           </div>
 
-          {/* Right: Search, Filter, Refresh, and Create Schedule Button */}
-          <div className="ap-card-head-right" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            {/* Search Input */}
-            <div style={{ position: 'relative', width: '240px' }}>
-              <FaSearch style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+          {/* Line 2: Controls Right-Aligned Directly Below Title */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '6px',
+              width: '100%',
+              flexWrap: 'wrap',
+            }}
+          >
+            {/* Compact Search Input */}
+            <div style={{ position: 'relative', width: '145px' }}>
+              <FaSearch
+                style={{
+                  position: 'absolute',
+                  left: '8px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.7rem',
+                }}
+              />
               <input
                 type="text"
                 className="ap-input"
-                style={{ paddingLeft: '32px', height: '2.35rem', width: '100%' }}
-                placeholder="Search schedules..."
+                style={{
+                  paddingLeft: '26px',
+                  paddingRight: '6px',
+                  height: '2rem',
+                  width: '100%',
+                  fontSize: '0.75rem',
+                  borderRadius: '6px',
+                }}
+                placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
 
-            {/* Status Filter */}
+            {/* Compact Status Filter Select */}
             <select
               className="ap-select"
-              style={{ height: '2.35rem', minWidth: '130px' }}
+              style={{
+                height: '2rem',
+                width: '95px',
+                minWidth: '95px',
+                fontSize: '0.72rem',
+                padding: '0 6px',
+                borderRadius: '6px',
+              }}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <option value="all">All Statuses</option>
-              <option value="active">Active Only</option>
-              <option value="inactive">Inactive Only</option>
+              <option value="all" style={{ fontSize: '0.72rem' }}>All Statuses</option>
+              <option value="active" style={{ fontSize: '0.72rem' }}>Active</option>
+              <option value="inactive" style={{ fontSize: '0.72rem' }}>Inactive</option>
             </select>
 
-            {/* Refresh Button */}
+            {/* Compact Refresh Icon Button */}
             <button
               type="button"
               className="ap-header-item-btn"
               onClick={loadData}
               title="Refresh List"
               disabled={loading}
-              style={{ minHeight: '2.35rem', padding: '0 0.75rem' }}
+              style={{
+                width: '2rem',
+                height: '2rem',
+                minHeight: '2rem',
+                padding: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '6px',
+              }}
             >
-              <FaSyncAlt className={loading ? 'fa-spin' : ''} />
+              <FaSyncAlt className={loading ? 'fa-spin' : ''} style={{ fontSize: '0.75rem' }} />
             </button>
 
-            {/* "+ Create Schedule" Button Placed on Table Top Bar */}
+            {/* Compact Create Schedule Button */}
             <button
               type="button"
               className="ap-tab-add"
               onClick={() => navigate('/admin/email-scheduler/new')}
-              style={{ minHeight: '2.35rem' }}
+              style={{
+                height: '2rem',
+                minHeight: '2rem',
+                padding: '0 0.75rem',
+                fontSize: '0.75rem',
+                borderRadius: '6px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
             >
-              <FaPlus />
+              <FaPlus style={{ fontSize: '0.7rem' }} />
               <span>Create Schedule</span>
             </button>
           </div>
         </div>
 
         {/* Schedules Table */}
-        <div className="table-container" style={{ margin: 0, boxShadow: 'none' }}>
+        <div className="admin-accounts-board-table-wrap" style={{ margin: 0 }}>
           {loading && schedules.length === 0 ? (
             <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-secondary)' }}>
               Loading schedules...
@@ -318,101 +379,110 @@ export default function EmailSchedulerPage() {
               No scheduled reports found matching your criteria. Click <strong>Create Schedule</strong> above to set one up.
             </div>
           ) : (
-            <table className="ap-table" style={{ width: '100%' }}>
+            <table className="admin-accounts-board-table">
               <thead>
                 <tr>
-                  <th>Schedule Name</th>
-                  <th>Source Report</th>
-                  <th>Frequency & Time</th>
-                  <th>Next Run (IST)</th>
-                  <th>Recipient</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                  <th style={{ width: '44px', minWidth: '44px', textAlign: 'center' }}>No.</th>
+                  <th style={{ minWidth: '170px', textAlign: 'center' }}>Schedule Name</th>
+                  <th style={{ minWidth: '150px', textAlign: 'center' }}>Source Report</th>
+                  <th style={{ minWidth: '120px', textAlign: 'center' }}>Cadence</th>
+                  <th style={{ minWidth: '130px', textAlign: 'center' }}>Next Run (IST)</th>
+                  <th style={{ minWidth: '160px', textAlign: 'center' }}>Recipient</th>
+                  <th style={{ minWidth: '85px', textAlign: 'center' }}>Status</th>
+                  <th style={{ minWidth: '170px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredSchedules.map((schedule) => {
+                {filteredSchedules.map((schedule, idx) => {
                   const isActionBusy = actionLoadingId === schedule._id
                   const isWeekly = schedule.schedule?.frequency === 'weekly_7_days'
+                  const entity = schedule.reportConfig?.entityType || schedule.reportConfig?.dataSource || 'report'
 
                   return (
-                    <tr key={schedule._id}>
+                    <tr key={schedule._id} className="admin-accounts-board-row">
+                      {/* No. */}
+                      <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        {idx + 1}
+                      </td>
+
                       {/* Name */}
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{schedule.name}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                          Created by: {schedule.creatorName || schedule.creatorEmail || 'Admin'}
+                      <td style={{ textAlign: 'left' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{schedule.name}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          By: {schedule.creatorName || schedule.creatorEmail || 'Admin'}
                         </div>
                       </td>
 
                       {/* Source Report */}
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontWeight: 500 }}>
+                      <td style={{ textAlign: 'left' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                             {schedule.reportConfig?.reportName || 'Report'}
                           </span>
-                        </div>
-                        <div style={{ fontSize: '11px', textTransform: 'capitalize', color: 'var(--text-secondary)' }}>
-                          Context: {schedule.reportConfig?.dataSource || 'deal'} | Scope: {schedule.reportConfig?.dateRangeType || '7 days'}
+                          <span
+                            className="ap-badge"
+                            style={{
+                              fontSize: '10px',
+                              padding: '1px 5px',
+                              textTransform: 'uppercase',
+                              background: 'rgba(47, 159, 211, 0.1)',
+                              color: '#1c6f9c',
+                              border: '1px solid rgba(47, 159, 211, 0.25)',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            {entity}
+                          </span>
                         </div>
                       </td>
 
-                      {/* Frequency */}
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <FaClock style={{ fontSize: '12px', opacity: 0.6 }} />
-                          <span>{isWeekly ? 'Every 7 Days' : 'Daily'}</span>
-                        </div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                          At {schedule.schedule?.time || '18:00'} IST
+                      {/* Cadence */}
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 500 }}>
+                          <FaClock style={{ fontSize: '11px', opacity: 0.6 }} />
+                          <span>{isWeekly ? 'Weekly' : 'Daily'} @ {schedule.schedule?.time || '18:00'} IST</span>
                         </div>
                       </td>
 
                       {/* Next Run */}
-                      <td>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                         {schedule.isEnabled ? (
-                          <div>
-                            <div style={{ fontWeight: 500 }}>{formatIST(schedule.schedule?.nextRunAt)}</div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                              Last run: {formatIST(schedule.schedule?.lastRunAt)}
-                            </div>
-                          </div>
+                          <span style={{ fontWeight: 500 }}>{formatIST(schedule.schedule?.nextRunAt)}</span>
                         ) : (
-                          <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                            Paused (Not scheduled)
+                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                            Paused
                           </span>
                         )}
                       </td>
 
                       {/* Recipient */}
-                      <td>
-                        <div style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td style={{ textAlign: 'left' }}>
+                        <div style={{ maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={schedule.recipient?.email}>
                           {schedule.recipient?.email || '-'}
                         </div>
                         {schedule.recipient?.additionalEmails?.length > 0 && (
-                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                            +{schedule.recipient.additionalEmails.length} CC recipients
+                          <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
+                            +{schedule.recipient.additionalEmails.length} CC
                           </div>
                         )}
                       </td>
 
                       {/* Status */}
-                      <td>
+                      <td style={{ textAlign: 'center' }}>
                         {schedule.isEnabled ? (
-                          <span className="ap-badge ap-badge--success" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <span className="ap-badge ap-badge--success" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '2px 8px' }}>
                             <FaCheckCircle style={{ fontSize: '10px' }} /> Active
                           </span>
                         ) : (
-                          <span className="ap-badge ap-badge--neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <FaPause style={{ fontSize: '10px' }} /> Inactive
+                          <span className="ap-badge ap-badge--neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '2px 8px' }}>
+                            <FaPause style={{ fontSize: '10px' }} /> Paused
                           </span>
                         )}
                       </td>
 
                       {/* Actions */}
-                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                          {/* Activate / Deactivate Toggle Button */}
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
                           <button
                             type="button"
                             className={`ap-header-item-btn ${schedule.isEnabled ? '' : 'ap-btn--active'}`}
@@ -420,28 +490,28 @@ export default function EmailSchedulerPage() {
                             disabled={isActionBusy}
                             title={schedule.isEnabled ? 'Deactivate this schedule' : 'Activate this schedule'}
                             style={{
-                              padding: '6px 12px',
-                              borderRadius: '4px',
+                              padding: '4px 8px',
+                              borderRadius: '6px',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '6px',
-                              fontSize: '12px',
+                              gap: '4px',
+                              fontSize: '11px',
+                              minHeight: 'auto',
                             }}
                           >
                             {schedule.isEnabled ? (
                               <>
-                                <FaPause style={{ fontSize: '10px' }} />
-                                <span>Deactivate</span>
+                                <FaPause style={{ fontSize: '9px' }} />
+                                <span>Pause</span>
                               </>
                             ) : (
                               <>
-                                <FaPlay style={{ fontSize: '10px' }} />
-                                <span>Activate</span>
+                                <FaPlay style={{ fontSize: '9px' }} />
+                                <span>Resume</span>
                               </>
                             )}
                           </button>
 
-                          {/* Run Now Button */}
                           <button
                             type="button"
                             className="ap-header-item-btn"
@@ -449,37 +519,46 @@ export default function EmailSchedulerPage() {
                             disabled={isActionBusy}
                             title="Run Now (Generate & Send Report Immediately)"
                             style={{
-                              padding: '6px 12px',
-                              borderRadius: '4px',
+                              padding: '4px 8px',
+                              borderRadius: '6px',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '6px',
-                              fontSize: '12px',
+                              gap: '4px',
+                              fontSize: '11px',
+                              minHeight: 'auto',
                             }}
                           >
-                            <FaPlay style={{ fontSize: '10px' }} />
+                            <FaPlay style={{ fontSize: '9px' }} />
                             <span>Run Now</span>
                           </button>
 
-                          {/* Delivery History Modal */}
                           <button
                             type="button"
                             className="ap-header-item-btn"
                             onClick={() => setSelectedScheduleForHistory(schedule)}
                             title="View Delivery History"
+                            style={{ padding: '4px 7px', borderRadius: '6px', fontSize: '11px', minHeight: 'auto' }}
                           >
                             <FaHistory />
                           </button>
 
-                          {/* Delete Schedule */}
                           <button
                             type="button"
                             className="ap-header-item-btn"
                             onClick={() => handleDelete(schedule)}
                             disabled={isActionBusy}
                             title="Delete Schedule"
+                            style={{
+                              padding: '4px 7px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              minHeight: 'auto',
+                              color: '#dc2626',
+                              borderColor: 'rgba(220, 38, 38, 0.25)',
+                              background: 'rgba(220, 38, 38, 0.05)',
+                            }}
                           >
-                            <FaTrashAlt />
+                            <FaTrash />
                           </button>
                         </div>
                       </td>

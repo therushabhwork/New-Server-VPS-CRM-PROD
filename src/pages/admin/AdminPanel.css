@@ -3349,3 +3349,98 @@ html:not([data-theme="dark"]) select.ap-performance-select option {
   flex-shrink: 0 !important;
   vertical-align: middle !important;
 }
+
+/* Standard Form Inputs & Alignment for Admin Panel */
+.ap-input,
+.ap-select {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  height: 2.6rem !important;
+  padding: 0.5rem 0.85rem !important;
+  font-size: 0.85rem !important;
+  line-height: 1.4 !important;
+  border: 1px solid var(--border-subtle, #d1d5db) !important;
+  border-radius: 8px !important;
+  background: var(--surface-card, #ffffff) !important;
+  color: var(--text-primary, #111827) !important;
+  outline: none !important;
+  text-align: left !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.ap-input:focus,
+.ap-select:focus {
+  border-color: #2f9fd3 !important;
+  box-shadow: 0 0 0 2px rgba(47, 159, 211, 0.18) !important;
+}
+
+.ap-form-group {
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+}
+
+.ap-form-group .ap-form-label {
+  text-align: left !important;
+  width: 100% !important;
+}
+
+/* My-Accounts Board Table Theme */
+.admin-accounts-board-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-card);
+}
+
+.admin-accounts-board-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+}
+
+.admin-accounts-board-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+}
+
+.admin-accounts-board-table thead th {
+  padding: 0.55rem 0.65rem !important;
+  background: linear-gradient(180deg, #2f9fd3 0%, #1c6f9c 100%) !important;
+  border: 1px solid var(--border-subtle) !important;
+  text-align: center;
+  font-size: 0.74rem !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  white-space: nowrap !important;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.admin-accounts-board-table tbody td {
+  padding: 0.45rem 0.55rem !important;
+  border: 1px solid var(--border-subtle) !important;
+  vertical-align: middle !important;
+  font-size: 0.74rem !important;
+  color: var(--text-primary) !important;
+  text-align: center;
+  overflow: visible;
+  background: var(--surface-card);
+}
+
+.admin-accounts-board-row {
+  cursor: default;
+  transition: background-color 0.12s ease;
+}
+
+.admin-accounts-board-row:nth-child(even) td {
+  background: var(--surface-card);
+}
+
+.admin-accounts-board-row:hover td {
+  background: var(--surface-muted) !important;
+}
+

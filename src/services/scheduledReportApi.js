@@ -48,10 +48,17 @@ export const scheduledReportApi = {
   getSchedules: async (params = {}) => {
     try {
       const response = await apiClient.get('/scheduled-reports', { params })
-      const body = response?.data ?? response
+      const list = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.data)
+          ? response.data
+          : Array.isArray(response?.schedules)
+            ? response.schedules
+            : []
+      const kpis = response?.kpis || response?.data?.kpis || {}
       return {
-        schedules: Array.isArray(body?.data) ? body.data : [],
-        kpis: body?.kpis || {},
+        schedules: list,
+        kpis,
       }
     } catch (error) {
       console.error('Failed to fetch scheduled reports:', error)
@@ -62,8 +69,10 @@ export const scheduledReportApi = {
   getSchedule: async (id) => {
     try {
       const response = await apiClient.get(`/scheduled-reports/${encodeURIComponent(id)}`)
-      const body = response?.data ?? response
-      return body?.data || null
+      if (response && response.data && typeof response.data === 'object' && !Array.isArray(response.data)) {
+        return response.data
+      }
+      return response || null
     } catch (error) {
       console.error('Failed to fetch schedule details:', error)
       return null
@@ -123,8 +132,9 @@ export const scheduledReportApi = {
   getDeliveryHistory: async (id) => {
     try {
       const response = await apiClient.get(`/scheduled-reports/${encodeURIComponent(id)}/history`)
-      const body = response?.data ?? response
-      return Array.isArray(body?.data) ? body.data : []
+      if (Array.isArray(response)) return response
+      if (Array.isArray(response?.data)) return response.data
+      return []
     } catch (error) {
       console.error('Failed to fetch delivery history:', error)
       return []
@@ -153,29 +163,58 @@ export const scheduledReportApi = {
       reportApi.getGeneratedReports().catch(() => []),
     ])
 
-    const formattedTemplates = (templates || []).map((t) => ({
-      id: t._id || t.id,
-      reportName: t.templateName || t.name || 'Custom Template',
-      sourceType: 'reporttemplate',
-      dataSource: t.reportContext || t.dataSource || 'deal',
-      description: `Custom Template (${t.reportContext || 'report'})`,
-      selectedFields: t.selectedFields || [],
-      filters: t.filters || [],
-      accountOwner: t.accountOwner || 'all',
-      dateRangeType: t.dateRangeType || 'last_7_days',
-    }))
+    const normalizeEntity = (val) => {
+      const s = String(val || 'account').toLowerCase().trim()
+      if (s === 'accounts' || s === 'lead' || s === 'leads') return 'account'
+      if (s === 'deals') return 'deal'
+      if (s === 'customers') return 'customer'
+      if (s === 'quotations') return 'quotation'
+      return s
+    }
 
-    const formattedGenerated = (generated || []).map((r) => ({
-      id: r._id || r.id,
-      reportName: r.reportName || r.title || 'Saved Report',
-      sourceType: 'saved_report',
-      dataSource: r.reportContext || r.dataSource || 'deal',
-      description: `Saved Report (${r.reportContext || 'report'})`,
-      selectedFields: r.displayFields || r.selectedFields || [],
-      filters: r.filters || [],
-      accountOwner: r.accountOwner || 'all',
-      dateRangeType: 'last_7_days',
-    }))
+    const formattedTemplates = (templates || []).map((t) => {
+      const entity = normalizeEntity(t.entityType || t.categoryKey || t.reportContext || t.dataSource)
+      const fields = (Array.isArray(t.displayFields) && t.displayFields.length > 0)
+        ? t.displayFields
+        : (Array.isArray(t.selectedFields) ? t.selectedFields : [])
+      const rName = t.reportName || t.name || t.title || 'Custom Report Template'
+
+      return {
+        id: String(t._id || t.id),
+        reportName: rName,
+        sourceType: 'reporttemplate',
+        entityType: entity,
+        dataSource: entity,
+        description: t.description || `${rName} (${entity.toUpperCase()})`,
+        selectedFields: fields,
+        displayFields: fields,
+        filters: Array.isArray(t.filters) ? t.filters : [],
+        accountOwner: t.accountOwner || t.owner || 'all',
+        dateRangeType: t.dateRangeType || 'last_7_days',
+      }
+    })
+
+    const formattedGenerated = (generated || []).map((r) => {
+      const entity = normalizeEntity(r.entityType || r.categoryKey || r.reportContext || r.dataSource)
+      const fields = (Array.isArray(r.displayFields) && r.displayFields.length > 0)
+        ? r.displayFields
+        : (Array.isArray(r.selectedFields) ? r.selectedFields : [])
+      const rName = r.reportName || r.name || r.title || 'Saved Report'
+
+      return {
+        id: String(r._id || r.id),
+        reportName: rName,
+        sourceType: 'saved_report',
+        entityType: entity,
+        dataSource: entity,
+        description: r.description || `${rName} (${entity.toUpperCase()})`,
+        selectedFields: fields,
+        displayFields: fields,
+        filters: Array.isArray(r.filters) ? r.filters : [],
+        accountOwner: r.accountOwner || r.owner || 'all',
+        dateRangeType: r.dateRangeType || 'last_7_days',
+      }
+    })
 
     return [
       ...SYSTEM_DEFAULT_REPORTS,

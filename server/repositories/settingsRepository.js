@@ -27,11 +27,12 @@ const getOne = async (scope, scopeId, key) => {
 }
 
 const upsert = async (scope, scopeId, key, value) => {
-  const existing = await Setting.findOne(scopeFilter(scope, scopeId, key)).lean()
+  const filter = key ? { $or: [scopeFilter(scope, scopeId, key), { key }] } : scopeFilter(scope, scopeId, key)
+  const existing = await Setting.findOne(filter).lean()
   const record = existing
     ? await Setting.findOneAndUpdate(
-        scopeFilter(scope, scopeId, key),
-        { $set: { value, updatedAt: new Date() } },
+        { _id: existing._id },
+        { $set: { scope, scopeId: scopeId || null, key, value, updatedAt: new Date() } },
         { new: true }
       ).lean()
     : await baseRepository.create({

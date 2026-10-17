@@ -112,7 +112,9 @@ export default function CreateEmailSchedulePage() {
         templateId: selectedReport.id,
         reportName: selectedReport.reportName,
         dataSource: selectedReport.dataSource,
+        entityType: selectedReport.entityType || selectedReport.dataSource,
         selectedFields: selectedReport.selectedFields || [],
+        displayFields: selectedReport.displayFields || selectedReport.selectedFields || [],
         filters: selectedReport.filters || [],
         accountOwner: selectedReport.accountOwner || 'all',
         dateRangeType: form.dateRangeType,
@@ -148,28 +150,35 @@ export default function CreateEmailSchedulePage() {
 
   return (
     <div className="ap-home-layout" style={{ maxWidth: '980px', margin: '0 auto', padding: '1rem' }}>
-      {/* Header with Back Button */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button
-            type="button"
-            className="ap-header-item-btn"
-            onClick={() => navigate('/admin/email-scheduler')}
-            title="Back to Schedules"
-          >
-            <FaArrowLeft />
-            <span>Back to Schedules</span>
-          </button>
-          <div>
-            <span className="ap-welcome-subhead">Automation & Delivery</span>
-            <h1 className="ap-welcome-heading" style={{ fontSize: '1.75rem', margin: 0 }}>
-              Create Email Report Schedule
-            </h1>
-            <p className="ap-welcome-sub" style={{ margin: '4px 0 0' }}>
-              Configure recurring automated report generation and Outlook delivery
-            </p>
-          </div>
-        </div>
+      {/* Row 1: Back Button (Icon Only, appears first on top) */}
+      <div style={{ marginBottom: '0.75rem' }}>
+        <button
+          type="button"
+          className="ap-header-item-btn"
+          onClick={() => navigate('/admin/email-scheduler')}
+          title="Back to Schedules"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '2.25rem',
+            height: '2.25rem',
+            padding: 0,
+            borderRadius: '8px',
+          }}
+        >
+          <FaArrowLeft style={{ fontSize: '0.85rem' }} />
+        </button>
+      </div>
+
+      {/* Row 2: Title and Subtitle underneath the Back icon button */}
+      <div style={{ marginBottom: '1.5rem' }}>
+        <h1 className="ap-welcome-heading" style={{ fontSize: '1.45rem', margin: 0, fontWeight: 700 }}>
+          Create Email Report Schedule
+        </h1>
+        <p className="ap-welcome-sub" style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+          Configure recurring automated report generation and Outlook delivery.
+        </p>
       </div>
 
       {/* Error Banner */}
@@ -199,7 +208,6 @@ export default function CreateEmailSchedulePage() {
                 <input
                   type="text"
                   className="ap-input"
-                  style={{ width: '100%', height: '2.5rem' }}
                   placeholder="e.g. Daily Executive Deals Report"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -217,7 +225,6 @@ export default function CreateEmailSchedulePage() {
                 ) : (
                   <select
                     className="ap-select"
-                    style={{ width: '100%', height: '2.5rem' }}
                     value={form.selectedReportId}
                     onChange={(e) => handleReportChange(e.target.value)}
                     required
@@ -225,24 +232,24 @@ export default function CreateEmailSchedulePage() {
                     <optgroup label="System Reports">
                       {reports.filter((r) => r.sourceType === 'system_report').map((r) => (
                         <option key={r.id} value={r.id}>
-                          {r.reportName} ({r.dataSource})
+                          {r.reportName} ({(r.entityType || r.dataSource || 'REPORT').toUpperCase()})
                         </option>
                       ))}
                     </optgroup>
                     {reports.some((r) => r.sourceType === 'reporttemplate') && (
-                      <optgroup label="Custom Templates (reporttemplates collection)">
+                      <optgroup label="Custom Templates (From /admin/reports/custom)">
                         {reports.filter((r) => r.sourceType === 'reporttemplate').map((r) => (
                           <option key={r.id} value={r.id}>
-                            {r.reportName} ({r.dataSource})
+                            {r.reportName} ({(r.entityType || r.dataSource || 'REPORT').toUpperCase()})
                           </option>
                         ))}
                       </optgroup>
                     )}
                     {reports.some((r) => r.sourceType === 'saved_report') && (
-                      <optgroup label="Saved Reports (reports collection)">
+                      <optgroup label="Saved Reports (From /admin/reports/custom)">
                         {reports.filter((r) => r.sourceType === 'saved_report').map((r) => (
                           <option key={r.id} value={r.id}>
-                            {r.reportName} ({r.dataSource})
+                            {r.reportName} ({(r.entityType || r.dataSource || 'REPORT').toUpperCase()})
                           </option>
                         ))}
                       </optgroup>
@@ -269,7 +276,6 @@ export default function CreateEmailSchedulePage() {
                 </label>
                 <select
                   className="ap-select"
-                  style={{ width: '100%', height: '2.5rem' }}
                   value={form.frequency}
                   onChange={(e) => setForm({ ...form, frequency: e.target.value })}
                 >
@@ -287,7 +293,6 @@ export default function CreateEmailSchedulePage() {
                 <input
                   type="time"
                   className="ap-input"
-                  style={{ width: '100%', height: '2.5rem' }}
                   value={form.time}
                   onChange={(e) => setForm({ ...form, time: e.target.value })}
                   required
@@ -301,7 +306,6 @@ export default function CreateEmailSchedulePage() {
                 </label>
                 <select
                   className="ap-select"
-                  style={{ width: '100%', height: '2.5rem' }}
                   value={form.dateRangeType}
                   onChange={(e) => setForm({ ...form, dateRangeType: e.target.value })}
                 >
@@ -352,7 +356,6 @@ export default function CreateEmailSchedulePage() {
                 <input
                   type="email"
                   className="ap-input"
-                  style={{ width: '100%', height: '2.5rem' }}
                   placeholder="recipient@example.com"
                   value={form.customEmail}
                   onChange={(e) => setForm({ ...form, customEmail: e.target.value })}
@@ -369,7 +372,6 @@ export default function CreateEmailSchedulePage() {
               <input
                 type="text"
                 className="ap-input"
-                style={{ width: '100%', height: '2.5rem' }}
                 placeholder="manager@example.com, audit@example.com"
                 value={form.additionalEmails}
                 onChange={(e) => setForm({ ...form, additionalEmails: e.target.value })}

@@ -106,11 +106,23 @@ export default function ScheduleDeliveryHistoryModal({ isOpen, onClose, schedule
                 <tbody>
                   {logs.map((log) => (
                     <tr key={log._id}>
-                      <td style={{ whiteSpace: 'nowrap' }}>{formatIST(log.executedAt)}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <div>{formatIST(log.executedAt)}</div>
+                        {log.scheduledTime && (
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                            Target: {log.scheduledTime}
+                          </div>
+                        )}
+                      </td>
                       <td>
                         <span style={{ fontSize: '12px', textTransform: 'capitalize' }}>
                           {log.executionType === 'manual_run_now' ? 'Manual (Run Now)' : 'Scheduled'}
                         </span>
+                        {log.dateRangeType && (
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                            Scope: {log.dateRangeType}
+                          </div>
+                        )}
                       </td>
                       <td>
                         {log.status === 'sent' ? (

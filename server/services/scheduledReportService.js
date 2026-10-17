@@ -79,46 +79,49 @@ function resolveDateRange(dateRangeType = 'last_7_days', customStart = null, cus
   return { fromDate, toDate }
 }
 
+const { generateCustomReportExcelBuffer } = require('./customReportEngine')
+
 /**
- * Compiles report data into an in-memory .xlsx buffer
+ * Compiles report data into an in-memory .xlsx buffer with all custom report columns
  */
 async function generateReportExcelBuffer(scheduledReport) {
-  const config = scheduledReport.reportConfig || {}
-  const dataSource = config.dataSource || 'deal'
-  const { fromDate, toDate } = resolveDateRange(config.dateRangeType, config.customStartDate, config.customEndDate)
+  try {
+    return await generateCustomReportExcelBuffer({ scheduledReport })
+  } catch (err) {
+    console.error('[ScheduledReport] Error in customReportEngine, falling back to reportEngine:', err)
+    const config = scheduledReport.reportConfig || {}
+    const dataSource = config.dataSource || 'deal'
+    const { fromDate, toDate } = resolveDateRange(config.dateRangeType, config.customStartDate, config.customEndDate)
 
-  // Use reportEngine's executeReportPayload for robust multi-collection queries
-  const reportResult = await executeReportPayload({
-    dataSource,
-    selectedFields: config.selectedFields || [],
-    reportType: 'detail',
-    period: fromDate && toDate ? 'custom' : 'all',
-    dateRange: { fromDate, toDate },
-    ownerFilter: config.accountOwner || 'all',
-    companyId: scheduledReport.companyId,
-  })
+    const reportResult = await executeReportPayload({
+      dataSource,
+      selectedFields: config.selectedFields || [],
+      reportType: 'detail',
+      period: fromDate && toDate ? 'custom' : 'all',
+      dateRange: { fromDate, toDate },
+      ownerFilter: config.accountOwner || 'all',
+      companyId: scheduledReport.companyId,
+    })
 
-  let rows = reportResult.rows || []
+    let rows = reportResult.rows || []
+    const cleanRows = rows.map((row) => {
+      const copy = { ...row }
+      delete copy._ownerCode
+      delete copy._ownerName
+      return copy
+    })
 
-  // Clean internal tracking keys like _ownerCode, _ownerName
-  const cleanRows = rows.map((row) => {
-    const copy = { ...row }
-    delete copy._ownerCode
-    delete copy._ownerName
-    return copy
-  })
+    const workbook = XLSX.utils.book_new()
+    const worksheet = XLSX.utils.json_to_sheet(cleanRows.length > 0 ? cleanRows : [{ 'Status': 'No records found for the selected criteria' }])
+    const sheetName = String(config.reportName || dataSource || 'Report').substring(0, 31).replace(/[:\\\/\?\*\[\]]/g, '_')
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
 
-  // Build Excel Workbook
-  const workbook = XLSX.utils.book_new()
-  const worksheet = XLSX.utils.json_to_sheet(cleanRows.length > 0 ? cleanRows : [{ 'Status': 'No records found for the selected criteria' }])
-  const sheetName = String(config.reportName || dataSource || 'Report').substring(0, 31).replace(/[:\\\/\?\*\[\]]/g, '_')
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
-
-  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
-  return {
-    buffer,
-    recordCount: cleanRows.length,
-    fileName: `${(scheduledReport.name || 'CRM_Report').replace(/[^a-zA-Z0-9_-]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+    return {
+      buffer,
+      recordCount: cleanRows.length,
+      fileName: `${(scheduledReport.name || 'CRM_Report').replace(/[^a-zA-Z0-9_-]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    }
   }
 }
 
@@ -140,25 +143,54 @@ async function executeSchedule(scheduleId, options = {}) {
     return { skipped: true, reason: 'schedule_disabled' }
   }
 
-  // Determine user actor with Outlook capability
+  // Determine user actor with Outlook capability (resolve from MongoDB users collection by email)
   if (!actor) {
-    if (schedule.createdBy) {
+    if (schedule.creatorEmail) {
+      actor = await User.findOne({
+        email: { $regex: new RegExp(`^${schedule.creatorEmail.trim()}$`, 'i') },
+      }).lean().catch(() => null)
+    }
+    if (!actor && schedule.createdBy) {
       actor = await User.findOne({
         $or: [
           { _id: schedule.createdBy },
           { id: schedule.createdBy },
           { legacyId: schedule.createdBy },
-          { email: schedule.creatorEmail },
         ],
       }).lean().catch(() => null)
     }
     if (!actor) {
+      // Fallback to active admin user from MongoDB users collection
       actor = await User.findOne({ role: 'admin' }).lean().catch(() => null)
     }
   }
 
   if (!actor) {
-    throw new Error('No valid CRM user found to authorize email dispatch')
+    actor = { id: 'shared', role: 'admin', email: schedule.creatorEmail || 'admin' }
+  } else {
+    actor = {
+      ...actor,
+      id: actor.id || (actor._id ? String(actor._id) : 'shared'),
+      role: actor.role || 'admin',
+    }
+  }
+
+  // Fallback to organization-wide connected Outlook (shared) if actor's personal Outlook is not connected
+  try {
+    const outlookStatus = await integrationService.getOutlookStatus(actor)
+    if (!outlookStatus || !outlookStatus.connected) {
+      actor = {
+        ...actor,
+        id: 'shared',
+        role: 'admin',
+      }
+    }
+  } catch (_) {
+    actor = {
+      ...actor,
+      id: 'shared',
+      role: 'admin',
+    }
   }
 
   const recipientEmail = schedule.recipient?.email || actor.email
@@ -182,9 +214,9 @@ async function executeSchedule(scheduleId, options = {}) {
   const emailPayload = {
     to: recipientEmail,
     cc: (schedule.recipient?.additionalEmails || []).join(','),
-    subject: `[CRM Scheduled Report] ${schedule.name} - ${new Date().toLocaleDateString('en-IN')}`,
+    subject: `Swati Sales CRM :- ${schedule.name} - ${new Date().toLocaleDateString('en-IN')}`,
     message: `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
-      <h2 style="color: #c60016; margin-bottom: 4px;">CRM Scheduled Report Delivery</h2>
+      <h2 style="color: #c60016; margin-bottom: 4px;">Swati Sales CRM :- Report Delivery</h2>
       <p style="margin-top: 0; color: #666; font-size: 13px;">Frequency: <strong>${frequencyLabel}</strong> | Report: <strong>${schedule.reportConfig?.reportName || schedule.name}</strong></p>
       <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;" />
       <p>Hello,</p>
@@ -216,13 +248,32 @@ async function executeSchedule(scheduleId, options = {}) {
     console.error(`[ScheduledReport] Error sending email for schedule ${scheduleId}:`, error)
   }
 
-  // Create Delivery Log
+  // Calculate next run date in advance for logging
+  const nextRunAt = calculateNextRunAt(
+    schedule.schedule.frequency,
+    schedule.schedule.time,
+    new Date()
+  )
+
+  // Resolve exact Date Range bounds
+  const { fromDate, toDate } = resolveDateRange(
+    schedule.reportConfig?.dateRangeType,
+    schedule.reportConfig?.customStartDate,
+    schedule.reportConfig?.customEndDate
+  )
+
+  // Create Delivery Log with explicit scheduled time, date range, and next run timestamp
   const log = await ReportDeliveryLog.create({
     scheduleId: schedule._id,
     scheduleName: schedule.name,
     reportType: schedule.reportConfig?.dataSource || 'deal',
     recipientEmail,
     additionalRecipients: schedule.recipient?.additionalEmails || [],
+    scheduledTime: schedule.schedule?.time ? `${schedule.schedule.time} IST` : '18:00 IST',
+    dateRangeType: schedule.reportConfig?.dateRangeType || 'today',
+    dateRangeFrom: fromDate,
+    dateRangeTo: toDate,
+    nextScheduledRunAt: nextRunAt,
     recordCount,
     attachmentName: fileName,
     attachmentSizeKB: Math.round(buffer.length / 1024),
@@ -232,13 +283,7 @@ async function executeSchedule(scheduleId, options = {}) {
     executionType,
   })
 
-  // Advance nextRunAt and update metrics
-  const nextRunAt = calculateNextRunAt(
-    schedule.schedule.frequency,
-    schedule.schedule.time,
-    new Date()
-  )
-
+  // Update metrics and nextRunAt
   const updateFields = {
     lastRunAt: new Date(),
     lastRunStatus: deliveryStatus === 'sent' ? 'success' : 'failed',

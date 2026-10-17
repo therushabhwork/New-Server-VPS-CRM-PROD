@@ -1,6 +1,6 @@
 const cron = require('node-cron')
 const ScheduledReport = require('../models/ScheduledReport')
-const { executeSchedule } = require('../services/scheduledReportService')
+const { executeSchedule, calculateNextRunAt } = require('../services/scheduledReportService')
 
 let isTickRunning = false
 
@@ -60,11 +60,18 @@ function init() {
           console.log(`[ReportScheduler] Completed execution for "${schedule.name}".`)
         } catch (execErr) {
           console.error(`[ReportScheduler] Execution failed for schedule ${schedule._id}:`, execErr)
+          const nextRunAt = calculateNextRunAt(
+            schedule.schedule?.frequency || 'daily',
+            schedule.schedule?.time || '18:00',
+            new Date()
+          )
+
           await ScheduledReport.findByIdAndUpdate(schedule._id, {
             $set: {
               lockedAt: null,
               lastRunStatus: 'failed',
               lastError: execErr.message || 'Execution failed',
+              'schedule.nextRunAt': nextRunAt,
             },
             $inc: { failedRuns: 1, totalRuns: 1 },
           })

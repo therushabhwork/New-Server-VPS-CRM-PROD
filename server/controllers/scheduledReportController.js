@@ -1,15 +1,65 @@
 const ScheduledReport = require('../models/ScheduledReport')
 const ReportDeliveryLog = require('../models/ReportDeliveryLog')
 const { calculateNextRunAt, executeSchedule } = require('../services/scheduledReportService')
+const { getMongoModel } = require('../models/mongoModels')
+const User = getMongoModel('users')
+
+function formatTimeIST(timeStr) {
+  if (!timeStr) return '18:00 IST'
+  const parts = String(timeStr).split(':')
+  const h = parseInt(parts[0], 10) || 0
+  const m = parseInt(parts[1], 10) || 0
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 || 12
+  const mm = m < 10 ? `0${m}` : m
+  return `${h12}:${mm} ${ampm} IST`
+}
+
+function getDateScopeLabel(dateRangeType) {
+  switch (dateRangeType) {
+    case 'today':
+      return 'Today Only (00:00 - 23:59 IST)'
+    case 'last_7_days':
+      return 'Last 7 Days'
+    case 'this_month':
+      return 'Current Month to Date'
+    case 'previous_month':
+      return 'Previous Full Month'
+    case 'all_time':
+      return 'All Time'
+    default:
+      return dateRangeType || 'All Time'
+  }
+}
 
 /**
  * List all scheduled reports
+ * Completely decoupled from companyId; uses user email lookup in MongoDB users collection
  */
 async function getSchedules(req, res) {
   try {
+    const userEmail = (req.user?.email || '').trim()
+    let isUserAdmin = req.user?.role === 'admin' || req.user?.role === 'super_admin'
+
+    // Look up user in MongoDB users collection by email
+    let dbUser = null
+    if (userEmail) {
+      dbUser = await User.findOne({
+        email: { $regex: new RegExp(`^${userEmail}$`, 'i') },
+      }).lean()
+      if (dbUser && (dbUser.role === 'admin' || dbUser.role === 'super_admin')) {
+        isUserAdmin = true
+      }
+    }
+
     const query = {}
-    if (req.user?.companyId) {
-      query.companyId = req.user.companyId
+    // If not admin, restrict visibility to schedules created by or assigned to this user's email
+    if (!isUserAdmin && userEmail) {
+      query.$or = [
+        { creatorEmail: { $regex: new RegExp(`^${userEmail}$`, 'i') } },
+        { 'recipient.email': { $regex: new RegExp(`^${userEmail}$`, 'i') } },
+        { 'recipient.additionalEmails': { $regex: new RegExp(`^${userEmail}$`, 'i') } },
+      ]
     }
 
     if (req.query.status) {
@@ -20,9 +70,22 @@ async function getSchedules(req, res) {
       query.isEnabled = req.query.isEnabled === 'true'
     }
 
-    const schedules = await ScheduledReport.find(query)
+    const rawSchedules = await ScheduledReport.find(query)
       .sort({ createdAt: -1 })
       .lean()
+
+    // Enrich with display helpers
+    const schedules = rawSchedules.map((s) => ({
+      ...s,
+      schedule: {
+        ...s.schedule,
+        timeFormatted: s.schedule?.timeFormatted || formatTimeIST(s.schedule?.time),
+      },
+      reportConfig: {
+        ...s.reportConfig,
+        dateScopeLabel: s.reportConfig?.dateScopeLabel || getDateScopeLabel(s.reportConfig?.dateRangeType),
+      },
+    }))
 
     // Calculate summary statistics for KPI cards
     const totalSchedules = schedules.length
@@ -65,12 +128,13 @@ async function getSchedule(req, res) {
 
 /**
  * Create a new scheduled report
+ * Resolves creator from MongoDB users collection by email; zero companyId dependency
  */
 async function createSchedule(req, res) {
   try {
     const {
       name,
-      reportConfig,
+      reportConfig = {},
       schedule: schedulePayload = {},
       recipient: recipientPayload = {},
       isEnabled = true,
@@ -80,7 +144,15 @@ async function createSchedule(req, res) {
       return res.status(400).json({ success: false, message: 'Schedule name is required' })
     }
 
-    const recipientEmail = recipientPayload.email || req.user?.email
+    const userEmail = (req.user?.email || '').trim()
+    let dbUser = null
+    if (userEmail) {
+      dbUser = await User.findOne({
+        email: { $regex: new RegExp(`^${userEmail}$`, 'i') },
+      }).lean()
+    }
+
+    const recipientEmail = (recipientPayload.email || userEmail || '').trim()
     if (!recipientEmail) {
       return res.status(400).json({ success: false, message: 'Recipient email is required' })
     }
@@ -88,18 +160,27 @@ async function createSchedule(req, res) {
     const frequency = schedulePayload.frequency || 'daily'
     const time = schedulePayload.time || '18:00'
     const nextRunAt = isEnabled ? calculateNextRunAt(frequency, time, new Date()) : null
+    const timeFormatted = formatTimeIST(time)
+    const dateScopeLabel = getDateScopeLabel(reportConfig.dateRangeType)
 
-    const currentUserId = req.user?.id ?? req.user?._id ?? req.user?.legacyId ?? null
+    const creatorName = dbUser?.name || req.user?.name || req.user?.fullName || 'Admin'
+    const creatorEmail = dbUser?.email || userEmail
+
+    const currentUserId = dbUser?._id ?? req.user?.id ?? req.user?._id ?? null
     const newSchedule = await ScheduledReport.create({
       name: name.trim(),
-      companyId: req.user?.companyId || null,
+      companyId: null, // Zero dependency on companyId
       createdBy: currentUserId !== null ? String(currentUserId) : null,
-      creatorName: req.user?.name || req.user?.fullName || '',
-      creatorEmail: req.user?.email || '',
-      reportConfig: reportConfig || {},
+      creatorName,
+      creatorEmail,
+      reportConfig: {
+        ...reportConfig,
+        dateScopeLabel,
+      },
       schedule: {
         frequency,
         time,
+        timeFormatted,
         timezone: 'Asia/Kolkata',
         activatedAt: new Date(),
         nextRunAt,
@@ -107,7 +188,7 @@ async function createSchedule(req, res) {
       },
       recipient: {
         type: recipientPayload.type || 'self',
-        email: recipientEmail.trim(),
+        email: recipientEmail,
         additionalEmails: recipientPayload.additionalEmails || [],
       },
       isEnabled: Boolean(isEnabled),
@@ -140,7 +221,13 @@ async function updateSchedule(req, res) {
     } = req.body
 
     if (name) schedule.name = name.trim()
-    if (reportConfig) schedule.reportConfig = { ...schedule.reportConfig, ...reportConfig }
+    if (reportConfig) {
+      schedule.reportConfig = {
+        ...schedule.reportConfig,
+        ...reportConfig,
+        dateScopeLabel: getDateScopeLabel(reportConfig.dateRangeType || schedule.reportConfig?.dateRangeType),
+      }
+    }
 
     if (recipientPayload) {
       schedule.recipient = {
@@ -152,6 +239,7 @@ async function updateSchedule(req, res) {
     if (schedulePayload) {
       schedule.schedule.frequency = schedulePayload.frequency || schedule.schedule.frequency
       schedule.schedule.time = schedulePayload.time || schedule.schedule.time
+      schedule.schedule.timeFormatted = formatTimeIST(schedule.schedule.time)
     }
 
     if (isEnabled !== undefined) {
@@ -197,6 +285,7 @@ async function activateSchedule(req, res) {
     schedule.status = 'active'
     schedule.schedule.activatedAt = new Date()
     schedule.schedule.nextRunAt = nextRunAt
+    schedule.schedule.timeFormatted = formatTimeIST(schedule.schedule.time)
     schedule.lockedAt = null
     schedule.lockWorkerId = null
 

@@ -45,6 +45,26 @@ const reportDeliveryLogSchema = new mongoose.Schema({
     required: true,
     index: true,
   },
+  scheduledTime: {
+    type: String,
+    default: '', // e.g. "10:10 AM IST"
+  },
+  dateRangeType: {
+    type: String,
+    default: 'today', // e.g. "today", "last_7_days"
+  },
+  dateRangeFrom: {
+    type: Date,
+    default: null,
+  },
+  dateRangeTo: {
+    type: Date,
+    default: null,
+  },
+  nextScheduledRunAt: {
+    type: Date,
+    default: null,
+  },
   deliveryMethod: {
     type: String,
     default: 'outlook_graph',

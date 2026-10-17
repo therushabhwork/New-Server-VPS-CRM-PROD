@@ -439,6 +439,17 @@ class IntegrationService {
 
   async getOutlookConnection(actorOrUserId) {
     const userId = typeof actorOrUserId === 'object' ? actorOrUserId.id : actorOrUserId
+    if (String(userId) === 'shared') {
+      const sharedSetting = await this.getSharedOutlookConnection()
+      if (hasOutlookToken(sharedSetting)) {
+        return {
+          ...sharedSetting,
+          shared: true,
+          accessToken: decryptSecret(sharedSetting.accessTokenEncrypted || sharedSetting.accessToken),
+          refreshToken: decryptSecret(sharedSetting.refreshTokenEncrypted || sharedSetting.refreshToken),
+        }
+      }
+    }
     const userSetting = await getSettingValue('user', String(userId), outlookSettingKey(userId), {})
     let setting = userSetting
 
@@ -723,6 +734,7 @@ class IntegrationService {
 
   async saveOutlookTokenSet(userId, tokenPayload, profile = {}, existing = {}, options = {}) {
     const refreshToken = tokenPayload.refresh_token || existing.refreshToken || ''
+    const isShared = Boolean(options.shared || String(userId) === 'shared' || existing.shared)
     const value = {
       accessTokenEncrypted: encryptSecret(tokenPayload.access_token),
       refreshTokenEncrypted: encryptSecret(refreshToken),
@@ -733,9 +745,9 @@ class IntegrationService {
       connectedAt: existing.connectedAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ownerUserId: existing.ownerUserId || userId,
+      shared: isShared,
     }
-    if (options.shared) {
-      value.shared = true
+    if (isShared) {
       await settingsRepository.upsert('global', null, GLOBAL_OUTLOOK_KEY, value)
     } else {
       await settingsRepository.upsert('user', String(userId), outlookSettingKey(userId), value)
@@ -743,12 +755,12 @@ class IntegrationService {
 
     await MicrosoftToken.findOneAndUpdate(
       {
-        userId: String(options.shared ? 'shared' : userId),
+        userId: String(isShared ? 'shared' : userId),
         provider: 'microsoft_graph',
       },
       {
         $set: {
-          userId: String(options.shared ? 'shared' : userId),
+          userId: String(isShared ? 'shared' : userId),
           ownerUserId: userId,
           provider: 'microsoft_graph',
           email: value.email,
@@ -1132,7 +1144,7 @@ class IntegrationService {
     return this.saveOutlookTokenSet(actor.id, tokenPayload, {
       email: setting.email,
       displayName: setting.displayName,
-    }, setting, { shared: Boolean(setting.shared) })
+    }, setting, { shared: Boolean(setting.shared || actor?.id === 'shared') })
   }
 
   async sendOutlookTestEmail(actor, payload = {}) {
