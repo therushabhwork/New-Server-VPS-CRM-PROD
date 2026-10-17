@@ -248,8 +248,8 @@
 
 .sidebar--admin .sb-view-toolbar-button--route-active,
 .sidebar--admin .sb-view-toolbar-button:active {
-  background: var(--admin-red, #c60016);
-  border-color: var(--admin-red-border, #a80012);
+  background: var(--admin-red, #2563eb);
+  border-color: var(--admin-red-border, #1d4ed8);
   color: #ffffff;
 }
 
@@ -382,7 +382,7 @@
   inset: 5px auto 5px 4px;
   width: 3px;
   border-radius: 999px;
-  background: var(--admin-red, #dc2626) !important;
+  background: var(--admin-red, #2563eb) !important;
   pointer-events: none;
 }
 

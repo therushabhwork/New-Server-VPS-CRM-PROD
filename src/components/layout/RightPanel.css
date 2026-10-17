@@ -236,17 +236,17 @@
   width: 0.55rem;
   height: 0.55rem;
   border-radius: 50%;
-  background: #c60016;
+  background: #2563eb;
   border: 2px solid #ffffff;
-  box-shadow: 0 0 0 2px rgba(198, 0, 22, 0.2);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
   transform: translate(-50%, -50%);
   z-index: 2;
 }
 
 .rp-entry:hover {
   transform: translateX(3px) !important;
-  border-color: #c60016 !important;
-  box-shadow: 0 4px 14px rgba(198, 0, 22, 0.12) !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.12) !important;
 }
 
 .rp-entry--empty {
@@ -463,8 +463,8 @@
   max-width: 18px;
   min-height: 10px;
   border-radius: 5px 5px 2px 2px;
-  background: linear-gradient(180deg, #ffb7c4 0%, #e0001b 100%);
-  box-shadow: 0 4px 10px rgba(224, 0, 27, 0.16);
+  background: linear-gradient(180deg, #bfdbfe 0%, #2563eb 100%);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.16);
 }
 
 .rp-month-label {

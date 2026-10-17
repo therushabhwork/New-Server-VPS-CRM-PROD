@@ -1719,7 +1719,7 @@ html:not([data-theme="dark"]) select.ap-performance-select option {
 }
 
 .ap-link-btn {
-  background: url('/bg-image.png');
+  background: transparent;
   border: none;
   color: #dc2626;
   font-size: 0.8rem;
@@ -2021,12 +2021,8 @@ html:not([data-theme="dark"]) select.ap-performance-select option {
 .layout--admin .layout-stage,
 .layout--admin .layout-main,
 .layout--admin .layout-main-inner {
-  background-color: #fbf7ef !important;
-  background-image: url('/bg-image.png') !important;
-  background-position: center top !important;
-  background-size: cover !important;
-  background-repeat: no-repeat !important;
-  background-attachment: fixed !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
 }
 
 .layout--admin .ap-home-layout,

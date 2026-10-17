@@ -120,7 +120,7 @@
   right: -2px;
   width: 18px;
   height: 18px;
-  background: #dc2626;
+  background: #2563eb;
   color: #fff;
   border-radius: 50%;
   font-size: 0.65rem;
@@ -146,7 +146,7 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #991b1b;
+  background: #2563eb;
   color: #fff;
   display: flex;
   align-items: center;
@@ -343,14 +343,14 @@
 
 /* ---------- Widgets Base ---------- */
 .md-widget {
-  background: linear-gradient(145deg, #0f172a, #1e293b);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 18px;
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px;
   padding: 1.25rem;
-  box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
   display: flex;
   flex-direction: column;
-  color: #f8fafc;
+  color: #0f172a !important;
 }
 
 .md-widget-header {
@@ -364,7 +364,7 @@
 .md-widget-title {
   font-size: 1.05rem;
   font-weight: 700;
-  color: #f8fafc;
+  color: #0f172a !important;
   margin: 0;
   display: flex;
   align-items: center;
@@ -380,7 +380,7 @@
 .md-link-btn {
   background: none;
   border: none;
-  color: #cbd5e1;
+  color: #2563eb;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -388,11 +388,11 @@
 }
 
 .md-link-btn:hover {
-  color: #ffffff;
+  color: #1d4ed8;
 }
 
 .md-btn-solid-red {
-  background: #dc2626;
+  background: #2563eb;
   color: #ffffff;
   border: none;
   padding: 0.4rem 0.85rem;
@@ -402,15 +402,24 @@
   cursor: pointer;
 }
 
+.md-btn-solid-red:hover {
+  background: #1d4ed8;
+}
+
 .md-btn-outline-red {
   background: transparent;
-  color: #f8fafc;
-  border: 1px solid #475569;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
   padding: 0.4rem 0.85rem;
   border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+.md-btn-outline-red:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
 }
 
 /* ---------- To Do List ---------- */
@@ -422,7 +431,7 @@
 .md-tabs {
   display: flex;
   gap: 1.25rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid #e2e8f0;
   margin-bottom: 0.75rem;
   flex-shrink: 0;
 }
@@ -433,13 +442,17 @@
   padding: 0.4rem 0;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #94a3b8;
+  color: #64748b;
   cursor: pointer;
   position: relative;
 }
 
+.md-tab:hover {
+  color: #0f172a;
+}
+
 .md-tab-active {
-  color: #dc2626;
+  color: #dc2626 !important;
 }
 
 .md-tab-active::after {

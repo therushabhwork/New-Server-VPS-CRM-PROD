@@ -3,11 +3,11 @@
 .layout--user {
   --user-ink: #0f172a;
   --user-muted: #64748b;
-  --user-border: #f0eae1;
+  --user-border: #e2e8f0;
   --user-surface: #ffffff;
-  --user-primary: #c60016;
-  --user-primary-soft: #ffe4e6;
-  background: #FAF7F2 !important;
+  --user-primary: #2563eb;
+  --user-primary-soft: #eff6ff;
+  background: #F8FAFC !important;
   color: var(--user-ink);
 }
 
@@ -24,27 +24,27 @@
 }
 
 .layout--user .sidebar--user {
-  background: transparent !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
 }
 
 .layout--user .sidebar--user .sb-nav {
-  gap: 12px;
+  gap: 8px;
   padding: 16px 14px 24px;
 }
 
 .layout--user .sidebar--user .sb-top-card {
   min-height: 126px;
   border: 1px solid var(--user-border) !important;
-  border-radius: 20px;
+  border-radius: 12px;
   background: #ffffff !important;
-  box-shadow: 0 10px 24px rgba(198, 0, 22, 0.06) !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
 }
 
 .layout--user .sidebar--user .sb-nav-section {
-  gap: 6px;
+  gap: 4px;
   padding: 8px 4px;
   border: none !important;
   border-radius: 0 !important;
@@ -55,10 +55,10 @@
 .layout--user .sidebar--user .sb-link,
 .layout--user .sidebar--user .sb-plain-link,
 .layout--user .sidebar--user .sb-group-trigger {
-  min-height: 44px;
-  border-radius: 12px;
-  color: #1e293b;
-  font-weight: 700;
+  min-height: 40px;
+  border-radius: 8px;
+  color: #334155;
+  font-weight: 600;
 }
 
 .layout--user .sidebar--user .sb-link:hover,
@@ -73,27 +73,27 @@
 .layout--user .sidebar--user .sb-plain-link--active,
 .layout--user .sidebar--user .sb-group-trigger--route-active {
   background: #fff5f5 !important;
-  border-color: #c60016 !important;
+  border-color: #f4c8cc !important;
   color: #c60016 !important;
-  font-weight: 800 !important;
-  box-shadow: 0 5px 14px rgba(220, 38, 38, 0.1) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 1px 2px rgba(220, 38, 38, 0.08) !important;
 }
 
 .layout--user .header--user {
   padding: 10px 22px;
-  background: rgba(247, 248, 251, 0.88) !important;
-  border-bottom: 1px solid rgba(230, 234, 240, 0.9) !important;
-  backdrop-filter: blur(16px) !important;
+  background: #ffffff !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  backdrop-filter: none !important;
 }
 
 .layout--user .header--user .hdr-icon-btn,
 .layout--user .header--user .hdr-theme-toggle,
 .layout--user .header--user .hdr-user-btn {
-  border: 1px solid var(--user-border) !important;
-  border-radius: 12px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
   background: #fff !important;
-  color: #526071 !important;
-  box-shadow: 0 4px 12px rgba(23, 32, 51, 0.04) !important;
+  color: #475569 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
 }
 
 .layout--user .layout-content-frame > * {
@@ -101,23 +101,23 @@
 }
 
 .layout--user :is(.ud-stat-card, .ud-card, .admin-panel, .admin-accounts-card, .deals-page, .quotations-page, .tasks-page, .reminders-page) {
-  border-color: var(--user-border) !important;
-  border-radius: 20px !important;
-  background: var(--user-surface) !important;
-  box-shadow: 0 10px 28px rgba(23, 32, 51, 0.055) !important;
+  border-color: #e2e8f0 !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
 }
 
 .layout--user :not(.add-account-landscape-page) :is(input, select, textarea):not(.legacy-form-control) {
-  min-height: 42px;
-  border: 1px solid #dfe4eb !important;
-  border-radius: 10px !important;
+  min-height: 40px;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
   background: #fff !important;
   color: var(--user-ink) !important;
 }
 
 .layout--user :not(.add-account-landscape-page) :is(input, select, textarea):not(.legacy-form-control):focus {
-  border-color: #df7d87 !important;
-  box-shadow: 0 0 0 4px rgba(198, 0, 22, 0.08) !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
   outline: none;
 }
 
@@ -150,6 +150,7 @@
 .wizard-stepper:not(.add-account-landscape-stepper) .wizard-stepper__step--active {
   background: rgba(198, 0, 22, 0.05) !important;
   border: 1px solid rgba(198, 0, 22, 0.3) !important;
+  color: #c60016 !important;
   box-shadow: none !important;
 }
 
@@ -173,7 +174,7 @@
   border: 1px solid #e2e8f0 !important;
   border-radius: 12px !important;
   padding: 1.5rem !important;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03) !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
   margin-bottom: 1.5rem !important;
   transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
@@ -222,9 +223,9 @@
 
 .project-details-card input:focus,
 .project-details-card select:focus {
-  border-color: #c60016 !important;
+  border-color: #2563eb !important;
   background: #ffffff !important;
-  box-shadow: 0 0 0 3px rgba(198, 0, 22, 0.12) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
   outline: none !important;
 }
 
@@ -274,10 +275,10 @@
   justify-content: space-between !important;
   gap: 1.25rem !important;
   padding: 1.1rem 1.6rem !important;
-  background: #faf7f2 !important;
-  border-bottom: 1px solid #f0eae1 !important;
+  background: #f8fafc !important;
+  border-bottom: 1px solid #e2e8f0 !important;
   flex-shrink: 0 !important;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
 }
 
 .layout--user .admin-accounts-workspace-title h2 {
@@ -300,7 +301,7 @@
   align-items: center !important;
   gap: 0.3rem !important;
   padding: 0.28rem 0.75rem !important;
-  border: 1px solid #e2d9cc !important;
+  border: 1px solid #e2e8f0 !important;
   border-radius: 999px !important;
   background: #ffffff !important;
   color: #475569 !important;
@@ -322,7 +323,7 @@
 .layout--user .admin-accounts-actions-trigger {
   min-height: 2.35rem !important;
   padding: 0.4rem 0.95rem !important;
-  border-radius: 10px !important;
+  border-radius: 8px !important;
   border: 1px solid #dc2626 !important;
   background: #ffffff !important;
   color: #dc2626 !important;
@@ -343,20 +344,20 @@
 .layout--user .admin-accounts-workspace-close {
   min-height: 2.35rem !important;
   padding: 0.4rem 1.15rem !important;
-  border-radius: 10px !important;
+  border-radius: 8px !important;
   border: none !important;
-  background: #dc2626 !important;
+  background: #2563eb !important;
   color: #ffffff !important;
   font-size: 0.85rem !important;
   font-weight: 700 !important;
   transition: all 0.18s ease !important;
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25) !important;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25) !important;
 }
 
 .layout--user .admin-accounts-workspace-close:hover {
-  background: #b91c1c !important;
+  background: #1d4ed8 !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.32) !important;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3) !important;
 }
 
 .layout--user .admin-accounts-workspace-body {
@@ -381,23 +382,23 @@
   flex-direction: column !important;
   gap: 0.35rem !important;
   padding: 0.8rem 1rem !important;
-  border: 1px solid #f0eae1 !important;
-  border-radius: 14px !important;
-  background: #faf7f2 !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 10px !important;
+  background: #f8fafc !important;
   transition: all 0.2s ease !important;
   min-height: 80px !important;
 }
 
 .layout--user .admin-accounts-workspace-field:hover {
-  border-color: #e5dec9 !important;
+  border-color: #cbd5e1 !important;
   background: #ffffff !important;
-  box-shadow: 0 6px 18px rgba(180, 160, 140, 0.08) !important;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05) !important;
 }
 
 .layout--user .admin-accounts-workspace-field--single-editing {
-  border-color: #dc2626 !important;
+  border-color: #2563eb !important;
   background: #ffffff !important;
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
 }
 
 .layout--user .admin-accounts-workspace-field-label {
@@ -421,7 +422,7 @@
 }
 
 .layout--user .admin-accounts-workspace-field-edit-btn:hover {
-  color: #dc2626 !important;
+  color: #2563eb !important;
 }
 
 .layout--user .admin-accounts-workspace-field-value {
@@ -438,7 +439,7 @@
   width: 100% !important;
   min-height: 2.5rem !important;
   padding: 0.45rem 0.75rem !important;
-  border: 1px solid #f0eae1 !important;
+  border: 1px solid #e2e8f0 !important;
   border-radius: 8px !important;
   background: #ffffff !important;
   color: #0f172a !important;
@@ -449,8 +450,8 @@
 .layout--user .admin-accounts-workspace-field input:focus,
 .layout--user .admin-accounts-workspace-field select:focus,
 .layout--user .admin-accounts-workspace-field textarea:focus {
-  border-color: #dc2626 !important;
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12) !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
   outline: none !important;
 }
 
@@ -461,7 +462,7 @@
 .layout--user .admin-accounts-workspace-section {
   margin-top: 2rem !important;
   padding-top: 1.5rem !important;
-  border-top: 1px solid #f0eae1 !important;
+  border-top: 1px solid #e2e8f0 !important;
 }
 
 .layout--user .admin-accounts-workspace-section-header h3 {
@@ -472,28 +473,27 @@
 }
 
 .layout--user .admin-accounts-converted-deal-card {
-  background: #faf7f2 !important;
-  border: 1px solid #f0eae1 !important;
-  border-radius: 12px !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 10px !important;
   padding: 0.85rem 1.1rem !important;
   transition: all 0.2s ease !important;
 }
 
 .layout--user .admin-accounts-converted-deal-card:hover {
   background: #ffffff !important;
-  border-color: #e5dec9 !important;
-  box-shadow: 0 6px 18px rgba(180, 160, 140, 0.1) !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
   transform: translateY(-1px) !important;
 }
 
 /* Modernized Account Action / Details Overlay Form Design */
 .layout--user .admin-accounts-action-form,
 .layout--user .admin-accounts-placeholder-card .admin-accounts-action-form {
-  background: rgba(255, 255, 255, 0.96) !important;
-  backdrop-filter: blur(12px) !important;
-  border: 1px solid rgba(226, 232, 240, 0.9) !important;
-  border-radius: 16px !important;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(0, 0, 0, 0.03) !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04) !important;
   padding: 1.5rem !important;
   margin-top: 1.25rem !important;
   gap: 1.25rem !important;
@@ -507,10 +507,10 @@
 
 .layout--user .admin-accounts-action-form-grid--section {
   padding: 1.2rem 1.25rem !important;
-  border: 1px solid rgba(226, 232, 240, 0.9) !important;
-  border-radius: 14px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 10px !important;
   background: #ffffff !important;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.02) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
 }
 
 .layout--user .admin-accounts-bulk-field {
@@ -528,7 +528,7 @@
   width: 100% !important;
   padding: 0.65rem 0.85rem !important;
   border: 1px solid #cbd5e1 !important;
-  border-radius: 10px !important;
+  border-radius: 8px !important;
   background: #f8fafc !important;
   color: #0f172a !important;
   font-size: 0.88rem !important;
@@ -539,8 +539,8 @@
 .layout--user .admin-accounts-bulk-field input:focus,
 .layout--user .admin-accounts-bulk-field select:focus,
 .layout--user .admin-accounts-bulk-field textarea:focus {
-  border-color: #dc2626 !important;
+  border-color: #2563eb !important;
   background: #ffffff !important;
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
   outline: none !important;
 }

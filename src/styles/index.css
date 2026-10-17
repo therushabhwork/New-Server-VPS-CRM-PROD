@@ -3,14 +3,18 @@
 /* Shared visual language for the user and admin CRM shells.
    Presentation-only overrides: no data, routing, or service behavior. */
 body {
-  background: #faf7f1 url('/bg-pattern.png') center / cover fixed no-repeat;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #0F172A;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  font-variant-numeric: tabular-nums;
 }
 
 .layout,
 .login-page-container {
-  background-color: #faf7f1 !important;
-  background-position: center !important;
-  background-size: cover !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
 }
 
 .layout::before,
@@ -27,26 +31,26 @@ body {
 
 .sidebar,
 .right-panel {
-  background: rgba(255, 255, 255, 0.72) !important;
-  border-color: rgba(255, 255, 255, 0.86) !important;
-  box-shadow: 0 12px 34px rgba(86, 63, 45, 0.07) !important;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .layout--admin .header,
 .layout--user .header,
 .header {
-  background: transparent !important;
-  background-color: transparent !important;
+  background: #FFFFFF !important;
+  background-color: #FFFFFF !important;
   border: none !important;
-  border-bottom: none !important;
-  box-shadow: none !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
 
-/* Keep the reference's decorative circles extremely quiet on admin pages. */
+/* Keep decorative circles hidden for clean SaaS aesthetic */
 .layout.layout--admin::before,
 .layout.layout--admin::after {
   display: none !important;
@@ -58,9 +62,9 @@ html.is-admin body::before { display: none !important; }
 html.is-admin body,
 html.is-admin #root,
 html.is-admin .layout--admin {
-  background-color: #faf7f1 !important;
-  background-position: center !important;
-  background-size: cover !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
   background-attachment: fixed !important;
   background-repeat: no-repeat !important;
 }
@@ -98,11 +102,11 @@ html.is-admin .layout--admin .header-panel::after {
   visibility: visible !important;
 }
 
-/* 2. Sidebar View Toolbar Active Route (Solid Red Box) */
+/* 2. Sidebar View Toolbar Active Route (SaaS Blue Box) */
 .sidebar--admin .sb-view-toolbar-button--route-active,
 .sidebar--admin .sb-view-toolbar-button:active {
-  background: #dc2626 !important;
-  border-color: #c60016 !important;
+  background: #2563EB !important;
+  border-color: #1D4ED8 !important;
   color: #ffffff !important;
 }
 
@@ -116,22 +120,22 @@ html.is-admin .layout--admin .header-panel::after {
   visibility: visible !important;
 }
 
-/* 3. Inactive Sidebar View Toolbar Buttons (White background -> Dark Icon) */
+/* 3. Inactive Sidebar View Toolbar Buttons (White background -> Slate Icon) */
 .sb-view-toolbar-button:not(.sb-view-toolbar-button--route-active) {
-  color: #374151 !important;
+  color: #475569 !important;
 }
 
 .sb-view-toolbar-button:not(.sb-view-toolbar-button--route-active) svg,
 .sb-view-toolbar-button:not(.sb-view-toolbar-button--route-active) svg * {
-  color: #374151 !important;
+  color: #475569 !important;
   fill: currentColor !important;
   stroke: currentColor !important;
-  -webkit-text-fill-color: #374151 !important;
+  -webkit-text-fill-color: #475569 !important;
   opacity: 1 !important;
   visibility: visible !important;
 }
 
-/* 4. Sidebar Link Active State (Light Pink Background -> Red Icon & Red Text) */
+/* 4. Sidebar Link Active State (Brand Red Icon & Brand Red Text) */
 .sidebar--admin .sb-link--active,
 .sidebar--admin .sb-group-trigger--route-active {
   background: #fdebec !important;
@@ -141,10 +145,10 @@ html.is-admin .layout--admin .header-panel::after {
 
 .sidebar--admin .sb-link--active :where(svg, svg *, .sb-link-icon *, .sb-group-icon *),
 .sidebar--admin .sb-group-trigger--route-active :where(svg, svg *, .sb-link-icon *, .sb-group-icon *) {
-  color: #ffffff !important;
+  color: #c60016 !important;
   fill: currentColor !important;
   stroke: currentColor !important;
-  -webkit-text-fill-color: #ffffff !important;
+  -webkit-text-fill-color: #c60016 !important;
   opacity: 1 !important;
   visibility: visible !important;
 }
@@ -156,41 +160,54 @@ html.is-admin .sidebar--admin .sb-today-section {
 
 .layout.layout--admin {
   --header-height: 56px;
-  --sidebar-width: 290px;
+  --sidebar-width: 280px;
   --app-gutter: 8px;
   --grid-gap: 20px;
 }
 
-.sidebar { border-radius: 22px !important; }
+.sidebar {
+  border-radius: 12px !important;
+  border-right: 1px solid #E2E8F0 !important;
+}
 
 .md-card,
 .ud-card,
 .ud-stat-card,
 .sales-stat-card,
 .login-pill-input-wrap {
-  background: rgba(255, 255, 255, 0.74) !important;
-  border: 1px solid rgba(255, 255, 255, 0.88) !important;
-  box-shadow: 0 14px 35px rgba(86, 63, 45, 0.08) !important;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 1px 2px -1px rgba(15, 23, 42, 0.04) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-radius: 12px !important;
 }
 
 .md-card:hover,
 .ud-card:hover,
-.ud-stat-card:hover { box-shadow: 0 18px 40px rgba(86, 63, 45, 0.12) !important; }
+.ud-stat-card:hover {
+  box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.05) !important;
+}
 
 .md-btn--primary,
 .login-pill-submit-btn,
 .sales-header .btn-primary,
 .ud-todo-mini-btn {
-  background: linear-gradient(135deg, #d71920, #9f0f16) !important;
-  border-color: #b20d18 !important;
+  background: #2563EB !important;
+  border-color: #1D4ED8 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 1px 2px 0 rgba(37, 99, 235, 0.2) !important;
 }
 
-.login-bg-shape { display: block !important; opacity: 0.68; }
-.login-bg-shape--top-right { background: rgba(231, 190, 168, 0.18) !important; }
-.login-bg-shape--mid-left { background: rgba(231, 190, 168, 0.16) !important; }
-.login-bg-shape--bottom { background: rgba(221, 207, 185, 0.18) !important; }
+.md-btn--primary:hover,
+.login-pill-submit-btn:hover,
+.sales-header .btn-primary:hover,
+.ud-todo-mini-btn:hover {
+  background: #1D4ED8 !important;
+  border-color: #1E40AF !important;
+}
+
+.login-bg-shape { display: none !important; }
 
 @media (max-width: 720px) {
   .layout::before, .login-page-container::before { width: 190px; height: 190px; right: -70px; }
@@ -208,81 +225,81 @@ html.is-admin .sidebar--admin .sb-today-section {
    DESIGN TOKENS - Premium SaaS CRM (No Animations)
    ============================================================ */
 :root {
-  /* Brand — Corporate Red (#c60016) & Charcoal Premium Theme */
-  --admin-red: #c60016;
-  --admin-red-border: #a80012;
-  --color-primary: #c60016;
-  --color-primary-hover: #a80012;
-  --color-primary-soft: rgba(198, 0, 22, 0.08);
-  --color-primary-border: rgba(198, 0, 22, 0.25);
-  --color-primary-strong: #c60016;
+  /* Brand — Modern SaaS Blue & Clean Slate Theme */
+  --admin-red: #2563EB;
+  --admin-red-border: #1D4ED8;
+  --color-primary: #2563EB;
+  --color-primary-hover: #1D4ED8;
+  --color-primary-soft: #EFF6FF;
+  --color-primary-border: #BFDBFE;
+  --color-primary-strong: #1D4ED8;
 
-  --color-accent-admin: #c60016;
-  --color-accent-admin-soft: rgba(198, 0, 22, 0.08);
-  --color-accent-user: #c60016;
-  --color-accent-user-soft: rgba(198, 0, 22, 0.08);
+  --color-accent-admin: #2563EB;
+  --color-accent-admin-soft: #EFF6FF;
+  --color-accent-user: #2563EB;
+  --color-accent-user-soft: #EFF6FF;
 
   /* Status */
-  --color-success: #16a34a;
-  --color-success-soft: #f0fdf4;
-  --color-success-border: #bbf7d0;
-  --color-warning: #ea580c;
-  --color-warning-soft: #fff7ed;
-  --color-warning-border: #fed7aa;
-  --color-danger: #c60016;
-  --color-danger-soft: #fff5f5;
+  --color-success: #10b981;
+  --color-success-soft: #ecfdf5;
+  --color-success-border: #a7f3d0;
+  --color-warning: #f59e0b;
+  --color-warning-soft: #fffbeb;
+  --color-warning-border: #fde68a;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fef2f2;
   --color-danger-border: #fecaca;
-  --color-info: #0284c7;
-  --color-info-soft: #f0f9ff;
-  --color-info-border: #bae6fd;
+  --color-info: #2563eb;
+  --color-info-soft: #eff6ff;
+  --color-info-border: #bfdbfe;
 
-  /* Neutral ramp */
-  --color-gray-50: #faf7f1;
-  --color-gray-100: #f3efe6;
-  --color-gray-200: #e5dfd3;
-  --color-gray-300: #d1c9b8;
-  --color-gray-400: #9ca3af;
-  --color-gray-500: #6b7280;
-  --color-gray-600: #4b5563;
-  --color-gray-700: #374151;
-  --color-gray-800: #1f2937;
-  --color-gray-900: #111827;
+  /* Neutral ramp — Clean Slate */
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
 
-  /* Surfaces - Corporate Warm Ivory */
-  --surface-app: #FAF7F1;
-  --body-bg: #FAF7F1;
+  /* Surfaces — Clean Modern SaaS */
+  --surface-app: #F8FAFC;
+  --body-bg: #F8FAFC;
   --surface-card: #ffffff;
   --surface-raised: #ffffff;
-  --surface-muted: #F3EFE6;
-  --surface-sunken: #FAF7F1;
-  --surface-inverse: #111827;
+  --surface-muted: #F1F5F9;
+  --surface-sunken: #F8FAFC;
+  --surface-inverse: #0F172A;
 
-  /* Glass - Removed */
+  /* Glass - Clean Elevation */
   --glass-surface: #ffffff;
   --glass-surface-strong: #ffffff;
   --glass-surface-soft: #ffffff;
-  --glass-border: #e5e7eb;
-  --glass-border-strong: #d1d5db;
-  --glass-shadow-soft: 0 2px 4px rgba(0,0,0,0.02);
-  --glass-shadow: 0 4px 6px rgba(0,0,0,0.03);
-  --glass-shadow-lg: 0 10px 15px rgba(0,0,0,0.05);
+  --glass-border: #e2e8f0;
+  --glass-border-strong: #cbd5e1;
+  --glass-shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --glass-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --glass-shadow-lg: 0 10px 15px rgba(15, 23, 42, 0.06);
   --glass-blur: 0px;
   --glass-blur-strong: 0px;
 
   /* Borders */
-  --border-subtle: #e5e7eb;
-  --border-default: #d1d5db;
-  --border-strong: #9ca3af;
+  --border-subtle: #e2e8f0;
+  --border-default: #cbd5e1;
+  --border-strong: #94a3b8;
 
   /* Text */
-  --text-primary: #111827;
-  --text-secondary: #4b5563;
-  --text-muted: #9ca3af;
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
   --text-inverse: #ffffff;
 
   /* Typography */
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-display: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
   /* Shadows — Modern crisp shadows */
@@ -488,7 +505,7 @@ body {
   font-size: 14px;
   line-height: 1.55;
   color: var(--text-primary);
-  background-color: #FAF7F1;
+  background-color: #ffffff;
   background-size: cover !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
@@ -678,14 +695,14 @@ samp {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c60016;
+  background: #cbd5e1;
   border: 2px solid transparent;
   background-clip: padding-box;
   border-radius: var(--radius-full);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a80012;
+  background: #94a3b8;
   background-clip: padding-box;
   border: 2px solid transparent;
 }
@@ -6596,29 +6613,13 @@ html body #root .layout--admin .ap-home-layout {
 
 
 
-/* FINAL FIX FOR WHITE LINE SCROLLING GAP */
+/* ROOT BACKGROUND - CLEAN WHITE */
 html, body, #root, .layout {
   margin: 0 !important;
   padding: 0 !important;
   min-height: 100vh !important;
-  background-color: #FAF7F1 !important;
-  background-size: cover !important;
-  background-position: center top !important;
-  background-repeat: no-repeat !important;
-  background-attachment: fixed !important;
-}
-
-
-
-
-
-/* FINAL ROOT BACKGROUND RESTORATION */
-html, body, #root, .layout {
-  background-image: url('/bg-pattern.png') !important;
-  background-size: cover !important;
-  background-position: center top !important;
-  background-repeat: no-repeat !important;
-  background-attachment: fixed !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
 }
 
 

@@ -67,10 +67,10 @@
   align-items: center;
   gap: 0.85rem;
   padding: 0.95rem 1.15rem;
-  border-radius: 16px;
+  border-radius: 12px;
   background: #ffffff !important;
-  border: 1px solid #f0eae1 !important;
-  box-shadow: 0 4px 14px rgba(180, 160, 140, 0.05) !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
   cursor: pointer;
   overflow: hidden;
   transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
@@ -78,8 +78,8 @@
 
 .ud-stat-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(180, 160, 140, 0.09) !important;
-  border-color: #e5dec9 !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08) !important;
+  border-color: #cbd5e1 !important;
 }
 
 .ud-stat-icon-wrapper {
@@ -88,12 +88,12 @@
   justify-content: center;
   width: 2.65rem;
   height: 2.65rem;
-  border-radius: 12px;
+  border-radius: 10px;
   font-size: 1.15rem;
   flex-shrink: 0;
-  background: #c60016 !important;
+  background: #2563eb !important;
   color: #ffffff !important;
-  box-shadow: 0 3px 10px rgba(198, 0, 22, 0.22) !important;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2) !important;
 }
 
 .ud-stat-icon-wrapper svg {
@@ -101,11 +101,23 @@
   fill: #ffffff !important;
 }
 
-.ud-stat-icon-wrapper--red,
-.ud-stat-icon-wrapper--blue,
-.ud-stat-icon-wrapper--green,
+.ud-stat-icon-wrapper--red {
+  background: #2563eb !important;
+  color: #ffffff !important;
+}
+
+.ud-stat-icon-wrapper--blue {
+  background: #0284c7 !important;
+  color: #ffffff !important;
+}
+
+.ud-stat-icon-wrapper--green {
+  background: #059669 !important;
+  color: #ffffff !important;
+}
+
 .ud-stat-icon-wrapper--orange {
-  background: #c60016 !important;
+  background: #ea580c !important;
   color: #ffffff !important;
 }
 
@@ -173,10 +185,10 @@
 }
 
 .ud-todo-card--expansive {
-  border-radius: 20px;
+  border-radius: 12px;
   background: #ffffff !important;
-  border: 1px solid #f0eae1 !important;
-  box-shadow: 0 8px 30px rgba(180, 160, 140, 0.07) !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
   transition: all 0.25s ease;
 }
 
@@ -187,8 +199,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid #f1ece1;
-  background: linear-gradient(180deg, #ffffff 0%, #faf8f5 100%);
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
 }
 
 .ud-todo-header-icon-box {
@@ -197,12 +209,12 @@
   justify-content: center;
   width: 2.6rem;
   height: 2.6rem;
-  border-radius: 12px;
-  background: #c60016 !important;
+  border-radius: 10px;
+  background: #2563eb !important;
   color: #ffffff !important;
   font-size: 1.25rem;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(198, 0, 22, 0.22) !important;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2) !important;
 }
 
 .ud-todo-header-icon-box svg {
@@ -246,14 +258,14 @@
   gap: 0.45rem;
   background: #f1f5f9;
   padding: 0.25rem;
-  border-radius: 12px;
+  border-radius: 10px;
 }
 
 .ud-todo-tab {
   background: transparent;
   border: none;
   padding: 0.35rem 0.85rem;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 0.78rem;
   font-weight: 700;
   color: #475569;
@@ -268,7 +280,7 @@
 .ud-todo-tab.active {
   background: #ffffff;
   color: #c60016;
-  box-shadow: 0 2px 6px rgba(198, 0, 22, 0.12);
+  box-shadow: 0 1px 3px rgba(198, 0, 22, 0.12);
 }
 
 .ud-todo-list--expansive {
@@ -276,7 +288,7 @@
   grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
   gap: 0.85rem;
   padding: 1.25rem;
-  background: #fdfcfb;
+  background: #f8fafc;
 }
 
 @media (max-width: 900px) {
@@ -338,11 +350,11 @@
   height: 2.85rem;
   padding: 0;
   border: 0;
-  border-radius: 12px;
+  border-radius: 10px;
   font-size: 1.15rem;
   flex-shrink: 0;
   transition: transform 0.2s ease;
-  background: #c60016 !important;
+  background: #2563eb !important;
   color: #ffffff !important;
   cursor: pointer;
 }
@@ -359,7 +371,7 @@
 .ud-todo-icon-box--reminder,
 .ud-todo-icon-box--task,
 .ud-todo-icon-box--reply {
-  background: #c60016 !important;
+  background: #2563eb !important;
   color: #ffffff !important;
 }
 
@@ -433,7 +445,7 @@
 }
 
 .ud-active-pill-btn {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  background: #2563eb;
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -442,13 +454,13 @@
   font-weight: 700;
   cursor: pointer;
   transition: all 0.18s ease;
-  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.2);
 }
 
 .ud-active-pill-btn:hover {
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  background: #1d4ed8;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
 .ud-close-pill-btn {

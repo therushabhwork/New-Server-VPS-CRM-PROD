@@ -12,12 +12,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #FAF7F1 !important;
-  background-image: url('/bg-pattern.png') !important;
-  background-size: cover !important;
-  background-position: center center !important;
-  background-repeat: no-repeat !important;
-  background-attachment: fixed !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
   overflow: hidden;
   padding: 32px 16px;
   box-sizing: border-box;
@@ -1551,11 +1547,8 @@
 /* Target login composition: centered brand, airy canvas, compact control stack with rounded corners. */
 .login-page-container {
   padding: 24px 16px;
-  background-image: url('/bg-pattern.png') !important;
-  background-position: center !important;
-  background-size: cover !important;
-  background-repeat: no-repeat !important;
-  background-attachment: fixed !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
 }
 
 .login-desktop-card {
