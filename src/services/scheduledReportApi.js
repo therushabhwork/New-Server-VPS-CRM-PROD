@@ -3,6 +3,36 @@ import { reportApi } from './reportApi'
 
 export const SYSTEM_DEFAULT_REPORTS = [
   {
+    id: 'sys-sales-performance-yesterday',
+    reportName: 'Sales Performance Report – Yesterday',
+    sourceType: 'system_report',
+    dataSource: 'sales_performance',
+    description: 'Dynamic team performance by user groups for yesterday (accounts, conversions, won/lost deals & total values)',
+    selectedFields: ['slNo', 'salesPerson', 'newAccountsOpened', 'newAccountsConverted', 'conversionRate', 'wonDeals', 'lostDeals', 'activeDeals', 'totalDealValue'],
+    dateRangeType: 'yesterday',
+    accountOwner: 'all',
+  },
+  {
+    id: 'sys-sales-performance-last7days',
+    reportName: 'Sales Performance Report – Last 7 Days',
+    sourceType: 'system_report',
+    dataSource: 'sales_performance',
+    description: 'Dynamic team performance by user groups for the last 7 days',
+    selectedFields: ['slNo', 'salesPerson', 'newAccountsOpened', 'newAccountsConverted', 'conversionRate', 'wonDeals', 'lostDeals', 'activeDeals', 'totalDealValue'],
+    dateRangeType: 'last_7_days',
+    accountOwner: 'all',
+  },
+  {
+    id: 'sys-sales-performance-combined',
+    reportName: 'Sales Performance Report – Combined (Yesterday & Last 7 Days)',
+    sourceType: 'system_report',
+    dataSource: 'sales_performance',
+    description: 'Combined delivery containing both Yesterday and Last 7 Days performance tables by user groups',
+    selectedFields: ['slNo', 'salesPerson', 'newAccountsOpened', 'newAccountsConverted', 'conversionRate', 'wonDeals', 'lostDeals', 'activeDeals', 'totalDealValue'],
+    dateRangeType: 'combined',
+    accountOwner: 'all',
+  },
+  {
     id: 'sys-account-report',
     reportName: 'Account Report',
     sourceType: 'system_report',

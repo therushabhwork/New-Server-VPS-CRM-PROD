@@ -19,8 +19,12 @@ function getDateScopeLabel(dateRangeType) {
   switch (dateRangeType) {
     case 'today':
       return 'Today Only (00:00 - 23:59 IST)'
+    case 'yesterday':
+      return 'Yesterday Only (00:00 - 23:59 IST)'
     case 'last_7_days':
       return 'Last 7 Days'
+    case 'combined':
+      return 'Combined (Yesterday & Last 7 Days)'
     case 'this_month':
       return 'Current Month to Date'
     case 'previous_month':

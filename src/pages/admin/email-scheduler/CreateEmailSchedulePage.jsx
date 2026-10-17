@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FaArrowLeft,
@@ -9,6 +9,10 @@ import {
   FaCheckCircle,
   FaExclamationCircle,
   FaPlus,
+  FaSearch,
+  FaChevronDown,
+  FaChevronUp,
+  FaTimes,
 } from 'react-icons/fa'
 import { scheduledReportApi } from '../../../services/scheduledReportApi'
 import '../AdminPanel.css'
@@ -19,9 +23,24 @@ export default function CreateEmailSchedulePage() {
   const [loadingReports, setLoadingReports] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [reportSearchTerm, setReportSearchTerm] = useState('')
+  const dropdownRef = useRef(null)
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+    }
+  }, [])
 
   // Current logged in user for 'self' recipient
-  const currentUser = React.useMemo(() => {
+  const currentUser = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem('user') || '{}')
     } catch (_) {
@@ -78,6 +97,27 @@ export default function CreateEmailSchedulePage() {
       name: found ? `${found.reportName} Automated Delivery` : prev.name,
       dateRangeType: found?.dateRangeType || prev.dateRangeType,
     }))
+  }
+
+  const filteredReports = useMemo(() => {
+    if (!reportSearchTerm.trim()) return reports
+    const term = reportSearchTerm.toLowerCase().trim()
+    return reports.filter((r) => {
+      const name = String(r.reportName || '').toLowerCase()
+      const entity = String(r.entityType || r.dataSource || '').toLowerCase()
+      const desc = String(r.description || '').toLowerCase()
+      return name.includes(term) || entity.includes(term) || desc.includes(term)
+    })
+  }, [reports, reportSearchTerm])
+
+  const selectedReport = useMemo(() => {
+    return reports.find((r) => r.id === form.selectedReportId)
+  }, [reports, form.selectedReportId])
+
+  const selectReportItem = (reportId) => {
+    handleReportChange(reportId)
+    setDropdownOpen(false)
+    setReportSearchTerm('')
   }
 
   const handleSubmit = async (e) => {
@@ -223,38 +263,234 @@ export default function CreateEmailSchedulePage() {
                 {loadingReports ? (
                   <div style={{ padding: '8px', color: 'var(--text-secondary)' }}>Loading reports...</div>
                 ) : (
-                  <select
-                    className="ap-select"
-                    value={form.selectedReportId}
-                    onChange={(e) => handleReportChange(e.target.value)}
-                    required
-                  >
-                    <optgroup label="System Reports">
-                      {reports.filter((r) => r.sourceType === 'system_report').map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.reportName} ({(r.entityType || r.dataSource || 'REPORT').toUpperCase()})
-                        </option>
-                      ))}
-                    </optgroup>
-                    {reports.some((r) => r.sourceType === 'reporttemplate') && (
-                      <optgroup label="Custom Templates (From /admin/reports/custom)">
-                        {reports.filter((r) => r.sourceType === 'reporttemplate').map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.reportName} ({(r.entityType || r.dataSource || 'REPORT').toUpperCase()})
-                          </option>
-                        ))}
-                      </optgroup>
+                  <div ref={dropdownRef} style={{ position: 'relative' }}>
+                    <button
+                      type="button"
+                      className="ap-input"
+                      onClick={() => setDropdownOpen((prev) => !prev)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        width: '100%',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        padding: '8px 12px',
+                        backgroundColor: '#fff',
+                        fontSize: '0.875rem',
+                      }}
+                    >
+                      <span style={{ fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {selectedReport ? (
+                          <>
+                            <span>{selectedReport.reportName}</span>
+                            <span style={{ marginLeft: '8px', fontSize: '0.72rem', color: '#475569', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                              {(selectedReport.entityType || selectedReport.dataSource || 'REPORT').toUpperCase()}
+                            </span>
+                          </>
+                        ) : (
+                          '-- Select Report to Schedule --'
+                        )}
+                      </span>
+                      {dropdownOpen ? (
+                        <FaChevronUp style={{ color: '#64748b', fontSize: '0.8rem', marginLeft: '8px', flexShrink: 0 }} />
+                      ) : (
+                        <FaChevronDown style={{ color: '#64748b', fontSize: '0.8rem', marginLeft: '8px', flexShrink: 0 }} />
+                      )}
+                    </button>
+
+                    {dropdownOpen && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 'calc(100% + 4px)',
+                          left: 0,
+                          right: 0,
+                          zIndex: 1000,
+                          backgroundColor: '#fff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '8px',
+                          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                          maxHeight: '340px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {/* Search Bar Input */}
+                        <div style={{ padding: '8px 12px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f8fafc' }}>
+                          <FaSearch style={{ color: '#94a3b8', fontSize: '0.85rem', flexShrink: 0 }} />
+                          <input
+                            type="text"
+                            placeholder="Search reports by name or module..."
+                            value={reportSearchTerm}
+                            onChange={(e) => setReportSearchTerm(e.target.value)}
+                            autoFocus
+                            style={{
+                              width: '100%',
+                              border: 'none',
+                              outline: 'none',
+                              background: 'transparent',
+                              fontSize: '0.85rem',
+                              color: '#1e293b',
+                            }}
+                          />
+                          {reportSearchTerm && (
+                            <button
+                              type="button"
+                              onClick={() => setReportSearchTerm('')}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '0.85rem', padding: '0 4px', display: 'flex', alignItems: 'center' }}
+                            >
+                              <FaTimes />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* List of Report Options */}
+                        <div style={{ overflowY: 'auto', flex: 1, padding: '4px 0' }}>
+                          {filteredReports.length === 0 ? (
+                            <div style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>
+                              No reports found matching "{reportSearchTerm}"
+                            </div>
+                          ) : (
+                            <>
+                              {/* System Reports */}
+                              {filteredReports.some((r) => r.sourceType === 'system_report') && (
+                                <div>
+                                  <div style={{ padding: '6px 12px', fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#f8fafc' }}>
+                                    System Reports
+                                  </div>
+                                  {filteredReports.filter((r) => r.sourceType === 'system_report').map((r) => {
+                                    const isSelected = r.id === form.selectedReportId
+                                    return (
+                                      <div
+                                        key={r.id}
+                                        onClick={() => selectReportItem(r.id)}
+                                        style={{
+                                          padding: '8px 12px',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          backgroundColor: isSelected ? '#fee2e2' : 'transparent',
+                                          color: isSelected ? '#c60016' : '#1e293b',
+                                          fontWeight: isSelected ? 700 : 500,
+                                          fontSize: '0.85rem',
+                                          transition: 'background-color 0.15s ease',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          if (!isSelected) e.currentTarget.style.backgroundColor = '#f1f5f9'
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          if (!isSelected) e.currentTarget.style.backgroundColor = isSelected ? '#fee2e2' : 'transparent'
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                          {isSelected && <FaCheckCircle style={{ color: '#c60016', fontSize: '0.8rem', flexShrink: 0 }} />}
+                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reportName}</span>
+                                        </div>
+                                        <span style={{ fontSize: '0.7rem', color: '#64748b', background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', fontWeight: 600, flexShrink: 0, marginLeft: '8px' }}>
+                                          {(r.entityType || r.dataSource || 'REPORT').toUpperCase()}
+                                        </span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Custom Templates */}
+                              {filteredReports.some((r) => r.sourceType === 'reporttemplate') && (
+                                <div>
+                                  <div style={{ padding: '6px 12px', fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#f8fafc', marginTop: '4px' }}>
+                                    Custom Templates (From /admin/reports/custom)
+                                  </div>
+                                  {filteredReports.filter((r) => r.sourceType === 'reporttemplate').map((r) => {
+                                    const isSelected = r.id === form.selectedReportId
+                                    return (
+                                      <div
+                                        key={r.id}
+                                        onClick={() => selectReportItem(r.id)}
+                                        style={{
+                                          padding: '8px 12px',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          backgroundColor: isSelected ? '#fee2e2' : 'transparent',
+                                          color: isSelected ? '#c60016' : '#1e293b',
+                                          fontWeight: isSelected ? 700 : 500,
+                                          fontSize: '0.85rem',
+                                          transition: 'background-color 0.15s ease',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          if (!isSelected) e.currentTarget.style.backgroundColor = '#f1f5f9'
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          if (!isSelected) e.currentTarget.style.backgroundColor = isSelected ? '#fee2e2' : 'transparent'
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                          {isSelected && <FaCheckCircle style={{ color: '#c60016', fontSize: '0.8rem', flexShrink: 0 }} />}
+                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reportName}</span>
+                                        </div>
+                                        <span style={{ fontSize: '0.7rem', color: '#64748b', background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', fontWeight: 600, flexShrink: 0, marginLeft: '8px' }}>
+                                          {(r.entityType || r.dataSource || 'REPORT').toUpperCase()}
+                                        </span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Saved Reports */}
+                              {filteredReports.some((r) => r.sourceType === 'saved_report') && (
+                                <div>
+                                  <div style={{ padding: '6px 12px', fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#f8fafc', marginTop: '4px' }}>
+                                    Saved Reports (From /admin/reports/custom)
+                                  </div>
+                                  {filteredReports.filter((r) => r.sourceType === 'saved_report').map((r) => {
+                                    const isSelected = r.id === form.selectedReportId
+                                    return (
+                                      <div
+                                        key={r.id}
+                                        onClick={() => selectReportItem(r.id)}
+                                        style={{
+                                          padding: '8px 12px',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          backgroundColor: isSelected ? '#fee2e2' : 'transparent',
+                                          color: isSelected ? '#c60016' : '#1e293b',
+                                          fontWeight: isSelected ? 700 : 500,
+                                          fontSize: '0.85rem',
+                                          transition: 'background-color 0.15s ease',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          if (!isSelected) e.currentTarget.style.backgroundColor = '#f1f5f9'
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          if (!isSelected) e.currentTarget.style.backgroundColor = isSelected ? '#fee2e2' : 'transparent'
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                          {isSelected && <FaCheckCircle style={{ color: '#c60016', fontSize: '0.8rem', flexShrink: 0 }} />}
+                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reportName}</span>
+                                        </div>
+                                        <span style={{ fontSize: '0.7rem', color: '#64748b', background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', fontWeight: 600, flexShrink: 0, marginLeft: '8px' }}>
+                                          {(r.entityType || r.dataSource || 'REPORT').toUpperCase()}
+                                        </span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
                     )}
-                    {reports.some((r) => r.sourceType === 'saved_report') && (
-                      <optgroup label="Saved Reports (From /admin/reports/custom)">
-                        {reports.filter((r) => r.sourceType === 'saved_report').map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.reportName} ({(r.entityType || r.dataSource || 'REPORT').toUpperCase()})
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </select>
+                  </div>
                 )}
               </div>
             </div>

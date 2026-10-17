@@ -136,18 +136,18 @@ const getReportDisplayFieldKeys = (report) => {
 
 const applyReportFilters = (data, filters) => {
   if (!filters || !Array.isArray(filters) || filters.length === 0) return data
-  
+
   return data.filter(item => {
     let result = true
     for (let i = 0; i < filters.length; i++) {
       const filter = filters[i]
       if (!filter || (!filter.field && !filter.label)) continue
-      
+
       const fieldKey = filter.field || filter.label
       const itemVal = item[fieldKey]
       const strVal = itemVal !== null && itemVal !== undefined ? String(itemVal).toLowerCase() : ''
       const targetVal = filter.value ? String(filter.value).toLowerCase() : ''
-      
+
       let conditionMet = false
       switch (filter.operator) {
         case 'equals':
@@ -190,7 +190,7 @@ const applyReportFilters = (data, filters) => {
         default:
           conditionMet = true
       }
-      
+
       const connector = filter.connector || (i > 0 ? 'AND' : 'AND')
       if (i === 0) {
         result = conditionMet
@@ -233,6 +233,51 @@ const ADD_TEMPLATE_LABELS = {
 }
 
 const SYSTEM_REPORTS = [
+  {
+    id: 'system-sales-performance-yesterday',
+    categoryKey: 'deal',
+    group: 'Deals',
+    title: 'Sales Performance Report – Yesterday',
+    type: 'Deal',
+    reportType: 'sales_performance',
+    period: 'yesterday',
+    fields: 'SL. No., Sales Person, New Accounts Opened, New Accounts Converted, Conversion Rate (%), Won Deals, Lost Deals, Active Deals, Total Deal Value',
+    description: 'Dynamic team performance by user groups for yesterday (accounts, conversions, won/lost deals & total values)',
+    createdBy: 'System',
+    createdOn: 'Dynamic',
+    visibility: 'All',
+    systemReport: true,
+  },
+  {
+    id: 'system-sales-performance-last7days',
+    categoryKey: 'deal',
+    group: 'Deals',
+    title: 'Sales Performance Report – Last 7 Days',
+    type: 'Deal',
+    reportType: 'sales_performance',
+    period: 'last_7_days',
+    fields: 'SL. No., Sales Person, New Accounts Opened, New Accounts Converted, Conversion Rate (%), Won Deals, Lost Deals, Active Deals, Total Deal Value',
+    description: 'Dynamic team performance by user groups for the last 7 days',
+    createdBy: 'System',
+    createdOn: 'Dynamic',
+    visibility: 'All',
+    systemReport: true,
+  },
+  {
+    id: 'system-sales-performance-combined',
+    categoryKey: 'deal',
+    group: 'Deals',
+    title: 'Sales Performance Report – Combined (Yesterday & Last 7 Days)',
+    type: 'Deal',
+    reportType: 'sales_performance',
+    period: 'combined',
+    fields: 'SL. No., Sales Person, New Accounts Opened, New Accounts Converted, Conversion Rate (%), Won Deals, Lost Deals, Active Deals, Total Deal Value',
+    description: 'Combined delivery containing both Yesterday and Last 7 Days performance tables by user groups',
+    createdBy: 'System',
+    createdOn: 'Dynamic',
+    visibility: 'All',
+    systemReport: true,
+  },
   {
     id: 'system-account-daily-status',
     categoryKey: 'account',
@@ -393,10 +438,10 @@ const ReportCard = ({ report, onViewWeb, onExport, onDelete, isKevalOrAdmin, can
           {getReportType(report) && <span className="cr-list-card-type">{getReportType(report)}</span>}
           <span className="cr-list-card-divider" style={{ color: '#d0d8e4', margin: '0 0.25rem' }}>|</span>
           {canDeleteReport && report.isCustom && (
-            <button 
-              type="button" 
-              title="Delete Report" 
-              className="cr-settings-btn cr-delete-btn" 
+            <button
+              type="button"
+              title="Delete Report"
+              className="cr-settings-btn cr-delete-btn"
               onClick={(e) => {
                 e.stopPropagation()
                 onDelete && onDelete(report)
@@ -407,15 +452,15 @@ const ReportCard = ({ report, onViewWeb, onExport, onDelete, isKevalOrAdmin, can
           )}
           {isKevalOrAdmin ? (
             <>
-              <button 
-                type="button" 
-                title="Settings" 
-                className="cr-settings-btn cr-cog-btn" 
+              <button
+                type="button"
+                title="Settings"
+                className="cr-settings-btn cr-cog-btn"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
               >
                 <FaCog />
               </button>
-              
+
               {dropdownOpen && (
                 <div className="cr-card-dropdown-menu" style={{ padding: '0', minWidth: '170px' }}>
                   <button type="button" className="cr-dropdown-item" onClick={() => { setDropdownOpen(false); onExport(report, 'csv') }}>
@@ -441,10 +486,10 @@ const ReportCard = ({ report, onViewWeb, onExport, onDelete, isKevalOrAdmin, can
               )}
             </>
           ) : (
-            <button 
-              type="button" 
-              title="View Report" 
-              className="cr-settings-btn cr-eye-btn" 
+            <button
+              type="button"
+              title="View Report"
+              className="cr-settings-btn cr-eye-btn"
               onClick={() => onViewWeb(report)}
             >
               <FaEye />
@@ -742,9 +787,9 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     const baseReports = activeFilter === 'custom'
       ? customMongoReports
       : [
-          ...SYSTEM_REPORTS.filter((report) => isAdmin || report.visibility === 'All'),
-          ...customReports,
-        ]
+        ...SYSTEM_REPORTS.filter((report) => isAdmin || report.visibility === 'All'),
+        ...customReports,
+      ]
 
     return baseReports.filter((report) => {
       const catKey = normalizeEntityKey(report.categoryKey || report.entityType || '')
@@ -843,6 +888,82 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     newWindow.document.write('<!DOCTYPE html><html><head><title>Loading...</title></head><body style="background:#525659;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;"><div>Loading Report Data...</div></body></html>')
     newWindow.document.close()
 
+    if (report.reportType === 'sales_performance' || String(report.id).includes('sales-performance')) {
+      const period = report.period || (String(reportName).toLowerCase().includes('combined') ? 'combined' : (String(reportName).toLowerCase().includes('7 days') ? 'last_7_days' : 'yesterday'))
+      try {
+        const res = await apiClient.get('/reports/sales-performance/data', { params: { period } })
+        const data = res?.data || {}
+        const formatNumber = (num) => Number(num || 0).toLocaleString('en-IN')
+        const renderGroupsTable = (groups) => (groups || []).map(grp => `
+          <div style="margin-bottom: 28px;">
+            <h3 style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 8px;">${grp.groupIndex}. ${grp.groupName}</h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: center; border: 1px solid #e2e8f0;">
+              <thead>
+                <tr style="background: #f8fafc; color: #334155; font-weight: 600;">
+                  <th style="padding: 8px 6px; border: 1px solid #cbd5e1; width: 50px;">SL. No.</th>
+                  <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: left;">Sales Person</th>
+                  <th style="padding: 8px 6px; border: 1px solid #cbd5e1;">New Accounts Opened</th>
+                  <th style="padding: 8px 6px; border: 1px solid #cbd5e1;">New Accounts Converted</th>
+                  <th style="padding: 8px 6px; border: 1px solid #cbd5e1;">Conversion Rate (%)</th>
+                  <th style="padding: 8px 6px; border: 1px solid #cbd5e1;">Won Deals</th>
+                  <th style="padding: 8px 6px; border: 1px solid #cbd5e1;">Lost Deals</th>
+                  <th style="padding: 8px 6px; border: 1px solid #cbd5e1;">Active Deals</th>
+                  <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: right;">Total Deal Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${(grp.rows || []).map((row, idx) => `
+                  <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+                    <td style="padding: 6px; border: 1px solid #e2e8f0; color: #64748b;">${row.slNo}</td>
+                    <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: left; font-weight: 600; color: #0f172a;">${row.salesPerson}</td>
+                    <td style="padding: 6px; border: 1px solid #e2e8f0;">${row.newAccountsOpened}</td>
+                    <td style="padding: 6px; border: 1px solid #e2e8f0;">${row.newAccountsConverted}</td>
+                    <td style="padding: 6px; border: 1px solid #e2e8f0; font-weight: 600; color: #16a34a;">${row.conversionRate}</td>
+                    <td style="padding: 6px; border: 1px solid #e2e8f0; font-weight: 600; color: #16a34a;">${row.wonDeals}</td>
+                    <td style="padding: 6px; border: 1px solid #e2e8f0; font-weight: 600; color: #dc2626;">${row.lostDeals}</td>
+                    <td style="padding: 6px; border: 1px solid #e2e8f0;">${row.activeDeals}</td>
+                    <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: right; font-weight: 600;">₹${formatNumber(row.totalDealValue)}</td>
+                  </tr>
+                `).join('')}
+                <tr style="background: #f1f5f9; font-weight: 700; color: #0f172a; border-top: 2px solid #cbd5e1;">
+                  <td colspan="2" style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: left;">Total (${grp.groupName})</td>
+                  <td style="padding: 8px; border: 1px solid #cbd5e1;">${grp.totals.totalOpened}</td>
+                  <td style="padding: 8px; border: 1px solid #cbd5e1;">${grp.totals.totalConverted}</td>
+                  <td style="padding: 8px; border: 1px solid #cbd5e1; color: #16a34a;">${grp.totals.overallConversionRate}</td>
+                  <td style="padding: 8px; border: 1px solid #cbd5e1; color: #16a34a;">${grp.totals.totalWon}</td>
+                  <td style="padding: 8px; border: 1px solid #cbd5e1; color: #dc2626;">${grp.totals.totalLost}</td>
+                  <td style="padding: 8px; border: 1px solid #cbd5e1;">${grp.totals.totalActive}</td>
+                  <td style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: right;">₹${formatNumber(grp.totals.totalValue)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        `).join('')
+
+        let bodyContent = ''
+        if (data.isCombined && data.yesterdayData && data.last7DaysData) {
+          bodyContent = `
+            <h2 style="font-size: 17px; font-weight: 700; color: #c60016; margin: 24px 0 12px; border-bottom: 2px solid #c60016; padding-bottom: 6px;">Sales Performance Report – Yesterday</h2>
+            ${renderGroupsTable(data.yesterdayData.groupsData)}
+            <hr style="border: none; border-top: 2px dashed #cbd5e1; margin: 36px 0;" />
+            <h2 style="font-size: 17px; font-weight: 700; color: #c60016; margin: 24px 0 12px; border-bottom: 2px solid #c60016; padding-bottom: 6px;">Sales Performance Report – Last 7 Days</h2>
+            ${renderGroupsTable(data.last7DaysData.groupsData)}
+          `
+        } else {
+          bodyContent = renderGroupsTable(data.groupsData)
+        }
+
+        const fullHtml = `<!DOCTYPE html><html><head><title>${reportName}</title><style>body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 24px; color: #1e293b; background: #fff; }</style></head><body><div style="max-width: 1200px; margin: 0 auto;"><h1 style="color: #c60016; font-size: 20px; margin-bottom: 4px;">Sales Performance Report – ${data.periodLabel}</h1><p style="color: #64748b; font-size: 13px; margin-bottom: 24px;">Generated live from MongoDB collections on ${new Date().toLocaleString('en-IN')}</p>${bodyContent}<div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #334155;"><p style="margin: 0 0 4px;">Thanks and Regards,</p><p style="margin: 0; font-weight: 700; color: #c60016; font-size: 14px;">Swati Sales CRM Team</p></div></div></body></html>`
+        newWindow.document.open()
+        newWindow.document.write(fullHtml)
+        newWindow.document.close()
+        return
+      } catch (err) {
+        newWindow.document.body.innerHTML = '<div style="color:red;padding:20px;">Failed to load sales performance report: ' + (err.message || 'Error') + '</div>'
+        return
+      }
+    }
+
     const isToday = (dateString) => {
       if (!dateString) return false
       const date = new Date(dateString)
@@ -907,14 +1028,14 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     // Pre-calculate quotation matches within [reportFrom, reportTo]
     const quotesInRange = (reportFrom || reportTo)
       ? finalQuotations.filter((q) => {
-          const qDateStr = q.quotationDate || q.date || q.createdAt
-          if (!qDateStr) return false
-          const qDate = new Date(qDateStr)
-          if (isNaN(qDate.getTime())) return false
-          if (reportFrom && qDate < reportFrom) return false
-          if (reportTo && qDate > reportTo) return false
-          return true
-        })
+        const qDateStr = q.quotationDate || q.date || q.createdAt
+        if (!qDateStr) return false
+        const qDate = new Date(qDateStr)
+        if (isNaN(qDate.getTime())) return false
+        if (reportFrom && qDate < reportFrom) return false
+        if (reportTo && qDate > reportTo) return false
+        return true
+      })
       : []
 
     const quoteAccountKeys = new Set()
@@ -1426,8 +1547,31 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
   const handleExport = async (report, format = 'excel') => {
     const reportName = report.reportName || report.title || report.name || 'Custom Report'
     const groupName = getReportGroupName(report)
+
+    if (report.reportType === 'sales_performance' || String(report.id).includes('sales-performance')) {
+      const period = report.period || (String(reportName).toLowerCase().includes('combined') ? 'combined' : (String(reportName).toLowerCase().includes('7 days') ? 'last_7_days' : 'yesterday'))
+      try {
+        const response = await apiClient.get('/reports/sales-performance/download', {
+          params: { period },
+          responseType: 'blob',
+        })
+        const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `Sales_Performance_Report_${period}_${new Date().toISOString().slice(0, 10)}.xlsx`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(url)
+      } catch (err) {
+        console.error('Failed to download sales performance report:', err)
+        alert('Failed to download report: ' + (err.response?.data?.error || err.message))
+      }
+      return
+    }
     const isDailyStatus = groupName === 'Daily Status' || String(reportName).includes('Daily Status')
-    
+
     const isToday = (dateString) => {
       if (!dateString) return false
       const date = new Date(dateString)
@@ -1435,7 +1579,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
       const today = new Date()
       return date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear()
     }
-    
+
     const filterByDate = (arr, dateField) => isDailyStatus ? arr.filter(item => isToday(item[dateField] || item.createdAt)) : arr
 
     let allDeals = []
@@ -1450,28 +1594,28 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     try {
       const fetchPromises = []
       if (targetCategory === 'all' || targetCategory === 'deal') {
-         fetchPromises.push(apiClient.get('/deals', { params: { limit: 100000 } }).then(res => {
-             const d = res?.data?.data || res?.data || []
-             allDeals = d
-         }).catch(e => console.error(e)))
+        fetchPromises.push(apiClient.get('/deals', { params: { limit: 100000 } }).then(res => {
+          const d = res?.data?.data || res?.data || []
+          allDeals = d
+        }).catch(e => console.error(e)))
       }
       if (targetCategory === 'all' || targetCategory === 'account') {
-         fetchPromises.push(apiClient.get('/leads', { params: { limit: 100000 } }).then(res => {
-             allAccounts = res?.data?.data || res?.data || []
-         }).catch(e => console.error(e)))
+        fetchPromises.push(apiClient.get('/leads', { params: { limit: 100000 } }).then(res => {
+          allAccounts = res?.data?.data || res?.data || []
+        }).catch(e => console.error(e)))
       }
       if (targetCategory === 'all' || targetCategory === 'customer') {
-         fetchPromises.push(apiClient.get('/customers', { params: { limit: 100000 } }).then(res => {
-             allCustomers = res?.data?.data || res?.data || []
-         }).catch(e => console.error(e)))
+        fetchPromises.push(apiClient.get('/customers', { params: { limit: 100000 } }).then(res => {
+          allCustomers = res?.data?.data || res?.data || []
+        }).catch(e => console.error(e)))
       }
       if (targetCategory === 'all' || targetCategory === 'quotation') {
-         fetchPromises.push(apiClient.get('/quotations', { params: { limit: 100000 } }).then(res => {
-             allQuotations = res?.data?.data || res?.data || []
-         }).catch(e => console.error(e)))
+        fetchPromises.push(apiClient.get('/quotations', { params: { limit: 100000 } }).then(res => {
+          allQuotations = res?.data?.data || res?.data || []
+        }).catch(e => console.error(e)))
       }
       await Promise.all(fetchPromises)
-    } catch(err) {
+    } catch (err) {
       console.error(err)
     }
 
@@ -1636,7 +1780,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         })
         return out
       }
-      
+
       // Fallback for system reports
       if (type === 'account') {
         return {
@@ -1851,7 +1995,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
 
     const processCategoryList = (list, type, dateField) => {
       let filtered = filterByDate(list, dateField)
-      let mapped = filtered.map(item => ({...item, ...mapItem(item, type)}))
+      let mapped = filtered.map(item => ({ ...item, ...mapItem(item, type) }))
       mapped = applyReportFilters(mapped, report.filters)
       return mapped.map(item => mapForExport(item, type))
     }
@@ -1875,11 +2019,11 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
 
     const allKeys = new Set()
     dataSets.forEach(row => Object.keys(row).forEach(k => allKeys.add(k)))
-    
-    let columns = Array.from(allKeys).map(k => ({ 
-      key: k, 
-      label: k, 
-      width: 25 
+
+    let columns = Array.from(allKeys).map(k => ({
+      key: k,
+      label: k,
+      width: 25
     }))
 
     if (columns.length === 0) {

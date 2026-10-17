@@ -3,8 +3,42 @@ const router = express.Router();
 const ReportTemplate = require('../models/ReportTemplate');
 const Report = require('../models/Report');
 const { executeReportPayload, sendOwnerWiseReportEmails } = require('../services/reportEngine');
+const salesPerformanceReportService = require('../services/salesPerformanceReportService');
 const { requireAuth } = require('../middleware/authMiddleware');
 const reportFieldDefinitions = require('../config/reportFieldDefinitions');
+
+// Sales Performance Report Data Endpoint
+router.get('/sales-performance/data', requireAuth, async (req, res) => {
+  try {
+    const period = req.query.period || 'yesterday';
+    const result = await salesPerformanceReportService.fetchSalesPerformanceData({
+      period,
+      customStart: req.query.customStart || req.query.fromDate,
+      customEnd: req.query.customEnd || req.query.toDate,
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Sales Performance Report Excel Download Endpoint
+router.get('/sales-performance/download', requireAuth, async (req, res) => {
+  try {
+    const period = req.query.period || 'yesterday';
+    const result = await salesPerformanceReportService.fetchSalesPerformanceData({
+      period,
+      customStart: req.query.customStart || req.query.fromDate,
+      customEnd: req.query.customEnd || req.query.toDate,
+    });
+    const { buffer, fileName } = salesPerformanceReportService.generateSalesPerformanceExcelBuffer(result);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.send(buffer);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Get centralized field definitions dictionary for all 4 entities
 router.get('/fields', requireAuth, (req, res) => {

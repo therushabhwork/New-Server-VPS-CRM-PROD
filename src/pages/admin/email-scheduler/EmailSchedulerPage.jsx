@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  FaCalendarCheck,
   FaPlay,
   FaPause,
   FaHistory,
@@ -179,72 +178,7 @@ export default function EmailSchedulerPage() {
         </div>
       )}
 
-      {/* LEVEL 1: ORGANIZATION KPI OVERVIEW - EXACT MATCH TO /admin/monitoring KPI CARDS */}
-      <div className="ap-kpi-grid">
-        {/* KPI 1: Total Schedules */}
-        <div className="ap-kpi-card">
-          <div className="ap-kpi-icon-wrap ap-kpi-icon--blue">
-            <FaCalendarCheck />
-          </div>
-          <div className="ap-kpi-main">
-            <div className="ap-kpi-val-row">
-              <span className="ap-kpi-value">{kpis.totalSchedules ?? schedules.length}</span>
-            </div>
-            <div className="ap-kpi-title">Total Schedules</div>
-          </div>
-          <svg className="ap-kpi-wave" viewBox="0 0 100 30" preserveAspectRatio="none">
-            <path d="M0,25 Q30,10 60,20 T100,5 L100,30 L0,30 Z" fill="rgba(2, 132, 199, 0.08)" />
-          </svg>
-        </div>
 
-        {/* KPI 2: Active Schedules */}
-        <div className="ap-kpi-card">
-          <div className="ap-kpi-icon-wrap ap-kpi-icon--green">
-            <FaPlay />
-          </div>
-          <div className="ap-kpi-main">
-            <div className="ap-kpi-val-row">
-              <span className="ap-kpi-value">{kpis.activeSchedules ?? schedules.filter((s) => s.isEnabled).length}</span>
-            </div>
-            <div className="ap-kpi-title">Active Schedulers</div>
-          </div>
-          <svg className="ap-kpi-wave" viewBox="0 0 100 30" preserveAspectRatio="none">
-            <path d="M0,22 Q30,28 60,15 T100,10 L100,30 L0,30 Z" fill="rgba(22, 163, 74, 0.08)" />
-          </svg>
-        </div>
-
-        {/* KPI 3: Inactive Schedules */}
-        <div className="ap-kpi-card">
-          <div className="ap-kpi-icon-wrap ap-kpi-icon--orange">
-            <FaPause />
-          </div>
-          <div className="ap-kpi-main">
-            <div className="ap-kpi-val-row">
-              <span className="ap-kpi-value">{kpis.inactiveSchedules ?? schedules.filter((s) => !s.isEnabled).length}</span>
-            </div>
-            <div className="ap-kpi-title">Paused / Inactive</div>
-          </div>
-          <svg className="ap-kpi-wave" viewBox="0 0 100 30" preserveAspectRatio="none">
-            <path d="M0,25 Q30,12 60,22 T100,8 L100,30 L0,30 Z" fill="rgba(234, 88, 12, 0.08)" />
-          </svg>
-        </div>
-
-        {/* KPI 4: Successful Deliveries */}
-        <div className="ap-kpi-card">
-          <div className="ap-kpi-icon-wrap ap-kpi-icon--red">
-            <FaCheckCircle />
-          </div>
-          <div className="ap-kpi-main">
-            <div className="ap-kpi-val-row">
-              <span className="ap-kpi-value">{kpis.totalSuccessfulRuns ?? 0}</span>
-            </div>
-            <div className="ap-kpi-title">Emails Delivered</div>
-          </div>
-          <svg className="ap-kpi-wave" viewBox="0 0 100 30" preserveAspectRatio="none">
-            <path d="M0,25 Q30,10 60,20 T100,5 L100,30 L0,30 Z" fill="rgba(220, 38, 38, 0.08)" />
-          </svg>
-        </div>
-      </div>
 
       {/* Main Table Card (.ap-card-box) */}
       <div className="ap-card-box">

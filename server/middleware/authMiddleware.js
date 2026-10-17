@@ -19,6 +19,7 @@ const extractToken = (req) => {
   const bearer = extractBearerToken(req.headers.authorization)
   if (bearer) return bearer
   if (req.cookies?.token) return req.cookies.token
+  if (req.query?.token) return req.query.token
   return ''
 }
 

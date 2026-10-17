@@ -80,11 +80,51 @@ function resolveDateRange(dateRangeType = 'last_7_days', customStart = null, cus
 }
 
 const { generateCustomReportExcelBuffer } = require('./customReportEngine')
+const salesPerformanceReportService = require('./salesPerformanceReportService')
+
+function isPerformanceSchedule(schedule) {
+  const ds = schedule?.reportConfig?.dataSource || ''
+  const rName = schedule?.reportConfig?.reportName || ''
+  const name = schedule?.name || ''
+  return (
+    ds === 'sales_performance' ||
+    rName.toLowerCase().includes('sales performance') ||
+    name.toLowerCase().includes('sales performance')
+  )
+}
+
+function resolvePerformancePeriod(schedule) {
+  const dr = schedule?.reportConfig?.dateRangeType
+  const freq = schedule?.schedule?.frequency
+  const name = (schedule?.name || '') + ' ' + (schedule?.reportConfig?.reportName || '')
+  if (dr === 'combined' || name.toLowerCase().includes('combined')) {
+    return 'combined'
+  }
+  if (dr === 'last_7_days' || freq === 'weekly_7_days' || name.toLowerCase().includes('7 days') || name.toLowerCase().includes('7-days')) {
+    return 'last_7_days'
+  }
+  return 'yesterday'
+}
 
 /**
  * Compiles report data into an in-memory .xlsx buffer with all custom report columns
  */
 async function generateReportExcelBuffer(scheduledReport) {
+  if (isPerformanceSchedule(scheduledReport)) {
+    const period = resolvePerformancePeriod(scheduledReport)
+    const perfData = await salesPerformanceReportService.fetchSalesPerformanceData({
+      period,
+      companyId: scheduledReport.companyId,
+    })
+    const { buffer, fileName } = salesPerformanceReportService.generateSalesPerformanceExcelBuffer(perfData)
+    return {
+      buffer,
+      recordCount: perfData.overallTotals?.totalOpened || 0,
+      fileName,
+      perfData,
+    }
+  }
+
   try {
     return await generateCustomReportExcelBuffer({ scheduledReport })
   } catch (err) {
@@ -199,7 +239,7 @@ async function executeSchedule(scheduleId, options = {}) {
   }
 
   // Build Excel Attachment
-  const { buffer, recordCount, fileName } = await generateReportExcelBuffer(schedule)
+  const { buffer, recordCount, fileName, perfData } = await generateReportExcelBuffer(schedule)
 
   // Re-verify enabled status and database existence right before external send (Halt Microsoft Graph if deleted or paused)
   if (executionType === 'scheduled') {
@@ -211,23 +251,41 @@ async function executeSchedule(scheduleId, options = {}) {
   }
 
   const frequencyLabel = schedule.schedule.frequency === 'weekly_7_days' ? 'Weekly (Every 7 Days)' : 'Daily'
-  const emailPayload = {
-    to: recipientEmail,
-    cc: (schedule.recipient?.additionalEmails || []).join(','),
-    subject: `Swati Sales CRM :- ${schedule.name} - ${new Date().toLocaleDateString('en-IN')}`,
-    message: `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+
+  const now = new Date()
+  const istDateStr = now.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })
+  const istTimeStr = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })
+  const runTag = Math.random().toString(36).substring(2, 7).toUpperCase()
+
+  const emailSubject = perfData
+    ? `Swati Sales CRM :- Sales Performance Report – ${perfData.periodLabel} [${istDateStr}, ${istTimeStr}]`
+    : `Swati Sales CRM :- ${schedule.name} [${istDateStr}, ${istTimeStr}]`
+
+  const emailMessage = perfData
+    ? salesPerformanceReportService.generateSalesPerformanceHtmlBody(perfData, {
+        istDateStr,
+        istTimeStr,
+        runTag,
+      })
+    : `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
       <h2 style="color: #c60016; margin-bottom: 4px;">Swati Sales CRM :- Report Delivery</h2>
       <p style="margin-top: 0; color: #666; font-size: 13px;">Frequency: <strong>${frequencyLabel}</strong> | Report: <strong>${schedule.reportConfig?.reportName || schedule.name}</strong></p>
       <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;" />
       <p>Hello,</p>
-      <p>Please find attached the latest automated report <strong>${schedule.name}</strong> generated on <strong>${new Date().toLocaleString('en-IN')}</strong>.</p>
+      <p>Please find attached the latest automated report <strong>${schedule.name}</strong> generated on <strong>${istDateStr} at ${istTimeStr} (IST)</strong>.</p>
       <table style="border-collapse: collapse; margin: 16px 0; font-size: 13px;">
         <tr><td style="padding: 4px 12px 4px 0; color: #666;">Data Source:</td><td style="font-weight: 600;">${schedule.reportConfig?.dataSource || 'Deal'}</td></tr>
         <tr><td style="padding: 4px 12px 4px 0; color: #666;">Date Range:</td><td style="font-weight: 600;">${schedule.reportConfig?.dateRangeType || 'All time'}</td></tr>
         <tr><td style="padding: 4px 12px 4px 0; color: #666;">Total Records:</td><td style="font-weight: 600; color: #c60016;">${recordCount}</td></tr>
       </table>
-      <p style="font-size: 12px; color: #888; margin-top: 24px;">This is an automated delivery from your Swati CRM Automated Email Reporting Scheduler.</p>
-    </div>`,
+      <p style="font-size: 12px; color: #888; margin-top: 24px;">This is an automated delivery from your Swati CRM Automated Email Reporting Scheduler. Ref: #${runTag}</p>
+    </div>`
+
+  const emailPayload = {
+    to: recipientEmail,
+    cc: (schedule.recipient?.additionalEmails || []).join(','),
+    subject: emailSubject,
+    message: emailMessage,
     isHtml: true,
     attachments: [{
       name: fileName,

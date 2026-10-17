@@ -42,7 +42,7 @@ const scheduledReportSchema = new mongoose.Schema({
     },
     dataSource: {
       type: String,
-      enum: ['account', 'deal', 'customer', 'quotation', 'remark'],
+      enum: ['account', 'deal', 'customer', 'quotation', 'remark', 'sales_performance'],
       default: 'deal',
     },
     selectedFields: {
@@ -63,7 +63,7 @@ const scheduledReportSchema = new mongoose.Schema({
     },
     dateRangeType: {
       type: String,
-      enum: ['today', 'last_7_days', 'this_month', 'previous_month', 'all_time', 'custom'],
+      enum: ['today', 'yesterday', 'last_7_days', 'this_month', 'previous_month', 'all_time', 'custom', 'combined'],
       default: 'last_7_days',
     },
     dateScopeLabel: {
