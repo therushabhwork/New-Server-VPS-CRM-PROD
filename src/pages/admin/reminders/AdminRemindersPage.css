@@ -552,6 +552,23 @@
   border-left-color: #c60016;
 }
 
+.active-reminders-detail-item--highlighted {
+  border-color: #fca5a5 !important;
+  border-left: 4px solid #c60016 !important;
+  background: #fffdfd !important;
+  box-shadow: 0 0 0 3px rgba(198, 0, 22, 0.18), 0 4px 12px rgba(198, 0, 22, 0.12) !important;
+  animation: aramPulseTarget 2.5s ease-in-out infinite;
+}
+
+@keyframes aramPulseTarget {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgba(198, 0, 22, 0.18), 0 4px 12px rgba(198, 0, 22, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(198, 0, 22, 0.3), 0 6px 16px rgba(198, 0, 22, 0.18);
+  }
+}
+
 .active-reminders-detail-item-main {
   display: flex;
   flex-direction: column;
@@ -712,6 +729,25 @@
   font-size: 0.7rem;
   font-weight: 800;
   white-space: nowrap;
+}
+
+.active-reminders-status-chip--activated {
+  background: #dcfce7 !important;
+  border-color: #86efac !important;
+  color: #15803d !important;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.active-reminders-status-chip--active {
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1d4ed8 !important;
+}
+
+.admin-reminders-status-activated {
+  background: #dcfce7 !important;
+  color: #15803d !important;
 }
 
 /* Card Note Box */

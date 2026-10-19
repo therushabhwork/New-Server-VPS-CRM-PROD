@@ -24,6 +24,8 @@ import { useAuth } from '../../../context/AuthContext'
 import { useData } from '../../../context/DataContext'
 import { getSummaryReports } from '../../../features/adminReports/getSummaryReports'
 import { getAccountsBoardData } from '../../../features/adminAccounts/selectors/getAccountsBoardData'
+import { normalizeAccountRecord } from '../../../features/adminAccounts/adapters/normalizeAccountRecord'
+import { normalizeDealRecord } from '../../../services/dealApi'
 import {
   buildAddAccountReportTemplateUrl,
   buildAddCustomerReportTemplateUrl,
@@ -224,11 +226,50 @@ const buildMonthlyStatusExportData = (
     return acc
   }, {})
 
+  const period = config.timePeriod || 'Monthly'
+  const now = new Date()
+
+  const matchesPeriod = (record) => {
+    if (period === 'All Time') return true
+    const rawDate = record.createdAt || record.accountDate || record.date || record.updatedAt
+    if (!rawDate) return true
+    const date = new Date(rawDate)
+    if (Number.isNaN(date.getTime())) return true
+
+    if (period === 'Daily' || period === 'Today') {
+      return (
+        date.getFullYear() === now.getFullYear() &&
+        date.getMonth() === now.getMonth() &&
+        date.getDate() === now.getDate()
+      )
+    }
+    if (period === 'Yearly' || period === 'This Year') {
+      return date.getFullYear() === now.getFullYear()
+    }
+    // Default: Monthly / This Month
+    return (
+      date.getFullYear() === now.getFullYear() &&
+      date.getMonth() === now.getMonth()
+    )
+  }
+
+  const selectedOwnerSet = !config.ownerAll && Array.isArray(config.selectedOwners) && config.selectedOwners.length > 0
+    ? new Set(config.selectedOwners.map(normalizeLabel))
+    : null
+
   const filteredRecords = normalizedRecords.filter((record) => {
+    if (!matchesPeriod(record)) return false
+
     const statusLabel = resolveMonthlyStatusLabel(record, reportId)
     if (!statusLabel || !selectedStatusSet.has(normalizeLabel(statusLabel))) {
       return false
     }
+
+    if (selectedOwnerSet) {
+      const recOwner = normalizeLabel(record.accountOwner || record.dealOwner || record.customerOwner || record.ownerName || record.addedBy || 'Unassigned')
+      if (!selectedOwnerSet.has(recOwner)) return false
+    }
+
     return true
   })
 
@@ -236,10 +277,12 @@ const buildMonthlyStatusExportData = (
     normalizeOwnerDisplayValue(String(record.accountOwner || record.dealOwner || record.customerOwner || record.ownerName || record.addedBy || 'Unassigned').trim() || 'Unassigned')
   ))
 
-  const ownerNames = dedupeByNormalizedValue([
-    ...availableUsersFull.map(u => normalizeOwnerDisplayValue(u.name)),
-    ...recordOwnerNames,
-  ])
+  const ownerNames = selectedOwnerSet
+    ? dedupeByNormalizedValue(config.selectedOwners.map(normalizeOwnerDisplayValue))
+    : dedupeByNormalizedValue([
+        ...availableUsersFull.map(u => normalizeOwnerDisplayValue(u.name)),
+        ...recordOwnerNames,
+      ])
 
   const matrixRows = ownerNames.map((ownerName) => {
     const user = usersByName[normalizeLabel(ownerName)] || {}
@@ -267,11 +310,12 @@ const buildMonthlyStatusExportData = (
     const statusKey = activeStatuses.find(s => normalizeLabel(s) === normalizedStatus)
     if (!statusKey) return
 
-    const ownerKey = normalizeLabel(record.accountOwner || record.dealOwner || record.customerOwner || record.ownerName || record.addedBy || 'Unassigned')
+    const ownerName = normalizeOwnerDisplayValue(record.accountOwner || record.dealOwner || record.customerOwner || record.ownerName || record.addedBy || 'Unassigned')
+    const ownerKey = normalizeLabel(ownerName)
     const ownerRow = matrixByOwner[ownerKey]
     if (!ownerRow) return
 
-    ownerRow.counts[statusKey] += 1
+    ownerRow.counts[statusKey] = (ownerRow.counts[statusKey] || 0) + 1
     ownerRow.total += 1
   })
 
@@ -306,11 +350,21 @@ const buildMonthlyStatusExportData = (
       ? 'Deals Status Report' 
       : 'Accounts Status Report'
 
+  const periodLabel = period === 'Daily' || period === 'Today'
+    ? `Daily (${now.toLocaleDateString('en-IN')})`
+    : period === 'Yearly' || period === 'This Year'
+      ? `Yearly (${now.getFullYear()})`
+      : period === 'All Time'
+        ? 'All Time'
+        : `Monthly (${now.toLocaleString('en-IN', { month: 'long', year: 'numeric' })})`
+
   return {
     reportName: baseExportTitle,
-    generatedOn: formatSummaryGeneratedOn(new Date()),
+    generatedOn: formatSummaryGeneratedOn(now),
     comparison: config.statusAll ? 'All Statuses' : 'Selected Statuses',
-    reportFilter: 'All Time',
+    reportFilter: `${periodLabel} | Owner: ${config.ownerAll ? 'All Owner' : config.selectedOwners.join(', ')}`,
+    timePeriod: periodLabel,
+    ownerFilter: config.ownerAll ? 'All Owner' : config.selectedOwners.join(', '),
     totalRecords: filteredRecords.length,
     columns,
     tableRows,

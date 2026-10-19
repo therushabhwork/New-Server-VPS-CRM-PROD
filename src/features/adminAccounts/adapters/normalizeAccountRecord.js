@@ -293,6 +293,7 @@ export const normalizeAccountRecord = (account = {}, index = 0, options = {}) =>
     userGroup: userGroupVal,
     reminderDate: account.reminderDate || '',
     reminderMode: titleize(account.reminderMode || ''),
+    reminderStatus: account.reminderStatus || account.raw?.reminderStatus || account.raw?.formData?.reminderStatus || (account.data && account.data.reminderStatus) || '',
     remark: account.remark || '',
     latestRemark,
     convertedAs,

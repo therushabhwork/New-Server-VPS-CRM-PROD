@@ -6,12 +6,14 @@ import {
   FaCalendarAlt,
   FaCheckCircle,
   FaClipboardList,
+  FaExternalLinkAlt,
   FaFileAlt,
   FaHandshake,
   FaHome,
   FaUser,
   FaUsers,
   FaComments,
+  FaCheck,
 } from 'react-icons/fa'
 import { useAuth } from '../../context/AuthContext'
 import { useData } from '../../context/DataContext'
@@ -22,6 +24,7 @@ import { formatCurrency, formatDate } from '../../utils/helpers'
 import { filterCommunicationActivitiesForUser } from '../../utils/communicationActivityAccess'
 import './UserDashboardPage.css'
 import AnalyticsSection from '../../components/dashboard/AnalyticsSection'
+import ActiveReminderActionModal from '../admin/reminders/ActiveReminderActionModal'
 
 const formatTodoDateTime = (value) => {
   const date = new Date(value)
@@ -47,6 +50,10 @@ const UserDashboardPage = () => {
     quotations,
     activities,
     updateReminder,
+    updateAccount,
+    updateDeal,
+    addNotification,
+    refreshData,
   } = useData()
   const [todoReplies, setTodoReplies] = useState([])
   const [communicationRemarks, setCommunicationRemarks] = useState([])
@@ -168,14 +175,90 @@ const UserDashboardPage = () => {
       .slice(0, 8)
   }, [navigate, reminders, supportRequests, tasks, todoReplies, user?.id, userIdentity])
 
-  const handleTodoReminderActive = (reminder, event) => {
+  const [activeReminderModalItem, setActiveReminderModalItem] = useState(null)
+
+  const isReminderItemActivated = useCallback((reminder) => {
+    if (!reminder) return false
+    return String(
+      reminder.status ||
+      reminder.reminderStatus ||
+      reminder.rawStatus ||
+      reminder.raw?.reminderStatus ||
+      ''
+    ).toLowerCase() === 'activated'
+  }, [])
+
+  const handleOpenReminderModal = useCallback((reminder, event) => {
     event?.stopPropagation()
-    navigate('/reminders/active', {
-      state: {
-        reminderId: reminder.id,
-      },
-    })
-  }
+    const enriched = {
+      ...reminder,
+      ownerName: reminder.ownerName || reminder.assignedTo || reminder.userName || user?.name || 'Unassigned',
+      reminderDate: reminder.remindAt || reminder.reminderDate,
+    }
+    setActiveReminderModalItem(enriched)
+  }, [user?.name])
+
+  const handleDirectJumpToActivePage = useCallback((reminder, event) => {
+    event?.stopPropagation()
+    const owner = reminder?.ownerName || reminder?.assignedTo || reminder?.userName || user?.name || ''
+    const reminderId = reminder?.id || reminder?.sourceId || ''
+    const params = new URLSearchParams()
+    if (owner && owner !== 'Unassigned') params.set('owner', owner)
+    if (reminderId) params.set('reminderId', reminderId)
+    const targetUrl = `/reminders/active${params.toString() ? `?${params.toString()}` : ''}`
+    window.open(targetUrl, '_blank', 'noopener,noreferrer')
+  }, [user?.name])
+
+  const handleModalActivateInPlace = useCallback(async (reminder) => {
+    if (reminder?.sourceType === 'account' && reminder?.sourceId) {
+      await updateAccount(reminder.sourceId, { reminderStatus: 'activated' })
+    } else if (reminder?.sourceType === 'deal' && reminder?.sourceId) {
+      await updateDeal(reminder.sourceId, { reminderStatus: 'activated' })
+    } else if (reminder?.id) {
+      await updateReminder(reminder.id, { status: 'activated' })
+    }
+    if (refreshData) {
+      try {
+        await refreshData()
+      } catch (e) {}
+    }
+    if (addNotification) {
+      addNotification('success', 'Reminder Activated', `Activated reminder for ${reminder.ownerName || 'team member'}.`)
+    }
+  }, [addNotification, refreshData, updateAccount, updateDeal, updateReminder])
+
+  const handleModalCloseInPlace = useCallback(async (reminder) => {
+    if (reminder?.sourceType === 'account' && reminder?.sourceId) {
+      await updateAccount(reminder.sourceId, { reminderStatus: 'closed' })
+    } else if (reminder?.sourceType === 'deal' && reminder?.sourceId) {
+      await updateDeal(reminder.sourceId, { reminderStatus: 'closed' })
+    } else if (reminder?.id) {
+      await updateReminder(reminder.id, { status: 'closed' })
+    }
+    if (refreshData) {
+      try {
+        await refreshData()
+      } catch (e) {}
+    }
+    if (addNotification) {
+      addNotification('success', 'Reminder Closed', `Closed reminder for ${reminder.ownerName || 'team member'}.`)
+    }
+  }, [addNotification, refreshData, updateAccount, updateDeal, updateReminder])
+
+  const handleModalRescheduleInPlace = useCallback(async (reminder, newDate) => {
+    if (!newDate) return
+    if (reminder?.id) {
+      await updateReminder(reminder.id, { reminderDate: newDate, remindAt: newDate })
+    }
+    if (refreshData) {
+      try {
+        await refreshData()
+      } catch (e) {}
+    }
+    if (addNotification) {
+      addNotification('success', 'Reminder Rescheduled', `Reminder rescheduled to ${newDate}.`)
+    }
+  }, [addNotification, refreshData, updateReminder])
 
   const handleTodoReminderClose = async (reminder, event) => {
     event?.stopPropagation()
@@ -371,21 +454,35 @@ const UserDashboardPage = () => {
                   ) : null}
                 </div>
                 {item.reminder ? (
-                  <div className="ud-todo-btn-group">
-                    <button
-                      type="button"
-                      className="ud-active-pill-btn"
-                      onClick={(e) => handleTodoReminderActive(item.reminder, e)}
-                    >
-                      Active
-                    </button>
-                    <button
-                      type="button"
-                      className="ud-close-pill-btn"
-                      onClick={(e) => handleTodoReminderClose(item.reminder, e)}
-                    >
-                      Close
-                    </button>
+                  <div className="ud-todo-btn-group" onClick={(e) => e.stopPropagation()}>
+                    {isReminderItemActivated(item.reminder) ? (
+                      <button
+                        type="button"
+                        className="ud-activated-pill-btn"
+                        onClick={(e) => handleOpenReminderModal(item.reminder, e)}
+                        title="Reminder is activated in database. Click to inspect or manage."
+                      >
+                        <FaCheck size={9} /> Activated
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="ud-active-pill-btn"
+                          onClick={(e) => handleOpenReminderModal(item.reminder, e)}
+                          title="Inspect who can activate & view active details"
+                        >
+                          Active
+                        </button>
+                        <button
+                          type="button"
+                          className="ud-close-pill-btn"
+                          onClick={(e) => handleTodoReminderClose(item.reminder, e)}
+                        >
+                          Close
+                        </button>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="ud-todo-btn-group">
@@ -475,6 +572,20 @@ const UserDashboardPage = () => {
         quotations={quotations}
         activities={activities}
       />
+
+      {activeReminderModalItem ? (
+        <ActiveReminderActionModal
+          isOpen={Boolean(activeReminderModalItem)}
+          onClose={() => setActiveReminderModalItem(null)}
+          reminder={activeReminderModalItem}
+          currentUser={user}
+          isAdmin={Boolean(user?.role === 'admin')}
+          allReminders={reminders || []}
+          onActivateInPlace={handleModalActivateInPlace}
+          onCloseInPlace={handleModalCloseInPlace}
+          onRescheduleInPlace={handleModalRescheduleInPlace}
+        />
+      ) : null}
     </div>
   )
 }

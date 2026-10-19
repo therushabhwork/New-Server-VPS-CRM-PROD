@@ -14,13 +14,20 @@ const titleize = (value = '') =>
 const buildReminderRecord = (record, reminderStatesById = {}) => {
   const stateId = buildReminderStateId(record.sourceType, record.sourceId)
   const reminderState = reminderStatesById[stateId] || null
-  const status = reminderState?.status === 'closed' ? 'closed' : reminderState?.status === 'activated' ? 'activated' : 'active'
+  const dbStatus = String(record.rawStatus || '').toLowerCase()
+  const localStatus = reminderState?.status
+
+  const status = localStatus === 'closed' || dbStatus === 'closed'
+    ? 'closed'
+    : localStatus === 'activated' || dbStatus === 'activated'
+    ? 'activated'
+    : 'active'
 
   return {
     ...record,
     id: stateId,
     status,
-    closedOn: reminderState?.closedOn || '',
+    closedOn: reminderState?.closedOn || (dbStatus === 'closed' ? record.updatedAt : '') || '',
     closedByName: reminderState?.closedByName || '',
   }
 }
@@ -62,6 +69,7 @@ export const getAdminReminders = ({
       accountStatus: resolveAccountStatusLabel(account),
       note: account.remark || account.latestRemark || '-',
       closedOnDisplay: '-',
+      rawStatus: account.reminderStatus || account.raw?.reminderStatus || account.raw?.formData?.reminderStatus || '',
     }, reminderStatesById))
 
   const dealReminders = deals
@@ -79,6 +87,7 @@ export const getAdminReminders = ({
       accountStatus: '-',
       note: deal.reminderNote || '-',
       closedOnDisplay: '-',
+      rawStatus: deal.reminderStatus || deal.raw?.reminderStatus || deal.data?.reminderStatus || '',
     }, reminderStatesById))
 
   const customerReminders = customerService
@@ -97,6 +106,7 @@ export const getAdminReminders = ({
       accountStatus: '-',
       note: customer.remark || customer.description || '-',
       closedOnDisplay: '-',
+      rawStatus: customer.reminderStatus,
     }, reminderStatesById))
 
   const supportRequestReminders = supportRequests
@@ -117,6 +127,7 @@ export const getAdminReminders = ({
         accountStatus: '-',
         note: supportRequest.reminderNote || supportRequest.notes || supportRequest.description || '-',
         closedOnDisplay: '-',
+        rawStatus: supportRequest.reminderStatus,
       }, reminderStatesById)
     })
 

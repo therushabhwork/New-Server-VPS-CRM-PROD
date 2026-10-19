@@ -20,9 +20,12 @@ import {
   FaUser,
   FaUsers,
   FaComments,
+  FaCheck,
+  FaExternalLinkAlt,
 } from 'react-icons/fa'
 import { FiArrowLeft, FiArrowRight, FiChevronDown, FiEdit2, FiPlus, FiSettings, FiTrash2 } from 'react-icons/fi'
 import Modal from '../../components/common/Modal'
+import ActiveReminderActionModal from './reminders/ActiveReminderActionModal'
 import { useClickOutside } from '../../hooks'
 import { useData } from '../../context/DataContext'
 import { useAuth } from '../../context/AuthContext'
@@ -214,13 +217,14 @@ const DashboardTabModal = ({
 const AdminPanel = () => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { accounts, deals, quotations = [], activities = [], supportRequests, tasks = [], reminders = [], refreshData, addNotification, updateReminder } = useData()
+  const { accounts, deals, quotations = [], activities = [], supportRequests, tasks = [], reminders = [], refreshData, addNotification, updateReminder, updateDeal, updateAccount } = useData()
   const { user, socket } = useAuth()
   const [dashboardTabs, setDashboardTabs] = useState(() => getDashboardTabs())
   const [activeSection, setActiveSection] = useState('home')
   const [openMenuState, setOpenMenuState] = useState(null)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isManageModalOpen, setIsManageModalOpen] = useState(false)
+  const [activeReminderModalItem, setActiveReminderModalItem] = useState(null)
   const [tabDraft, setTabDraft] = useState(buildEmptyTabDraft)
   const [editingTabId, setEditingTabId] = useState('')
   const [bookmarks, setBookmarks] = useState(() => getAdminBookmarks(user))
@@ -493,11 +497,54 @@ const AdminPanel = () => {
 
   const myCrmCards = useMemo(() => ([]), [])
 
-  const handleTodoReminderActive = useCallback(async (reminder, event) => {
+  const isCurrentUserOwner = useCallback((reminder) => {
+    if (!reminder) return false
+    const ownerName = reminder.ownerName || reminder.assignedUserName || reminder.userName || ''
+    const currentUserName = user?.name || user?.username || ''
+    const currentUserId = user?.id || user?._id || ''
+    return Boolean(
+      (reminder.userId && String(reminder.userId) === String(currentUserId))
+      || (ownerName && currentUserName && ownerName.trim().toLowerCase() === currentUserName.trim().toLowerCase())
+    )
+  }, [user?._id, user?.id, user?.name, user?.username])
+
+  const isReminderItemActivated = useCallback((reminder) => {
+    if (!reminder) return false
+    return String(
+      reminder.status ||
+      reminder.reminderStatus ||
+      reminder.rawStatus ||
+      reminder.raw?.reminderStatus ||
+      ''
+    ).toLowerCase() === 'activated'
+  }, [])
+
+  const handleOpenReminderModal = useCallback((reminder, event) => {
     event?.stopPropagation()
-    if (reminder?.id && !reminder?.sourceType) {
+    setActiveReminderModalItem(reminder)
+  }, [])
+
+  const handleDirectJumpToActivePage = useCallback((reminder, event) => {
+    event?.stopPropagation()
+    const owner = reminder?.ownerName
+    const reminderId = reminder?.id || reminder?.sourceId
+    const params = new URLSearchParams()
+    if (owner && owner !== 'Unassigned') params.set('owner', owner)
+    if (reminderId) params.set('reminderId', reminderId)
+    const targetUrl = `/admin/reminders/active${params.toString() ? `?${params.toString()}` : ''}`
+    window.open(targetUrl, '_blank', 'noopener,noreferrer')
+  }, [])
+
+  const handleModalActivateInPlace = useCallback(async (reminder) => {
+    if (reminder?.sourceType === 'account' && reminder?.sourceId) {
+      await updateAccount(reminder.sourceId, { reminderStatus: 'activated' })
+    } else if (reminder?.sourceType === 'deal' && reminder?.sourceId) {
+      await updateDeal(reminder.sourceId, { reminderStatus: 'activated' })
+    } else if (reminder?.id && !reminder?.sourceType) {
       await updateReminder(reminder.id, { status: 'activated' })
-    } else if (reminder?.sourceType && reminder?.sourceId) {
+    }
+
+    if (reminder?.sourceType && reminder?.sourceId) {
       const activatedState = activateAdminReminder({
         sourceType: reminder.sourceType,
         sourceId: reminder.sourceId,
@@ -508,13 +555,75 @@ const AdminPanel = () => {
         [activatedState.id]: activatedState,
       }))
     }
-    navigate('/admin/reminders/active', {
-      state: {
-        reminderId: reminder.id || reminder.sourceId,
-        selectedOwner: reminder.ownerName,
-      },
-    })
-  }, [navigate, updateReminder, user?.name, user?.username])
+
+    if (refreshData) {
+      try {
+        await refreshData()
+      } catch (e) {
+        console.warn('Failed to refresh data after reminder activation', e)
+      }
+    }
+    addNotification('success', 'Reminder Activated', `Activated reminder for ${reminder.ownerName || 'team member'}.`)
+  }, [addNotification, refreshData, updateAccount, updateDeal, updateReminder, user?.name, user?.username])
+
+  const handleModalCloseInPlace = useCallback(async (reminder) => {
+    if (reminder?.sourceType === 'account' && reminder?.sourceId) {
+      await updateAccount(reminder.sourceId, { reminderStatus: 'closed' })
+    } else if (reminder?.sourceType === 'deal' && reminder?.sourceId) {
+      await updateDeal(reminder.sourceId, { reminderStatus: 'closed' })
+    } else if (reminder?.id && !reminder?.sourceType) {
+      await updateReminder(reminder.id, { status: 'closed' })
+    }
+
+    if (reminder?.sourceType && reminder?.sourceId) {
+      const closedState = closeAdminReminder({
+        sourceType: reminder.sourceType,
+        sourceId: reminder.sourceId,
+        userName: user?.name || user?.username || '',
+      })
+      setReminderStatesById((currentStates) => ({
+        ...currentStates,
+        [closedState.id]: closedState,
+      }))
+    }
+
+    if (refreshData) {
+      try {
+        await refreshData()
+      } catch (e) {}
+    }
+    addNotification('success', 'Reminder Closed', `Closed reminder for ${reminder.ownerName || 'team member'}.`)
+  }, [addNotification, refreshData, updateAccount, updateDeal, updateReminder, user?.name, user?.username])
+
+  const handleModalRescheduleInPlace = useCallback(async (reminder, newDate) => {
+    if (!newDate) return
+    if (reminder?.sourceType === 'deal') {
+      await updateDeal(reminder.sourceId, { reminderDate: newDate })
+    } else if (reminder?.sourceType === 'account') {
+      await updateAccount(reminder.sourceId, { reminderDate: newDate })
+    } else if (reminder?.sourceType === 'customer') {
+      const customer = customerService.getCustomerById(reminder.sourceId)
+      if (customer) await customerService.saveCustomer({ ...customer, reminderDate: newDate })
+    } else if (reminder?.id && !reminder?.sourceType) {
+      await updateReminder(reminder.id, { reminderDate: newDate, remindAt: newDate })
+    }
+    if (reminder?.id && reminder?.sourceType) {
+      try {
+        await updateReminder(reminder.id, { reminderDate: newDate, remindAt: newDate })
+      } catch (e) {}
+    }
+    if (refreshData) {
+      try {
+        await refreshData()
+      } catch (e) {}
+    }
+    addNotification('success', 'Reminder Rescheduled', `Reminder rescheduled to ${newDate}.`)
+  }, [addNotification, refreshData, updateAccount, updateDeal, updateReminder])
+
+  const handleTodoReminderActive = useCallback(async (reminder, event) => {
+    event?.stopPropagation()
+    handleOpenReminderModal(reminder, event)
+  }, [handleOpenReminderModal])
 
   const handleTodoReminderClose = useCallback(async (reminder, event) => {
     event?.stopPropagation()
@@ -865,6 +974,28 @@ const AdminPanel = () => {
                           {item.type}
                         </span>
                         <span className="ap-todo-date">{item.meta}</span>
+                        {item.reminder?.ownerName ? (
+                          <span className="ap-todo-owner-chip" title={`Assigned Owner: ${item.reminder.ownerName}`}>
+                            <FaUser size={9} /> {item.reminder.ownerName}
+                          </span>
+                        ) : null}
+                        {item.reminder ? (
+                          isReminderItemActivated(item.reminder) ? (
+                            <span
+                              className="ap-todo-can-active-chip ap-todo-can-active-chip--activated"
+                              title="Status: Activated in Database"
+                            >
+                              ✓ Status: Activated
+                            </span>
+                          ) : (
+                            <span
+                              className={`ap-todo-can-active-chip ${isCurrentUserOwner(item.reminder) ? 'ap-todo-can-active-chip--self' : 'ap-todo-can-active-chip--team'}`}
+                              title="Who can activate this reminder"
+                            >
+                              ⚡ {isCurrentUserOwner(item.reminder) ? 'Can Activate: You' : `Can Activate: ${item.reminder.ownerName || 'Owner'}${isAdmin ? ' & Admin' : ''}`}
+                            </span>
+                          )
+                        ) : null}
                       </div>
                       <div className="ap-todo-title-text">{item.title || item.message}</div>
                       {item.message && item.title && item.message !== item.title ? (
@@ -873,20 +1004,34 @@ const AdminPanel = () => {
                     </div>
                     {item.reminder ? (
                       <div className="ap-todo-btn-group" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          className="ap-active-pill-btn"
-                          onClick={(e) => handleTodoReminderActive(item.reminder, e)}
-                        >
-                          Active
-                        </button>
-                        <button
-                          type="button"
-                          className="ap-close-pill-btn"
-                          onClick={(e) => handleTodoReminderClose(item.reminder, e)}
-                        >
-                          Close
-                        </button>
+                        {isReminderItemActivated(item.reminder) ? (
+                          <button
+                            type="button"
+                            className="ap-activated-pill-btn"
+                            onClick={(e) => handleOpenReminderModal(item.reminder, e)}
+                            title="Reminder is activated in database. Click to inspect or manage."
+                          >
+                            <FaCheck size={9} /> Activated
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              className="ap-active-pill-btn"
+                              onClick={(e) => handleOpenReminderModal(item.reminder, e)}
+                              title="Inspect who can activate & view active details"
+                            >
+                              Active
+                            </button>
+                            <button
+                              type="button"
+                              className="ap-close-pill-btn"
+                              onClick={(e) => handleTodoReminderClose(item.reminder, e)}
+                            >
+                              Close
+                            </button>
+                          </>
+                        )}
                       </div>
                     ) : (
                       <div className="ap-todo-btn-group" onClick={(e) => e.stopPropagation()}>
@@ -1545,6 +1690,20 @@ const AdminPanel = () => {
         }}
         onSubmit={handleManageTab}
       />
+
+      {activeReminderModalItem ? (
+        <ActiveReminderActionModal
+          isOpen={Boolean(activeReminderModalItem)}
+          onClose={() => setActiveReminderModalItem(null)}
+          reminder={activeReminderModalItem}
+          currentUser={user}
+          isAdmin={isAdmin}
+          allReminders={todoItems.map((i) => i.reminder).filter(Boolean)}
+          onActivateInPlace={handleModalActivateInPlace}
+          onCloseInPlace={handleModalCloseInPlace}
+          onRescheduleInPlace={handleModalRescheduleInPlace}
+        />
+      ) : null}
     </div>
   )
 }

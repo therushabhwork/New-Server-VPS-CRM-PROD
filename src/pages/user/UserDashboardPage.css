@@ -463,6 +463,52 @@
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
+.ud-activated-pill-btn {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+  border: 1.5px solid #86efac !important;
+  border-radius: 8px;
+  padding: 0.42rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.18s ease;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.15);
+}
+
+.ud-activated-pill-btn:hover {
+  background: #bbf7d0 !important;
+  border-color: #4ade80 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(22, 163, 74, 0.25);
+}
+
+.ud-direct-link-btn {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #2563eb;
+  border-radius: 8px;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
+}
+
+.ud-direct-link-btn:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.3);
+}
+
 .ud-close-pill-btn {
   background: #ffffff;
   border: 1px solid #cbd5e1;
