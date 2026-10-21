@@ -136,8 +136,8 @@ const AddReminderModal = ({
           startAt: remindAt,
           category: 'Reminder',
           assignedTo: finalAssignedTo,
-          ...(relatedEntityType && { relatedEntityType }),
-          ...(relatedEntityId && { relatedEntityId }),
+          ...(finalRelatedEntityType && { relatedEntityType: finalRelatedEntityType }),
+          ...(finalRelatedEntityId && { relatedEntityId: finalRelatedEntityId }),
         })
       } catch (err) {
         console.error('Failed to create calendar event for reminder', err)
@@ -166,8 +166,8 @@ const AddReminderModal = ({
         status: 'pending',
         priority: 'medium',
         dueDate: form.reminderDate,
-        relatedEntityType: relatedEntityType || 'reminder',
-        relatedEntityId: relatedEntityId || result.data.id || result.data._id,
+        relatedEntityType: finalRelatedEntityType || 'reminder',
+        relatedEntityId: finalRelatedEntityId || result.data.id || result.data._id,
         assignedTo: finalAssignedTo,
       })
     }

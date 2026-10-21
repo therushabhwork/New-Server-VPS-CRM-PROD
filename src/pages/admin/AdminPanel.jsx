@@ -50,9 +50,10 @@ import { getSwBarodaMumBoardData } from '../../features/adminAccounts/selectors/
 import { getAdminReminders } from '../../features/adminReminders/getAdminReminders'
 import { activateAdminReminder, closeAdminReminder, getAdminReminderStates, subscribeAdminReminderStates } from '../../features/adminReminders/reminderStorage'
 import { buildMonthlyWonLostData, buildPerformanceSummary } from '../../features/adminDashboardTabs/dashboardInsights'
-import { getStatusColor, formatDate } from '../../utils/helpers'
 import './AdminPanel.css'
-import AnalyticsSection from '../../components/dashboard/AnalyticsSection'
+import { analyticsApi } from '../../services/analyticsApi'
+import DealPerformanceCard from '../../components/dashboard/DealPerformanceCard'
+import AdminAnalyticsGraphs from '../../components/dashboard/AdminAnalyticsGraphs'
 
 const QUICK_NAV = [
   { id: 'dash', dotColor: '#3498db', label: 'Start with Dashboard', route: '/admin/monitoring' },
@@ -238,6 +239,72 @@ const AdminPanel = () => {
   const menuRef = useClickOutside(() => setOpenMenuState(null))
   const customers = useMemo(() => customerService.getCustomers(), [])
   const isAdmin = user?.role === 'admin'
+
+  const [analyticsData, setAnalyticsData] = useState(null)
+  const [loadingAnalytics, setLoadingAnalytics] = useState(true)
+  const [userPerformanceList, setUserPerformanceList] = useState([])
+  const [loadingUserPerformance, setLoadingUserPerformance] = useState(false)
+
+  const fetchAnalytics = useCallback(async () => {
+    try {
+      setLoadingAnalytics(true)
+      const data = await analyticsApi.getDashboardAnalytics()
+      if (data) setAnalyticsData(data)
+    } catch (err) {
+      console.error('Failed to fetch dashboard analytics:', err)
+    } finally {
+      setLoadingAnalytics(false)
+    }
+  }, [])
+
+  const fetchUserPerformance = useCallback(async (viewKey) => {
+    try {
+      setLoadingUserPerformance(true)
+      const data = await analyticsApi.getUserDealPerformance({ group: viewKey })
+      if (Array.isArray(data)) setUserPerformanceList(data)
+    } catch (err) {
+      console.error('Failed to fetch user deal performance:', err)
+    } finally {
+      setLoadingUserPerformance(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchAnalytics()
+  }, [fetchAnalytics])
+
+  useEffect(() => {
+    if (activeSection !== 'home') {
+      const currentTab = dashboardTabs.find((tab) => tab.id === activeSection)
+      const vk = currentTab?.viewKey || ''
+      if (['salesSwati', 'salesLumos', 'userWisePerformance', 'salesPerformanceA', 'salesPerformanceB'].includes(vk)) {
+        fetchUserPerformance(vk)
+      }
+    }
+  }, [activeSection, dashboardTabs, fetchUserPerformance])
+
+  useEffect(() => {
+    if (!socket) return undefined
+    const handleRealtimeRefresh = () => {
+      fetchAnalytics()
+      const currentTab = dashboardTabs.find((tab) => tab.id === activeSection)
+      if (currentTab && ['salesSwati', 'salesLumos', 'userWisePerformance', 'salesPerformanceA', 'salesPerformanceB'].includes(currentTab.viewKey)) {
+        fetchUserPerformance(currentTab.viewKey)
+      }
+    }
+
+    socket.on('dashboard:update', handleRealtimeRefresh)
+    socket.on('user:online', handleRealtimeRefresh)
+    socket.on('user:offline', handleRealtimeRefresh)
+    socket.on('users:online', handleRealtimeRefresh)
+
+    return () => {
+      socket.off('dashboard:update', handleRealtimeRefresh)
+      socket.off('user:online', handleRealtimeRefresh)
+      socket.off('user:offline', handleRealtimeRefresh)
+      socket.off('users:online', handleRealtimeRefresh)
+    }
+  }, [socket, fetchAnalytics, activeSection, dashboardTabs, fetchUserPerformance])
 
   const fetchTodoReplies = useCallback(async () => {
     try {
@@ -1114,12 +1181,9 @@ const AdminPanel = () => {
           )}
         </div>
 
-        <AnalyticsSection
-          accounts={accounts}
-          deals={deals}
-          customers={customers}
-          quotations={quotations}
-          activities={activities}
+        <AdminAnalyticsGraphs
+          analyticsData={analyticsData}
+          loading={loadingAnalytics}
         />
       </div>
     )
@@ -1512,23 +1576,72 @@ const AdminPanel = () => {
 
   const activeTab = dashboardTabs.find((tab) => tab.id === activeSection) || dashboardTabs[0]
 
+  const renderUserWisePerformanceGraphs = () => (
+    <div className="ap-dashboard-shell">
+      <div style={{ marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700, color: '#0f172a' }}>
+            {activeTab.name} — Real-Time Accounts & Deals Performance
+          </h2>
+          <p style={{ margin: '0.25rem 0 0 0', color: '#64748b', fontSize: '0.875rem' }}>
+            Direct one-by-one owner-wise dynamic accounts & deals graphs from MongoDB leads & deals collections.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="ap-link-btn"
+          onClick={() => navigate('/admin/users')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            padding: '0.5rem 1rem',
+            background: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            color: '#1d4ed8',
+            borderRadius: '8px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontSize: '0.875rem',
+          }}
+        >
+          <FaUsers /> View All Users Roster &rarr;
+        </button>
+      </div>
+
+      {loadingUserPerformance ? (
+        <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+          Loading real-time user-wise performance graphs...
+        </div>
+      ) : userPerformanceList.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+          No user performance records found for this team.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {userPerformanceList.map((userPerf) => (
+            <DealPerformanceCard key={userPerf.userId} userPerformance={userPerf} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+
   const renderActiveTabContent = () => {
     if (activeSection === 'home') return renderHomeContent()
     if (!activeTab) return renderHomeContent()
 
     switch (activeTab.viewKey) {
-      case 'salesDashboard':
-        return renderSalesDashboard()
+      case 'salesSwati':
+      case 'salesLumos':
+      case 'userWisePerformance':
       case 'salesPerformanceA':
       case 'salesPerformanceB':
-        return renderPerformanceGraph()
+        return renderUserWisePerformanceGraphs()
       case 'myCrm':
         return renderMyCrmContent()
       default:
-        if (activeTab.viewKey && activeTab.viewKey.startsWith('salesPerformance')) {
-          return renderPerformanceGraph()
-        }
-        return renderSalesDashboard()
+        return renderUserWisePerformanceGraphs()
     }
   }
 

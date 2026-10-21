@@ -12,6 +12,7 @@ const Modal = ({
   showClose = true,
   footer,
   headerActions = null,
+  className = '',
 }) => {
   useEffect(() => {
     if (isOpen) {
@@ -46,7 +47,7 @@ const Modal = ({
 
   return createPortal(
     <div className="modal-overlay" onClick={handleOverlayClick}>
-      <div className={`modal-content modal-${size}`}>
+      <div className={`modal-content modal-${size} ${className}`.trim()}>
         {(title || showClose || headerActions) && (
           <div className="modal-header">
             {title ? <h2 className="modal-title">{title}</h2> : <div />}

@@ -61,6 +61,8 @@ import { capitalize, formatCurrency, formatDate, formatNumber, getStatusColor } 
 import { DEAL_STATUS } from '../../utils/constants'
 import { exportAllAccountsAndDealsWorkbook } from '../../utils/exportAllLeadsAndDeals'
 import Quotations from '../quotations/Quotations'
+import { UnifiedQuotationDropdownButton } from '../admin/quotations/quotationShared'
+import '../admin/quotations/AdminQuotationsPage.css'
 import './Deals.css'
 
 const REMINDER_MODE_OPTIONS = [
@@ -4451,6 +4453,51 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
             {selectedReason ? getLostOrderReasonLabel(selectedReason) : ''}
           </span>
         </span>
+      )
+    }
+
+    if (columnKey === 'quotationNumber') {
+      const qNum = row.quotationNumber || getDealQuotationNumber(row.rawDeal || row, quotationNumberByDealId, quotationNumberByDealNumber)
+      if (!qNum || String(qNum).trim().toLowerCase() === 'null' || String(qNum).trim().toLowerCase() === 'undefined') {
+        return '-'
+      }
+      const activeDeal = row.rawDeal || row
+      const quoteStr = String(qNum).trim()
+      return (
+        <div className="deals-quote-cell-wrapper" onClick={(e) => e.stopPropagation()}>
+          <UnifiedQuotationDropdownButton
+            quotationNumber={quoteStr}
+            status={row.quotationCustomerStatus || activeDeal.quotationCustomerStatus || 'approved'}
+            row={activeDeal}
+            onGenerateQuotation={() => handleGenerateQuotationForDeal(activeDeal)}
+            onCloneQuotation={() => {
+              const isAdminPortal = window.location.pathname.startsWith('/admin')
+              navigate(isAdminPortal ? '/admin/quotations' : '/quotations', {
+                state: {
+                  openGenerator: true,
+                  preselectedDeal: activeDeal,
+                  activeTab: 'deal',
+                  quotationContext: 'deal',
+                },
+              })
+            }}
+            onRevisionHistory={() => {
+              const basePath = window.location.pathname.startsWith('/admin') ? '/admin/quotation-manager/view' : '/quotation-manager/view'
+              const query = new URLSearchParams({
+                tab: 'deals',
+                accountId: activeDeal.accountId || activeDeal.id || '',
+                accountName: activeDeal.accountName || activeDeal.customerName || activeDeal.linkedAccountName || '',
+                accountNo: activeDeal.accountNumber || activeDeal.dealNumber || '',
+              })
+              navigate(`${basePath}?${query.toString()}`)
+            }}
+            onViewQuotation={() => {
+              const basePath = window.location.pathname.startsWith('/admin') ? '/admin/quotation-manager/view' : '/quotation-manager/view'
+              navigate(`${basePath}?view=${encodeURIComponent(quoteStr)}`)
+            }}
+            usePortal={true}
+          />
+        </div>
       )
     }
 

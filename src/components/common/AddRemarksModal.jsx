@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { FaEdit } from 'react-icons/fa'
+import React, { useEffect, useMemo, useState, useRef } from 'react'
+import { FaEdit, FaPlus } from 'react-icons/fa'
+import { FiChevronDown } from 'react-icons/fi'
 import Modal from './Modal'
 import Button from './Button'
 import { userApi } from '../../services/userApi'
@@ -138,7 +139,50 @@ const getAccountInfoDisplayValue = (accountData, field, drafts = {}) => {
   return draftValue ?? getEditableAccountValue(accountData, field.key)
 }
 
-const AddRemarksModal = ({ isOpen, onClose, accountData, dealData, onSave, onSaveAccountField, isLoading = false }) => {
+const resolveAccountName = (entity) => (
+  entity?.accountName
+  || entity?.name
+  || entity?.companyName
+  || entity?.company
+  || entity?.customerName
+  || entity?.clientName
+  || entity?.title
+  || entity?.raw?.accountName
+  || entity?.raw?.name
+  || entity?.raw?.companyName
+  || entity?.raw?.company
+  || entity?.raw?.customerName
+  || entity?.raw?.clientName
+  || '-'
+)
+
+const resolveAccountNumber = (entity) => (
+  entity?.accountNumber
+  || entity?.accountNo
+  || entity?.clientAccountNumber
+  || entity?.customerCode
+  || entity?.dealNumber
+  || entity?.code
+  || entity?.raw?.accountNumber
+  || entity?.raw?.accountNo
+  || entity?.raw?.clientAccountNumber
+  || entity?.raw?.customerCode
+  || entity?.raw?.dealNumber
+  || entity?.raw?.code
+  || '-'
+)
+
+const AddRemarksModal = ({
+  isOpen,
+  onClose,
+  accountData,
+  dealData,
+  onSave,
+  onSaveAccountField,
+  isLoading = false,
+  hideAccountInfo = false,
+  compactModal = false,
+}) => {
   const targetEntity = accountData || dealData
   const [category, setCategory] = useState('call-log')
   const [content, setContent] = useState('')
@@ -151,8 +195,22 @@ const AddRemarksModal = ({ isOpen, onClose, accountData, dealData, onSave, onSav
   const [reminderPriority, setReminderPriority] = useState('Medium')
   const [followupType, setFollowupType] = useState('Call')
   const [reminderStatus] = useState('Pending')
+  const [extraDetailsLevel, setExtraDetailsLevel] = useState(0)
   const [assignedTo, setAssignedTo] = useState('owner')
   const [otherUserId, setOtherUserId] = useState('')
+  const [isAssignDropdownOpen, setIsAssignDropdownOpen] = useState(false)
+  const [userSearchTerm, setUserSearchTerm] = useState('')
+  const assignDropdownRef = useRef(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (assignDropdownRef.current && !assignDropdownRef.current.contains(e.target)) {
+        setIsAssignDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
   const [reminderNote, setReminderNote] = useState('')
   const [assignmentMode, setAssignmentMode] = useState('user')
   const [selectedAssignmentUserIds, setSelectedAssignmentUserIds] = useState([])
@@ -162,6 +220,21 @@ const AddRemarksModal = ({ isOpen, onClose, accountData, dealData, onSave, onSav
   const [editingInfoField, setEditingInfoField] = useState('')
   const [infoDrafts, setInfoDrafts] = useState({})
   const [isSavingInfoField, setIsSavingInfoField] = useState(false)
+
+  const filteredAssignUsers = useMemo(() => {
+    if (!userSearchTerm.trim()) return availableUsers
+    const query = userSearchTerm.toLowerCase().trim()
+    return availableUsers.filter((u) => {
+      const name = String(u.name || '').toLowerCase()
+      const username = String(u.username || '').toLowerCase()
+      const email = String(u.email || '').toLowerCase()
+      return name.includes(query) || username.includes(query) || email.includes(query)
+    })
+  }, [availableUsers, userSearchTerm])
+
+  const selectedOtherUser = availableUsers.find((u) => String(u.id) === String(otherUserId))
+  const selectedOtherUserName = selectedOtherUser ? (selectedOtherUser.name || selectedOtherUser.username || selectedOtherUser.email) : 'Select user'
+
   const assignmentUsers = useMemo(() => (
     availableUsers
       .filter((user) => user.id)
@@ -237,7 +310,6 @@ const AddRemarksModal = ({ isOpen, onClose, accountData, dealData, onSave, onSav
     if (!isOpen) return
 
     if (category === 'general') {
-      setHasReminder(true)
       if (allUserIds.length > 0) {
         setSelectedAssignmentUserIds(allUserIds)
       }
@@ -352,8 +424,11 @@ const AddRemarksModal = ({ isOpen, onClose, accountData, dealData, onSave, onSav
     setReminderAction('Call')
     setReminderPriority('Medium')
     setFollowupType('Call')
+    setExtraDetailsLevel(0)
     setAssignedTo('owner')
     setOtherUserId('')
+    setIsAssignDropdownOpen(false)
+    setUserSearchTerm('')
     setReminderNote('')
     setAssignmentMode('user')
     setSelectedAssignmentUserIds(allUserIds)
@@ -470,111 +545,37 @@ const AddRemarksModal = ({ isOpen, onClose, accountData, dealData, onSave, onSav
         onClose()
       }}
       title="Add Remark"
-      size="large"
+      size="medium"
+      className="add-remarks-modal-dialog"
     >
-      <form onSubmit={handleSubmit} className="add-remarks-form">
-        <div className="remark-top-grid">
-          <div className="remark-section remark-section--account-info">
-            <h3 className="section-title">Account Information</h3>
-            <div className="account-info-display">
-              {accountInfoFields.map((field) => {
-                const isEditing = editingInfoField === field.key
-                const displayValue = getAccountInfoDisplayValue(accountData, field, infoDrafts)
-
-                return (
-                  <div
-                    key={field.key}
-                    className={`info-item ${isEditing ? 'info-item--editing' : ''}`}
-                    onDoubleClick={() => {
-                      if (!isEditing && !isSavingInfoField) {
-                        handleStartInfoEdit(field.key)
-                      }
-                    }}
-                  >
-                    <span className="label">{field.label}</span>
-                    {isEditing && field.options ? (
-                      <select
-                        className="info-item-input info-item-select"
-                        value={infoDrafts[field.key] || ''}
-                        onChange={(event) => setInfoDrafts((currentValue) => ({
-                          ...currentValue,
-                          [field.key]: event.target.value,
-                        }))}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault()
-                            handleSaveInfoField(field.key)
-                          }
-                          if (event.key === 'Escape') {
-                            setEditingInfoField('')
-                          }
-                        }}
-                        disabled={isSavingInfoField}
-                        autoFocus
-                      >
-                        <option value="">Select</option>
-                        {field.options.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : isEditing ? (
-                      <input
-                        className="info-item-input"
-                        value={infoDrafts[field.key] || ''}
-                        onChange={(event) => setInfoDrafts((currentValue) => ({
-                          ...currentValue,
-                          [field.key]: event.target.value,
-                        }))}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault()
-                            handleSaveInfoField(field.key)
-                          }
-                          if (event.key === 'Escape') {
-                            setEditingInfoField('')
-                          }
-                        }}
-                        disabled={isSavingInfoField}
-                        autoFocus
-                      />
-                    ) : (
-                      <>
-                        <span className="value">{displayValue}</span>
-                        <button
-                          type="button"
-                          className="info-item-edit-button"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            handleStartInfoEdit(field.key)
-                          }}
-                          aria-label={`Edit ${field.label.replace(':', '')}`}
-                        >
-                          <FaEdit className="info-item-edit-icon" aria-hidden="true" />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+      <form onSubmit={handleSubmit} className="add-remarks-form add-remarks-form--compact">
+        {/* Top bar with Account Name & Account Number data only */}
+        <div className="remarks-account-topbar">
+          <div className="remarks-account-item">
+            <span className="remarks-account-label">Account Name:</span>
+            <strong className="remarks-account-value">{resolveAccountName(targetEntity)}</strong>
           </div>
+          <div className="remarks-account-divider">•</div>
+          <div className="remarks-account-item">
+            <span className="remarks-account-label">Account Number:</span>
+            <strong className="remarks-account-value">{resolveAccountNumber(targetEntity)}</strong>
+          </div>
+        </div>
 
-          <div className="remark-section remark-section--category">
-            <h3 className="section-title">Remark Category</h3>
-            <div className="category-tabs">
-              {REMARK_CATEGORIES.map((cat) => (
-                <button
-                  key={cat.value}
-                  type="button"
-                  className={`category-tab ${category === cat.value ? 'active' : ''}`}
-                  onClick={() => setCategory(cat.value)}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
+        {/* Remark Category Tabs (Single Row) */}
+        <div className="remark-section remark-section--category">
+          <label className="section-title">Remark Category</label>
+          <div className="category-tabs">
+            {REMARK_CATEGORIES.map((cat) => (
+              <button
+                key={cat.value}
+                type="button"
+                className={`category-tab ${category === cat.value ? 'active' : ''}`}
+                onClick={() => setCategory(cat.value)}
+              >
+                {cat.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -597,7 +598,7 @@ const AddRemarksModal = ({ isOpen, onClose, accountData, dealData, onSave, onSav
         {category === 'call-log' && (
           <div className="remark-section followup-subsection" style={{ marginTop: '12px' }}>
             <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: 600, color: '#334155' }}>Call Log Duration</h4>
-            <div className="followup-time-buttons" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+            <div className="followup-time-buttons-horizontal" style={{ marginBottom: '8px' }}>
               {FOLLOW_UP_TIMES.map((time) => (
                 <button
                   key={time}
@@ -648,88 +649,110 @@ const AddRemarksModal = ({ isOpen, onClose, accountData, dealData, onSave, onSav
 
           {hasReminder && (
             <>
-              {/* Follow-up Date Selection */}
+              {/* Combined Follow-up Date & Time Selection */}
               <div className="followup-subsection">
-                <h4>Follow-up Date</h4>
-                <div className="followup-quick-buttons">
-                  <button
-                    type="button"
-                    className={`quick-date-btn ${reminderDate === getFollowUpDate(0) ? 'active' : ''}`}
-                    onClick={() => setReminderDate(getFollowUpDate(0))}
-                  >
-                    Today
-                  </button>
-                  <button
-                    type="button"
-                    className={`quick-date-btn ${reminderDate === getFollowUpDate(1) ? 'active' : ''}`}
-                    onClick={() => setReminderDate(getFollowUpDate(1))}
-                  >
-                    Tomorrow
-                  </button>
-                  <button
-                    type="button"
-                    className={`quick-date-btn ${reminderDate === getFollowUpDate(7) ? 'active' : ''}`}
-                    onClick={() => setReminderDate(getFollowUpDate(7))}
-                  >
-                    Next Week
-                  </button>
-                </div>
-                <div className="custom-date-input">
-                  <label>Other</label>
-                  <input
-                    type="date"
-                    value={reminderDate}
-                    onChange={(e) => setReminderDate(e.target.value)}
-                    className="date-picker"
-                  />
+                <h4>Follow-up Date &amp; Time</h4>
+                <div className="followup-combined-row">
+                  {/* Date Row: Quick Buttons + Inline Other */}
+                  <div className="followup-inline-group">
+                    <span className="followup-group-title">Date:</span>
+                    <div className="followup-quick-buttons">
+                      <button
+                        type="button"
+                        className={`quick-date-btn ${reminderDate === getFollowUpDate(0) ? 'active' : ''}`}
+                        onClick={() => setReminderDate(getFollowUpDate(0))}
+                      >
+                        Today
+                      </button>
+                      <button
+                        type="button"
+                        className={`quick-date-btn ${reminderDate === getFollowUpDate(1) ? 'active' : ''}`}
+                        onClick={() => setReminderDate(getFollowUpDate(1))}
+                      >
+                        Tomorrow
+                      </button>
+                      <button
+                        type="button"
+                        className={`quick-date-btn ${reminderDate === getFollowUpDate(7) ? 'active' : ''}`}
+                        onClick={() => setReminderDate(getFollowUpDate(7))}
+                      >
+                        Next Week
+                      </button>
+                    </div>
+                    <div className="custom-date-input-inline">
+                      <span className="inline-other-label">Other:</span>
+                      <input
+                        type="date"
+                        value={reminderDate}
+                        onChange={(e) => setReminderDate(e.target.value)}
+                        className="date-picker date-picker-inline"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Time Row: Quick Buttons Horizontally + Other at Last */}
+                  <div className="followup-inline-group followup-inline-group--time">
+                    <span className="followup-group-title">Time:</span>
+                    <div className="followup-time-buttons-horizontal">
+                      {FOLLOW_UP_TIMES.map((time) => (
+                        <button
+                          key={time}
+                          type="button"
+                          className={`time-btn ${reminderTime === time ? 'active' : ''}`}
+                          onClick={() => setReminderTime(time)}
+                        >
+                          {time}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="custom-time-input-inline">
+                      <span className="inline-other-label">Other:</span>
+                      <input
+                        type="time"
+                        value={reminderTime}
+                        onChange={(e) => setReminderTime(e.target.value)}
+                        className="time-picker time-picker-inline"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Follow-up Time Selection */}
-              <div className="followup-subsection">
-                <h4>Follow-up Time</h4>
-                <div className="followup-time-buttons">
-                  {FOLLOW_UP_TIMES.map((time) => (
-                    <button
-                      key={time}
-                      type="button"
-                      className={`time-btn ${reminderTime === time ? 'active' : ''}`}
-                      onClick={() => setReminderTime(time)}
-                    >
-                      {time}
-                    </button>
-                  ))}
+              {/* Progressive Reveal with + Button for Reminder Action and Priority */}
+              {extraDetailsLevel < 2 && (
+                <div className="followup-extra-trigger-wrap">
+                  <button
+                    type="button"
+                    className="btn-add-extra-trigger"
+                    onClick={() => setExtraDetailsLevel((prev) => prev + 1)}
+                  >
+                    <FaPlus className="trigger-plus-icon" />
+                    <span>{extraDetailsLevel === 0 ? 'Add Reminder Action' : 'Add Priority'}</span>
+                  </button>
                 </div>
-                <div className="custom-time-input">
-                  <label>Other</label>
-                  <input
-                    type="time"
-                    value={reminderTime}
-                    onChange={(e) => setReminderTime(e.target.value)}
-                    className="time-picker"
-                  />
-                </div>
-              </div>
+              )}
 
-              {/* Reminder Action */}
-              <div className="followup-subsection">
-                <h4>Reminder Action</h4>
-                <div className="reminder-action-buttons">
-                  {REMINDER_ACTIONS.map((action) => (
-                    <button
-                      key={action}
-                      type="button"
-                      className={`reminder-action-btn ${reminderAction === action ? 'active' : ''}`}
-                      onClick={() => setReminderAction(action)}
-                    >
-                      {action}
-                    </button>
-                  ))}
+              {/* Reminder Action (Revealed on 1st click of +) */}
+              {extraDetailsLevel >= 1 && (
+                <div className="followup-subsection">
+                  <h4>Reminder Action</h4>
+                  <div className="reminder-action-buttons">
+                    {REMINDER_ACTIONS.map((action) => (
+                      <button
+                        key={action}
+                        type="button"
+                        className={`reminder-action-btn ${reminderAction === action ? 'active' : ''}`}
+                        onClick={() => setReminderAction(action)}
+                      >
+                        {action}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="followup-grid-row followup-grid-row--priority-only">
-                {/* Priority Selection */}
+              {/* Priority Selection (Revealed on 2nd click of +) */}
+              {extraDetailsLevel >= 2 && (
                 <div className="followup-subsection">
                   <h4>Priority</h4>
                   <div className="reminder-choice-row">
@@ -747,29 +770,12 @@ const AddRemarksModal = ({ isOpen, onClose, accountData, dealData, onSave, onSav
                     ))}
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Followup Type */}
-              <div className="followup-subsection">
-                <h4>Followup Type</h4>
-                <div className="reminder-action-buttons reminder-type-buttons">
-                  {FOLLOWUP_TYPES.map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      className={`reminder-action-btn ${followupType === type ? 'active' : ''}`}
-                      onClick={() => setFollowupType(type)}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Assign Reminder To */}
+              {/* Assign Reminder To - Single Row */}
               <div className="followup-subsection">
                 <h4>Assign Reminder To</h4>
-                <div className="assign-options">
+                <div className="assign-options assign-options--row">
                   <label className="radio-label">
                     <input
                       type="radio"
@@ -788,23 +794,55 @@ const AddRemarksModal = ({ isOpen, onClose, accountData, dealData, onSave, onSav
                       checked={assignedTo === 'other'}
                       onChange={(e) => setAssignedTo(e.target.value)}
                     />
-                    <span>Other User</span>
+                    <span>Other</span>
                   </label>
+                  {assignedTo === 'other' ? (
+                    <div className="searchable-assign-dropdown" ref={assignDropdownRef}>
+                      <button
+                        type="button"
+                        className="searchable-assign-trigger"
+                        onClick={() => setIsAssignDropdownOpen((prev) => !prev)}
+                        aria-label="Select user"
+                      >
+                        <span className="searchable-assign-trigger-text">{selectedOtherUserName}</span>
+                        <FiChevronDown className={`searchable-assign-chevron ${isAssignDropdownOpen ? 'open' : ''}`} />
+                      </button>
+                      {isAssignDropdownOpen && (
+                        <div className="searchable-assign-menu">
+                          <div className="searchable-assign-search-wrap">
+                            <input
+                              type="text"
+                              className="searchable-assign-search-input"
+                              placeholder="Search user..."
+                              value={userSearchTerm}
+                              onChange={(e) => setUserSearchTerm(e.target.value)}
+                              autoFocus
+                            />
+                          </div>
+                          <div className="searchable-assign-list">
+                            {filteredAssignUsers.length === 0 ? (
+                              <div className="searchable-assign-empty">No users found</div>
+                            ) : (
+                              filteredAssignUsers.map((availableUser) => (
+                                <div
+                                  key={availableUser.id}
+                                  className={`searchable-assign-item ${String(otherUserId) === String(availableUser.id) ? 'active' : ''}`}
+                                  onClick={() => {
+                                    setOtherUserId(availableUser.id)
+                                    setIsAssignDropdownOpen(false)
+                                    setUserSearchTerm('')
+                                  }}
+                                >
+                                  {availableUser.name || availableUser.username || availableUser.email}
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
-                {assignedTo === 'other' ? (
-                  <select
-                    className="assign-user-select"
-                    value={otherUserId}
-                    onChange={(e) => setOtherUserId(e.target.value)}
-                  >
-                    <option value="">Select user</option>
-                    {availableUsers.map((availableUser) => (
-                      <option key={availableUser.id} value={availableUser.id}>
-                        {availableUser.name || availableUser.username || availableUser.email}
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
               </div>
 
               {/* Reminder Note */}

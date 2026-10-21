@@ -61,6 +61,8 @@ import ChartsPage from './pages/admin/charts/ChartsPage'
 import ChartsListPage from './pages/admin/charts/ChartsListPage'
 import AdminMessagesPage from './pages/admin/messages/AdminMessagesPage'
 import PasswordResetRequestsPage from './pages/admin/users/PasswordResetRequestsPage'
+import AdminAllUsersPage from './pages/admin/users/AdminAllUsersPage'
+import AdminUserDetailPage from './pages/admin/users/AdminUserDetailPage'
 import AdminAdvancedSearchPage from './pages/admin/search/AdminAdvancedSearchPage'
 import ProjectDetailsPage from './pages/admin/projects/ProjectDetailsPage'
 import AdminLaunchpad from './pages/admin/launchpad/AdminLaunchpad'
@@ -319,6 +321,8 @@ function App() {
                 <Route path="dashboard" element={<AdminPanel />} />
                 <Route path="sales-dashboard" element={<SalesDashboard />} />
                 <Route path="monitoring" element={<AdminPanel />} />
+                <Route path="users" element={<AdminAllUsersPage />} />
+                <Route path="users/:userId" element={<AdminUserDetailPage />} />
                 <Route path="calendar" element={<AdminCalendarPage />} />
                 <Route path="accounts/new" element={<AddAccountWizard />} />
                 <Route path="accounts" element={<MyGroupAccountsPage variantKey="viewAll" />} />

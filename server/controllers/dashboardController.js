@@ -1,8 +1,9 @@
 const dashboardService = require('../services/dashboardService')
+const analyticsService = require('../services/analyticsService')
 
 const wrap = (fn) => async (req, res, next) => {
   try {
-    const data = await fn(req.user, req.params?.id, req.body)
+    const data = await fn(req.user, req.params?.id || req.params?.userId, req.body, req.query)
     res.json({ success: true, data })
   } catch (error) { next(error) }
 }
@@ -22,4 +23,11 @@ module.exports = {
   getRevenueTracking: wrap((user) => dashboardService.getRevenueTrackingMetrics(user)),
   getTargetProgress: wrap((user) => dashboardService.getTargetProgressMetrics(user)),
   getForecast: wrap((user) => dashboardService.getForecastMetrics(user)),
+
+  // Real-time Analytics & User-Wise Performance Endpoints
+  getDashboardAnalytics: wrap((user, _id, _body, query) => analyticsService.getDashboardAnalytics(user, query || {})),
+  getUserDealPerformance: wrap((user, _id, _body, query) => analyticsService.getUserDealPerformance(user, query || {})),
+  getAllUsersPerformanceRoster: wrap((user, _id, _body, query) => analyticsService.getAllUsersPerformanceRoster(user, query || {})),
+  getUserPerformanceDetails: wrap((user, userId) => analyticsService.getUserPerformanceDetails(user, userId)),
 }
+

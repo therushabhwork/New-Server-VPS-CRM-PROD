@@ -121,12 +121,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px !important;
-  height: 38px !important;
-  border-radius: 12px !important;
-  background: #ffffff !important;
-  color: #c60016 !important;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1) !important;
+  width: 30px !important;
+  height: 28px !important;
+  background: #eef6ff !important;
+  box-shadow: none !important;
   flex-shrink: 0;
 }
 
@@ -500,10 +498,8 @@
 .rp-action-card--integration .rp-action-card__icon,
 .rp-ticket-add-btn__icon {
   width: 30px !important;
-  height: 30px !important;
-  border-radius: 8px !important;
+  height: 28px !important;
   background: #eef6ff !important;
-  color: #0f70d7 !important;
   box-shadow: none !important;
 }
 
@@ -587,6 +583,7 @@
   line-height: 1.22;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .rp-entry-name {

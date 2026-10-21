@@ -829,8 +829,147 @@
 .aqp-td--link  { color: var(--color-primary); }
 .aqp-td--amount { text-align: right; }
 
-/* ── Quotation number cell ──────────────────────────────── */
-.aqp-td--num { padding: 0.38rem 0.45rem; overflow: hidden; }
+/* ── Unified Single Quotation Number Button ──────────────── */
+.aqp-td--num {
+  padding: 0.38rem 0.45rem;
+  overflow: visible !important;
+}
+
+.aqp-num-cell-wrapper {
+  position: relative;
+  display: inline-flex;
+  width: 100%;
+}
+
+.aqp-unified-quote-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 2.1rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  border: none;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+  color: #ffffff !important;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(220, 38, 38, 0.25);
+  transition: all 0.15s ease-in-out;
+  box-sizing: border-box;
+}
+
+.aqp-unified-quote-btn:hover {
+  background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%) !important;
+  box-shadow: 0 4px 10px rgba(220, 38, 38, 0.4);
+  transform: translateY(-1px);
+}
+
+.aqp-unified-quote-btn:active {
+  transform: translateY(0);
+}
+
+/* Quotation Number Text */
+.aqp-quote-num-label {
+  flex: 1 1 auto;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 4px;
+}
+
+/* Subtle Vertical Divider Line inside the button */
+.aqp-quote-divider {
+  display: inline-block;
+  width: 1px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.35);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* Integrated Dropdown Chevron Icon inside the button */
+.aqp-quote-chevron-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(0, 0, 0, 0.14);
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.aqp-unified-quote-btn:hover .aqp-quote-chevron-icon {
+  background: rgba(0, 0, 0, 0.28);
+  color: #ffffff;
+  transform: translateY(1px);
+}
+
+/* Floating Dropdown Menu (Full Red Brand Palette) */
+.aqp-num-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 1200;
+  min-width: 215px;
+  background: #ffffff;
+  border: 1px solid #fee2e2;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(185, 28, 28, 0.14), 0 4px 10px rgba(0, 0, 0, 0.06);
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: aqp-menu-fade 0.12s ease-out;
+}
+
+@keyframes aqp-menu-fade {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.aqp-num-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: #1e293b;
+  font-size: 0.82rem;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease, color 0.12s ease;
+  white-space: nowrap;
+}
+
+.aqp-num-menu-item:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.aqp-num-menu-icon {
+  font-size: 0.85rem;
+  color: #dc2626;
+  flex-shrink: 0;
+  transition: transform 0.12s ease;
+}
+
+.aqp-num-menu-item:hover .aqp-num-menu-icon {
+  transform: scale(1.1);
+}
 
 .aqp-num-cell {
   display: flex;
@@ -3854,4 +3993,455 @@ html body #root .aqp-search-input:focus {
 [data-theme="dark"] .aqp-quotation-full-page__title {
   color: #f8fafc;
 }
+
+/* ── Simplified Centered Quotation Viewer ─────────────────── */
+.aqp-simple-view {
+  width: 100%;
+  min-height: 100vh;
+  background: var(--surface-muted, #f8fafc);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.aqp-simple-view__header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--surface-card, #ffffff);
+  border-bottom: 1px solid var(--border-subtle, #e2e8f0);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  padding: 0.75rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.aqp-simple-view__left {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.aqp-simple-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  background: var(--surface-muted, #f1f5f9);
+  border: 1px solid var(--border-subtle, #cbd5e1);
+  border-radius: 6px;
+  color: var(--text-primary, #1e293b);
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.aqp-simple-back-btn:hover {
+  background: var(--surface-hover, #e2e8f0);
+}
+
+.aqp-simple-title-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.aqp-simple-quote-num {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #dc2626;
+  letter-spacing: -0.01em;
+}
+
+.aqp-simple-view-quote-btn-wrapper {
+  display: inline-flex;
+  min-width: 170px;
+}
+
+.aqp-simple-view-quote-btn-wrapper .aqp-unified-quote-btn {
+  padding: 0.38rem 0.75rem;
+  font-size: 0.9rem;
+  border-radius: 7px;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.28);
+}
+
+.aqp-simple-view-quote-btn-wrapper .aqp-quote-num-label {
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.aqp-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.aqp-status-pill--approved {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.aqp-status-pill--pending {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.aqp-revision-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  background: var(--surface-muted, #f1f5f9);
+  border: 1px solid var(--border-subtle, #cbd5e1);
+  color: var(--text-secondary, #475569);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.aqp-simple-view__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.aqp-btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.48rem 0.95rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s ease;
+}
+
+.aqp-btn-action--approve {
+  background: #16a34a;
+  color: #ffffff;
+}
+.aqp-btn-action--approve:hover { background: #15803d; }
+
+.aqp-btn-action--print {
+  background: #dc2626;
+  color: #ffffff;
+}
+.aqp-btn-action--print:hover { background: #b91c1c; }
+
+.aqp-btn-action--close {
+  background: var(--surface-muted, #f1f5f9);
+  color: var(--text-secondary, #475569);
+  border: 1px solid var(--border-subtle, #cbd5e1);
+}
+.aqp-btn-action--close:hover { background: var(--surface-hover, #e2e8f0); }
+
+/* Content Wrapper (Centered Max Width - Compact Clean Spacing) */
+.aqp-simple-view__content {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0.75rem auto 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0 1rem;
+  box-sizing: border-box;
+}
+
+.aqp-simple-alert--danger {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 0.5rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.84rem;
+}
+
+/* Info Cards Grid */
+.aqp-simple-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.65rem;
+}
+
+@media (max-width: 768px) {
+  .aqp-simple-info-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.aqp-simple-card {
+  background: var(--surface-card, #ffffff);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.aqp-simple-card--full {
+  width: 100%;
+}
+
+.aqp-simple-card--compact {
+  border-color: #e2e8f0;
+}
+
+.aqp-simple-card__header {
+  padding: 0.45rem 0.85rem;
+  background: var(--surface-muted, #f8fafc);
+  border-bottom: 1px solid var(--border-subtle, #e2e8f0);
+}
+
+.aqp-simple-card__header--compact {
+  padding: 0.35rem 0.85rem;
+}
+
+.aqp-simple-card__title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary, #334155);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.aqp-simple-card__body {
+  padding: 0.5rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.aqp-simple-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.84rem;
+}
+
+.aqp-simple-label {
+  color: var(--text-secondary, #64748b);
+  font-weight: 500;
+  flex: 0 0 130px;
+}
+
+.aqp-simple-val {
+  color: var(--text-primary, #0f172a);
+  font-weight: 600;
+  flex: 1 1 auto;
+  text-align: right;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Hero Line Items Table */
+.aqp-simple-table-card {
+  background: var(--surface-card, #ffffff);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.aqp-simple-table-header {
+  padding: 0.55rem 1rem;
+  background: var(--surface-muted, #f8fafc);
+  border-bottom: 1px solid var(--border-subtle, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.aqp-simple-table-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+}
+
+.aqp-simple-table-hint {
+  font-size: 0.74rem;
+  color: var(--text-secondary, #64748b);
+  font-style: italic;
+}
+
+.aqp-simple-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.aqp-simple-table th {
+  padding: 0.55rem 0.85rem;
+  background: var(--surface-muted, #f1f5f9);
+  color: var(--text-secondary, #334155);
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--border-subtle, #cbd5e1);
+}
+
+.aqp-simple-table td {
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid var(--border-subtle, #f1f5f9);
+  color: var(--text-primary, #1e293b);
+}
+
+.aqp-simple-table tbody tr:hover {
+  background: #fef2f2;
+}
+
+.aqp-simple-td-center {
+  text-align: center;
+}
+
+.aqp-simple-td-desc {
+  font-weight: 500;
+}
+
+.aqp-simple-td-amount {
+  text-align: right;
+}
+
+.aqp-simple-td-bold {
+  font-weight: 700;
+}
+
+.aqp-simple-td-empty {
+  text-align: center;
+  padding: 1.5rem;
+  color: #64748b;
+}
+
+.aqp-total-label {
+  text-align: right;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.84rem;
+}
+
+.aqp-total-val {
+  text-align: right;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text-primary, #1e293b);
+}
+
+.aqp-grand-total-row {
+  background: #fef2f2;
+  border-top: 2px solid #fecaca;
+}
+
+.aqp-grand-total-label {
+  text-align: right;
+  font-weight: 800;
+  font-size: 0.92rem;
+  color: #dc2626;
+  text-transform: uppercase;
+}
+
+.aqp-grand-total-val {
+  text-align: right;
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: #dc2626;
+}
+
+.aqp-simple-amount-words {
+  padding: 0.5rem 1rem;
+  background: var(--surface-muted, #f8fafc);
+  border-top: 1px solid var(--border-subtle, #e2e8f0);
+  font-size: 0.8rem;
+  color: var(--text-secondary, #475569);
+}
+
+/* Compact Terms Flow (Zero Wasted Space) */
+.aqp-simple-terms-compact {
+  padding: 0.65rem 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1.25rem;
+  align-items: center;
+  background: var(--surface-card, #ffffff);
+}
+
+.aqp-simple-term-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.84rem;
+}
+
+.aqp-simple-term-inline--wide {
+  flex: 1 1 100%;
+}
+
+.aqp-term-tag {
+  font-weight: 700;
+  color: var(--text-secondary, #475569);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  background: var(--surface-muted, #f1f5f9);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle, #e2e8f0);
+}
+
+.aqp-term-val {
+  color: var(--text-primary, #0f172a);
+  font-weight: 600;
+}
+
+/* Compact Revision Bar */
+.aqp-simple-rev-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  padding: 0.5rem 0.85rem;
+  background: var(--surface-muted, #f8fafc);
+  border: 1px dashed var(--border-subtle, #cbd5e1);
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+
+.aqp-rev-bar-title {
+  font-weight: 700;
+  color: var(--text-secondary, #475569);
+  text-transform: uppercase;
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+}
+
+.aqp-rev-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-primary, #1e293b);
+}
+
+/* Hover-Only Pencil: Strictly Hidden by Default */
+.aqp-doc-edit-btn {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.15s ease, transform 0.15s ease !important;
+}
+
+.aqp-doc-editable:hover .aqp-doc-edit-btn,
+.aqp-doc-editable:focus-within .aqp-doc-edit-btn {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: scale(1.08) !important;
+}
+
 

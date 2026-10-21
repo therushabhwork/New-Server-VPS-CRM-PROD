@@ -3,28 +3,19 @@ const DASHBOARD_TABS_EVENT = 'crm:dashboard-tabs-changed'
 
 const DEFAULT_DASHBOARD_TABS = [
   {
-    id: 'sales-dashboard',
-    name: 'Sales Dashboard',
-    viewKey: 'salesDashboard',
+    id: 'sales-swati',
+    name: 'Sales Swati',
+    viewKey: 'salesSwati',
     order: 1,
     locked: false,
     createdBy: 'system',
     updatedAt: new Date().toISOString(),
   },
   {
-    id: 'sales-1-performance',
-    name: 'Sales 1 Performance',
-    viewKey: 'salesPerformanceA',
+    id: 'sales-lumos',
+    name: 'Sales Lumos',
+    viewKey: 'salesLumos',
     order: 2,
-    locked: false,
-    createdBy: 'system',
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'sales-2-performance',
-    name: 'Sales 2 Performance',
-    viewKey: 'salesPerformanceB',
-    order: 3,
     locked: false,
     createdBy: 'system',
     updatedAt: new Date().toISOString(),
@@ -33,7 +24,7 @@ const DEFAULT_DASHBOARD_TABS = [
     id: 'my-crm',
     name: 'My CRM',
     viewKey: 'myCrm',
-    order: 4,
+    order: 3,
     locked: false,
     createdBy: 'system',
     updatedAt: new Date().toISOString(),
@@ -43,10 +34,11 @@ const DEFAULT_DASHBOARD_TABS = [
 const normalizeTabs = (tabs = []) => (
   tabs
     .filter(Boolean)
+    .filter((tab) => tab.id !== 'sales-dashboard' && tab.viewKey !== 'salesDashboard')
     .map((tab, index) => ({
       id: String(tab.id || `dashboard-tab-${index + 1}`),
       name: String(tab.name || `Dashboard ${index + 1}`).trim(),
-      viewKey: String(tab.viewKey || 'salesDashboard'),
+      viewKey: String(tab.viewKey || 'salesSwati'),
       order: Number.isFinite(tab.order) ? tab.order : index + 1,
       locked: Boolean(tab.locked),
       createdBy: tab.createdBy || 'system',
@@ -65,9 +57,29 @@ const readStorage = () => {
     if (!rawValue) return normalizeTabs(DEFAULT_DASHBOARD_TABS)
 
     const parsedValue = JSON.parse(rawValue)
-    return Array.isArray(parsedValue) && parsedValue.length > 0
-      ? normalizeTabs(parsedValue)
-      : normalizeTabs(DEFAULT_DASHBOARD_TABS)
+    if (Array.isArray(parsedValue) && parsedValue.length > 0) {
+      const filtered = parsedValue.filter((tab) => tab.id !== 'sales-dashboard' && tab.viewKey !== 'salesDashboard')
+      const migrated = filtered.map((tab) => {
+        if (tab.id === 'sales-1-performance' || tab.viewKey === 'salesPerformanceA') {
+          return { ...tab, id: 'sales-swati', name: 'Sales Swati', viewKey: 'salesSwati' }
+        }
+        if (tab.id === 'sales-2-performance' || tab.viewKey === 'salesPerformanceB') {
+          return { ...tab, id: 'sales-lumos', name: 'Sales Lumos', viewKey: 'salesLumos' }
+        }
+        return tab
+      })
+
+      const hasSwati = migrated.some((t) => t.viewKey === 'salesSwati' || t.id === 'sales-swati')
+      const hasLumos = migrated.some((t) => t.viewKey === 'salesLumos' || t.id === 'sales-lumos')
+      if (!hasSwati) {
+        migrated.unshift(DEFAULT_DASHBOARD_TABS[0])
+      }
+      if (!hasLumos) {
+        migrated.splice(1, 0, DEFAULT_DASHBOARD_TABS[1])
+      }
+      return normalizeTabs(migrated)
+    }
+    return normalizeTabs(DEFAULT_DASHBOARD_TABS)
   } catch {
     return normalizeTabs(DEFAULT_DASHBOARD_TABS)
   }
@@ -159,7 +171,9 @@ export const subscribeDashboardTabs = (callback) => {
 }
 
 export const DASHBOARD_TAB_TEMPLATES = [
-  { value: 'salesDashboard', label: 'Sales Dashboard' },
+  { value: 'salesSwati', label: 'Sales Swati' },
+  { value: 'salesLumos', label: 'Sales Lumos' },
+  { value: 'userWisePerformance', label: 'All Users Deal Performance' },
   { value: 'salesPerformanceA', label: 'Sales 1 Performance' },
   { value: 'salesPerformanceB', label: 'Sales 2 Performance' },
   { value: 'myCrm', label: 'My CRM' },

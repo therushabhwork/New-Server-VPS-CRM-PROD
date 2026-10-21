@@ -420,41 +420,36 @@ const CommunicationActivitiesPage = ({ isAdmin = false }) => {
           size="large"
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '75vh', overflowY: 'auto', paddingRight: '4px' }}>
-            {/* Top Section: Account / Deal Details Header Card */}
-            <div style={{ background: '#f8fafc', padding: '18px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Badge variant={selectedRemark.relatedEntityType === 'deal' ? 'info' : 'success'}>
-                    {selectedRemark.relatedEntityType === 'deal' ? 'Deal Details' : 'Account Details'}
-                  </Badge>
-                  <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>
-                    {selectedRemark.dealName || selectedRemark.accountName || 'Record Details'}
-                  </h3>
-                </div>
-                <span style={{ fontSize: '13px', background: '#e2e8f0', padding: '4px 10px', borderRadius: '12px', fontWeight: 600, color: '#334155', textTransform: 'capitalize' }}>
-                  Category: {selectedRemark.category || 'general'}
-                </span>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', fontSize: '13px', color: '#475569' }}>
+            {/* Top Section: Account Details as Clean Normal Text (No Background Container, No Rounded Border) */}
+            <div style={{ padding: '4px 0 16px 0', borderBottom: '1px solid #e2e8f0' }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>
+                {selectedRemark.relatedEntityType === 'deal' ? 'Deal Details' : 'Account Details'}
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px 24px', fontSize: '13px', color: '#475569', lineHeight: 1.5 }}>
                 <div>
-                  <strong style={{ color: '#1e293b' }}><FaUser style={{ marginRight: '6px', color: '#2563eb' }} />Record Owner:</strong>{' '}
-                  {selectedRemark.recordOwnerName || selectedRemark.dealOwnerName || selectedRemark.accountOwnerName || selectedRemark.ownerName || '-'}
+                  <span style={{ color: '#64748b' }}>Account Name: </span>
+                  <span style={{ color: '#0f172a', fontWeight: 600 }}>{selectedRemark.dealName || selectedRemark.accountName || '-'}</span>
                 </div>
                 <div>
-                  <strong style={{ color: '#1e293b' }}><FaBuilding style={{ marginRight: '6px', color: '#16a34a' }} />Created By:</strong>{' '}
-                  {selectedRemark.createdByName || 'User'}
+                  <span style={{ color: '#64748b' }}>Record Owner: </span>
+                  <span style={{ color: '#0f172a', fontWeight: 600 }}>{selectedRemark.recordOwnerName || selectedRemark.dealOwnerName || selectedRemark.accountOwnerName || selectedRemark.ownerName || '-'}</span>
                 </div>
                 <div>
-                  <strong style={{ color: '#1e293b' }}><FaCalendarAlt style={{ marginRight: '6px', color: '#eab308' }} />Created Date:</strong>{' '}
-                  {selectedRemark.createdAt ? formatDate(selectedRemark.createdAt) : '-'}
+                  <span style={{ color: '#64748b' }}>Account No: </span>
+                  <span style={{ color: '#0f172a', fontWeight: 600 }}>{selectedRemark.accountNo || selectedRemark.accountId || selectedRemark.id || '-'}</span>
                 </div>
-                {selectedRemark.accountNo && (
-                  <div>
-                    <strong style={{ color: '#1e293b' }}><FaTag style={{ marginRight: '6px', color: '#9333ea' }} />Account No:</strong>{' '}
-                    {selectedRemark.accountNo}
-                  </div>
-                )}
+                <div>
+                  <span style={{ color: '#64748b' }}>Created By: </span>
+                  <span style={{ color: '#0f172a', fontWeight: 600 }}>{selectedRemark.createdByName || 'User'}</span>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b' }}>Created Date: </span>
+                  <span style={{ color: '#0f172a', fontWeight: 600 }}>{selectedRemark.createdAt ? formatDate(selectedRemark.createdAt) : '-'}</span>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b' }}>Category: </span>
+                  <span style={{ color: '#0f172a', fontWeight: 600 }}>{selectedRemark.category || 'general'}</span>
+                </div>
               </div>
             </div>
 

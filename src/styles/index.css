@@ -2611,6 +2611,14 @@ html:not([data-theme="dark"]) .layout--admin .right-panel button.rp-action-card.
   box-shadow: none !important;
 }
 
+.rp-action-card--integration .rp-action-card__icon,
+.rp-ticket-add-btn__icon {
+  width: 30px !important;
+  height: 28px !important;
+  background: #eef6ff !important;
+  box-shadow: none !important;
+}
+
 /* User CRM red skin. Scoped away from /admin/* by Layout's html.is-user and .layout--user hooks. */
 html.is-user:not([data-theme="dark"]) body {
   --user-crm-red: #c60016;

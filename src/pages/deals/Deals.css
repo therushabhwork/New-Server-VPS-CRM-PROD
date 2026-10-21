@@ -3568,3 +3568,25 @@ html body .deals-crm-owner-filter select option {
   opacity: 1 !important;
   visibility: visible !important;
 }
+
+/* ── Deals Quotation Number Unified Cell Wrapper ───────────── */
+.deals-quote-cell-wrapper {
+  display: inline-flex;
+  width: 100%;
+  min-width: 130px;
+  align-items: center;
+}
+
+.deals-quote-cell-wrapper .aqp-unified-quote-btn {
+  width: 100%;
+  min-height: 1.95rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 5px;
+  font-size: 0.76rem;
+}
+
+.deals-quote-cell-wrapper .aqp-quote-num-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+

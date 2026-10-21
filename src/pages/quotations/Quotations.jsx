@@ -4,7 +4,11 @@ import {
   FaChevronDown,
   FaChevronLeft,
   FaChevronRight,
+  FaClone,
+  FaEllipsisV,
+  FaEye,
   FaFilter,
+  FaHistory,
   FaListUl,
   FaPlus,
   FaPrint,
@@ -37,6 +41,8 @@ import {
   ModalShell,
   QuotationDocument,
   QuotationPdfViewer,
+  SimplifiedQuotationViewer,
+  UnifiedQuotationDropdownButton,
   RevisionsListModal,
   SequentialRevisionSummaryCard,
   StatusBadge,
@@ -728,6 +734,14 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
   const [viewRow, setViewRow] = useState(null)
   const [viewRowFromUrl, setViewRowFromUrl] = useState(false)
   const [revisionsModalRow, setRevisionsModalRow] = useState(null)
+  const [openNumMenuRowId, setOpenNumMenuRowId] = useState(null)
+
+  useEffect(() => {
+    if (!openNumMenuRowId) return undefined
+    const handleOutsideClick = () => setOpenNumMenuRowId(null)
+    window.addEventListener('click', handleOutsideClick)
+    return () => window.removeEventListener('click', handleOutsideClick)
+  }, [openNumMenuRowId])
   const [viewActionMenuOpen, setViewActionMenuOpen] = useState(false)
   const [accountRow, setAccountRow] = useState(null)
   const [approveRow, setApproveRow] = useState(null)
@@ -1093,11 +1107,13 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
   const buildInlineQuotationPatch = (rawQuotation = {}, fieldKey = '', value = '') => {
     if (fieldKey.startsWith('customerReference.')) {
       const [, nestedKey] = fieldKey.split('.')
+      const nextCustomerRef = {
+        ...(rawQuotation.customerReference || {}),
+        [nestedKey]: value,
+      }
       return {
-        customerReference: {
-          ...(rawQuotation.customerReference || {}),
-          [nestedKey]: value,
-        },
+        customerReference: nextCustomerRef,
+        'data.customerReference': nextCustomerRef,
       }
     }
 
@@ -1112,20 +1128,50 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
 
         const nextItem = { ...lineItem }
         if (lineItemKey === 'quantity') {
-          nextItem.quantity = normalizeInlineCurrencyValue(value)
+          nextItem.quantity = normalizeInlineCurrencyValue(value) || 1
+          nextItem.amount = toNumber(nextItem.quantity) * toNumber(nextItem.rate || 0)
         } else if (lineItemKey === 'rate') {
           nextItem.rate = normalizeInlineCurrencyValue(value)
+          const itemQty = toNumber(nextItem.quantity) || 1
+          nextItem.quantity = itemQty
+          nextItem.amount = itemQty * toNumber(nextItem.rate)
+        } else if (lineItemKey === 'amount') {
+          nextItem.amount = normalizeInlineCurrencyValue(value)
         } else {
           nextItem[lineItemKey] = value
         }
-        nextItem.amount = toNumber(nextItem.quantity) * toNumber(nextItem.rate)
         return nextItem
       })
 
+      const subtotal = nextLineItems.reduce((sum, lineItem) => sum + toNumber(lineItem.amount), 0)
+      const cgst = toNumber(rawQuotation.cgstAmount || rawQuotation.cgst || 0)
+      const sgst = toNumber(rawQuotation.sgstAmount || rawQuotation.sgst || 0)
+      const igst = toNumber(rawQuotation.igstAmount || rawQuotation.igst || 0)
+      const otherTax = toNumber(rawQuotation.taxAmount || 0)
+      const grandTotal = subtotal + cgst + sgst + igst + otherTax
+
+      const revAmounts = {
+        ...(rawQuotation.quotationRevisionAmounts || rawQuotation.data?.quotationRevisionAmounts || {}),
+      }
+      const activeRevCode = rawQuotation.revisionCode || (rawQuotation.revisionNo === 0 ? 'R0' : rawQuotation.revisionNo ? `R${rawQuotation.revisionNo}` : 'R0')
+      if (activeRevCode) {
+        revAmounts[activeRevCode] = grandTotal
+      }
+      if (!revAmounts.R0 && (activeRevCode === 'Normal' || !activeRevCode)) {
+        revAmounts.R0 = grandTotal
+      }
+
       return {
         lineItems: nextLineItems,
-        amount: nextLineItems.reduce((sum, lineItem) => sum + toNumber(lineItem.amount), 0),
-        totalAmount: nextLineItems.reduce((sum, lineItem) => sum + toNumber(lineItem.amount), 0),
+        amount: grandTotal,
+        totalAmount: grandTotal,
+        subtotal,
+        quotationRevisionAmounts: revAmounts,
+        'data.lineItems': nextLineItems,
+        'data.amount': grandTotal,
+        'data.totalAmount': grandTotal,
+        'data.subtotal': subtotal,
+        'data.quotationRevisionAmounts': revAmounts,
       }
     }
 
@@ -1138,7 +1184,29 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
       }
     }
 
-    return { [fieldKey]: value }
+    if (fieldKey === 'amount' || fieldKey === 'totalAmount') {
+      const numVal = normalizeInlineCurrencyValue(value)
+      const revAmounts = {
+        ...(rawQuotation.quotationRevisionAmounts || rawQuotation.data?.quotationRevisionAmounts || {}),
+      }
+      const activeRevCode = rawQuotation.revisionCode || (rawQuotation.revisionNo === 0 ? 'R0' : rawQuotation.revisionNo ? `R${rawQuotation.revisionNo}` : 'R0')
+      if (activeRevCode) {
+        revAmounts[activeRevCode] = numVal
+      }
+      return {
+        amount: numVal,
+        totalAmount: numVal,
+        quotationRevisionAmounts: revAmounts,
+        'data.amount': numVal,
+        'data.totalAmount': numVal,
+        'data.quotationRevisionAmounts': revAmounts,
+      }
+    }
+
+    return {
+      [fieldKey]: value,
+      [`data.${fieldKey}`]: value,
+    }
   }
 
   const handleInlineQuotationEdit = async (fieldKey, value) => {
@@ -1162,6 +1230,11 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
       const updatedRecord = await quotationApi.updateQuotation(targetId, patch)
       if (updatedRecord) {
         addNotification?.('success', 'Quotation updated', 'Quotation field saved.')
+        setViewRow((currentRow) => (
+          currentRow?.id === viewRow.id
+            ? { ...currentRow, raw: { ...optimisticRaw, ...updatedRecord } }
+            : currentRow
+        ))
         await refreshQuotations?.()
       }
     } catch (err) {
@@ -1222,9 +1295,13 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
       setSelectedProfile(draftQuotation.profileKey || '')
       setSelectedAccountId(draftQuotation.selectedAccountId || '')
       setAdditionalSections([])
-      setQuotationForm(buildQuotationFormFromExisting(draftQuotation, nextQuotationNumber))
+      const isRevision = Boolean(location.state?.isRevision || draftQuotation.isRevision)
+      setQuotationForm(buildQuotationFormFromExisting(
+        draftQuotation,
+        isRevision ? (draftQuotation.quotationNumber || '') : nextQuotationNumber
+      ))
       setBuilderError('')
-      setBuilderMessage('Cloned quotation opened in edit mode.')
+      setBuilderMessage(isRevision ? 'Quotation revision opened in edit mode.' : 'Cloned quotation opened in edit mode.')
       open()
       navigate(location.pathname, { replace: true, state: {} })
       return
@@ -2273,6 +2350,38 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
     }
   }
 
+  const handleGenerateNextRevision = (row) => {
+    if (!row) return
+    const rawQuote = row.raw || row
+    navigate(location.pathname, {
+      state: {
+        quotationDraft: {
+          ...rawQuote,
+          status: 'approved',
+          rejectionReason: '',
+        },
+        isRevision: true,
+        openGenerator: true,
+      },
+    })
+  }
+
+  const handleCloneQuotation = (row) => {
+    if (!row) return
+    const rawQuote = row.raw || row
+    navigate(location.pathname, {
+      state: {
+        quotationDraft: {
+          ...rawQuote,
+          status: 'approved',
+          rejectionReason: '',
+        },
+        isRevision: false,
+        openGenerator: true,
+      },
+    })
+  }
+
   const handleDownloadPdfPage = () => {
     if (!pdfDocument) return
     triggerBrowserPdfSave(pdfDocument)
@@ -2336,75 +2445,18 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
       ) : null}
 
       {viewDocument ? (
-        <div className="aqp-quotation-full-page">
-          <header className="aqp-quotation-full-page__header">
-            <div className="aqp-quotation-full-page__title-group">
-              <button
-                type="button"
-                className="aqp-quotation-full-page__back-btn"
-                onClick={closeQuotationView}
-                title="Back to Quotations"
-              >
-                <FaArrowLeft className="aqp-btn-icon" />
-                Back to Quotations
-              </button>
-              <span className="aqp-quotation-full-page__title">
-                Quotation - {viewDocument.quotationNumber}
-              </span>
-              <span className="aqp-status-badge aqp-status-badge--info">
-                {viewDocument.statusLabel || viewDocument.status || 'Draft'}
-              </span>
-            </div>
-            <div className="aqp-modal-footer-group">
-              <button
-                type="button"
-                className="aqp-btn aqp-btn--blue"
-                style={{ backgroundColor: '#16a34a', borderColor: '#15803d', color: '#ffffff' }}
-                onClick={() => handleApproveRevisionItem(viewRow)}
-              >
-                Approve
-              </button>
-              <button
-                type="button"
-                className="aqp-btn aqp-btn--outline"
-                onClick={() => handleViewModalAction('preview')}
-              >
-                Preview
-              </button>
-              <button
-                type="button"
-                className="aqp-btn aqp-btn--blue"
-                onClick={() => printQuotationDocument(viewDocument)}
-              >
-                <FaPrint className="aqp-btn-icon" />
-                Print
-              </button>
-              <button
-                type="button"
-                className="aqp-btn aqp-btn--gray"
-                onClick={closeQuotationView}
-              >
-                Close
-              </button>
-            </div>
-          </header>
-
-          {viewDocument.rejectionReason ? (
-            <div className="aqp-view-summary__alert" style={{ margin: '1rem auto 0', maxWidth: '1040px' }}>
-              <strong>Rejection Reason:</strong> {viewDocument.rejectionReason}
-            </div>
-          ) : null}
-
-          <main className="aqp-quotation-full-page__body">
-            <div className="aqp-quotation-full-page__doc-wrap">
-              <QuotationDocument
-                documentData={viewDocument}
-                editable={canUserEditQuotation(user)}
-                onEditField={handleInlineQuotationEdit}
-              />
-            </div>
-          </main>
-        </div>
+        <SimplifiedQuotationViewer
+          documentData={viewDocument}
+          editable={canUserEditQuotation(user)}
+          onEditField={handleInlineQuotationEdit}
+          onBack={closeQuotationView}
+          onApprove={() => handleApproveRevisionItem(viewRow)}
+          onPrint={() => printQuotationDocument(viewDocument)}
+          onClose={closeQuotationView}
+          onGenerateRevision={() => handleGenerateNextRevision(viewRow)}
+          onClone={() => handleCloneQuotation(viewRow)}
+          onShowRevisions={() => setRevisionsModalRow(viewRow)}
+        />
       ) : null}
 
       {!pdfDocument && !viewDocument ? (
@@ -2519,16 +2571,16 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
                         if (field.key === 'num') {
                           return (
                             <td key={field.key} className={`aqp-td aqp-td--num aqp-field--${field.key}`}>
-                              <button
-                                type="button"
-                                className={`aqp-num-badge aqp-num-badge--button ${getActionBadgeClassName(row.status)}`}
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  setRevisionsModalRow(row)
-                                }}
-                              >
-                                {row.num}
-                              </button>
+                              <UnifiedQuotationDropdownButton
+                                quotationNumber={row.num}
+                                status={row.status}
+                                row={row}
+                                onGenerateQuotation={handleGenerateNextRevision}
+                                onCloneQuotation={handleCloneQuotation}
+                                onRevisionHistory={(r) => setRevisionsModalRow(r)}
+                                onViewQuotation={(r) => openQuotationView(r)}
+                                usePortal={true}
+                              />
                             </td>
                           )
                         }

@@ -1519,6 +1519,67 @@ const activeStageParam = searchParams.get('stage')
     return null
   }
 
+  if (selectedAccountId) {
+    if (!selectedAccount && loading) {
+      return (
+        <div className={`admin-accounts-page admin-accounts-page--${variantKey} admin-accounts-page--detail-view`}>
+          <div style={{ padding: '80px 20px', textAlign: 'center', color: 'var(--color-gray-500, #64748b)' }}>
+            <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>Loading Account Details...</div>
+            <div style={{ fontSize: '14px' }}>Please wait while account information is being fetched.</div>
+          </div>
+        </div>
+      )
+    }
+
+    if (!selectedAccount) {
+      return (
+        <div className={`admin-accounts-page admin-accounts-page--${variantKey} admin-accounts-page--detail-view`}>
+          <div style={{ padding: '80px 20px', textAlign: 'center' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-gray-900, #0f172a)', marginBottom: '8px' }}>Account Not Found</h2>
+            <p style={{ color: 'var(--color-gray-600, #475569)', marginBottom: '20px' }}>
+              We could not find the account record with ID #{selectedAccountId}.
+            </p>
+            <button
+              type="button"
+              onClick={handleDrawerClose}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '8px 18px',
+                borderRadius: '6px',
+                background: 'var(--color-primary, #2563eb)',
+                color: '#ffffff',
+                border: 'none',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Back to Accounts
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className={`admin-accounts-page admin-accounts-page--${variantKey} admin-accounts-page--detail-view`}>
+        <AccountDetailsDrawer
+          account={selectedAccount}
+          isOpen={true}
+          inline={true}
+          onClose={handleDrawerClose}
+          boardStateQuery={boardStateQuery}
+          onSaveAccount={handleSaveAccountDetails}
+          onRefresh={refreshData}
+          onDeleteAccount={handleDeleteAccount}
+          canEdit={user?.role === 'admin' || selectedAccount?.recordSource === 'live'}
+          actionItems={drawerActions}
+          hiddenFieldKeys={(!location.pathname.startsWith('/admin') || variantKey === 'myGroup') ? ['accountState'] : []}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className={`admin-accounts-page admin-accounts-page--${variantKey}`}>
 
@@ -1738,19 +1799,6 @@ const activeStageParam = searchParams.get('stage')
           onPageChange={handlePageChange}
         />
       </section>
-
-      <AccountDetailsDrawer
-        account={selectedAccount}
-        isOpen={Boolean(selectedAccountId && selectedAccount)}
-        onClose={handleDrawerClose}
-        boardStateQuery={boardStateQuery}
-        onSaveAccount={handleSaveAccountDetails}
-        onRefresh={refreshData}
-        onDeleteAccount={handleDeleteAccount}
-        canEdit={user?.role === 'admin' || selectedAccount?.recordSource === 'live'}
-        actionItems={drawerActions}
-        hiddenFieldKeys={(!location.pathname.startsWith('/admin') || variantKey === 'myGroup') ? ['accountState'] : []}
-      />
 
       <Modal
         isOpen={supportsAdvancedFilter && isConvertedFilterModalOpen}

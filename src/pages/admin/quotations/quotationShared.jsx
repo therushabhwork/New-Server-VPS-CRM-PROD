@@ -1,5 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
+  FaArrowLeft,
   FaCheck,
   FaChevronDown,
   FaChevronLeft,
@@ -10,6 +12,7 @@ import {
   FaEllipsisV,
   FaEdit,
   FaFilePdf,
+  FaHistory,
   FaPlus,
   FaPrint,
   FaSearch,
@@ -741,13 +744,21 @@ export const buildQuotationDocumentData = (quotation, linkedAccount) => {
 
   const displayLineItems = lineItems.map((item) => {
     const isSingleDefaultItem = lineItems.length === 1
-    const description = (isSingleDefaultItem && productNameLabel)
+    const description = (isSingleDefaultItem && productNameLabel && !item.description)
       ? (productNameLabel.includes(quotation.ttaOrg || '') || !quotation.ttaOrg ? productNameLabel : `${productNameLabel} (${quotation.ttaOrg})`)
       : (item.description || productNameLabel || '-')
-    const amountVal = (isSingleDefaultItem && storedAmount > 0) ? storedAmount : toNumber(item.amount)
-    const rateVal = (isSingleDefaultItem && storedAmount > 0) ? storedAmount : (toNumber(item.rate) || amountVal)
+    const qty = toNumber(item.quantity !== undefined && item.quantity !== null && item.quantity !== '' ? item.quantity : 1) || 1
+    const hasExplicitRate = item.rate !== undefined && item.rate !== null && item.rate !== ''
+    const hasExplicitAmount = item.amount !== undefined && item.amount !== null && item.amount !== ''
+    const rateVal = hasExplicitRate
+      ? toNumber(item.rate)
+      : (isSingleDefaultItem && storedAmount > 0 ? (storedAmount / qty) : (toNumber(item.rate) || toNumber(item.amount)))
+    const amountVal = hasExplicitRate
+      ? (qty * rateVal)
+      : (hasExplicitAmount ? toNumber(item.amount) : (isSingleDefaultItem && storedAmount > 0 ? storedAmount : 0))
     return {
       ...item,
+      quantity: item.quantity !== undefined && item.quantity !== null && item.quantity !== '' ? item.quantity : 1,
       description,
       rate: rateVal,
       amount: amountVal,
@@ -760,7 +771,7 @@ export const buildQuotationDocumentData = (quotation, linkedAccount) => {
   const igst = toNumber(quotation.igstAmount || quotation.igst || 0)
   const otherTax = toNumber(quotation.taxAmount || 0)
   const calculatedTotal = subtotal + cgst + sgst + igst + otherTax
-  const total = storedAmount > 0 ? storedAmount : calculatedTotal
+  const total = subtotal > 0 ? calculatedTotal : (storedAmount > 0 ? storedAmount : calculatedTotal)
   const logoType = quotation.logoType || profileFallback.logoType || (isImageProfile(quotation) ? 'image' : 'text')
   const clientAddressDetails = quotation.clientAddressDetails
     || buildAddress(linkedAccount?.address, linkedAccount?.location, linkedAccount?.state)
@@ -1328,23 +1339,42 @@ export const buildPrintableHtml = (doc) => {
           margin-bottom: 4px;
           color: #102a43;
         }
-        .terms-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 10px;
+        .terms-compact {
           margin-top: 10px;
-        }
-        .terms-title {
-          margin: 0 0 8px;
-          font-size: 9px;
-          text-transform: uppercase;
-          color: #1f6ea4;
-        }
-        .terms-value {
+          border: 1px solid #dbeafe;
+          border-radius: 6px;
+          padding: 8px 12px;
+          background: #f8fafc;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px 20px;
           font-size: 10px;
-          line-height: 1.5;
-          white-space: pre-wrap;
-          word-break: break-word;
+        }
+        .terms-compact-item {
+          display: flex;
+          gap: 6px;
+        }
+        .terms-compact-item strong {
+          color: #475569;
+          font-weight: 700;
+        }
+        .terms-compact-item span {
+          color: #0f172a;
+        }
+        .terms-compact-item--full {
+          width: 100%;
+        }
+        .rev-compact-bar {
+          margin-top: 8px;
+          border: 1px dashed #cbd5e1;
+          border-radius: 4px;
+          padding: 6px 10px;
+          background: #f1f5f9;
+          display: flex;
+          gap: 16px;
+          flex-wrap: wrap;
+          font-size: 9.5px;
+          align-items: center;
         }
         @page {
           size: A4;
@@ -1358,14 +1388,14 @@ export const buildPrintableHtml = (doc) => {
           .quotation-header { padding: 0 0 0; }
           .quotation-main { padding: 14px 0 16px; }
           .items-table thead { display: table-header-group; }
-          tr, .party-card, .summary-card, .totals-card, .terms-card, .amount-words { page-break-inside: avoid; }
+          tr, .party-card, .summary-card, .totals-card, .terms-compact, .rev-compact-bar, .amount-words { page-break-inside: avoid; }
         }
         @media (max-width: 840px) {
           .print-shell { padding: 12px; }
           .party-grid,
           .meta-grid,
           .summary-layout,
-          .terms-grid {
+          .terms-compact {
             grid-template-columns: 1fr;
           }
           .meta-cell { border-right: none; border-bottom: 1px solid #d5e0ea; }
@@ -1467,24 +1497,21 @@ export const buildPrintableHtml = (doc) => {
 
             <div class="amount-words"><strong>Amount in Words</strong>${escapeHtml(doc.amountInWords)}</div>
 
-            <div class="terms-grid">
-              <div class="terms-card">
-                <h3 class="terms-title">Inquiry Reference</h3>
-                <div class="terms-value">Number: ${escapeHtml(displayValue(doc.customerReferenceNumber))}&#10;Date: ${escapeHtml(displayValue(doc.customerReferenceDate))}&#10;Subject: ${escapeHtml(displayValue(doc.customerReferenceSubject))}</div>
-              </div>
-              <div class="terms-card">
-                <h3 class="terms-title">Terms &amp; Conditions</h3>
-                <div class="terms-value">Delivery: ${escapeHtml(displayValue(doc.deliveryTerms))}&#10;Payment: ${escapeHtml(displayValue(doc.paymentTerms))}&#10;Warranty: ${escapeHtml(displayValue(doc.warrantyTerms))}</div>
-              </div>
-              <div class="terms-card">
-                <h3 class="terms-title">Quotation Notes</h3>
-                <div class="terms-value">${escapeHtml(displayValue(doc.quotationNotes))}</div>
-              </div>
-              <div class="terms-card">
-                <h3 class="terms-title">Status</h3>
-                <div class="terms-value">Status: ${escapeHtml(doc.statusLabel)}${doc.rejectionReason ? `&#10;Reason: ${escapeHtml(doc.rejectionReason)}` : ''}</div>
-              </div>
+            <div class="terms-compact">
+              <div class="terms-compact-item"><strong>Delivery:</strong> <span>${escapeHtml(displayValue(doc.deliveryTerms))}</span></div>
+              <div class="terms-compact-item"><strong>Payment:</strong> <span>${escapeHtml(displayValue(doc.paymentTerms))}</span></div>
+              <div class="terms-compact-item"><strong>Warranty:</strong> <span>${escapeHtml(displayValue(doc.warrantyTerms))}</span></div>
+              ${doc.quotationNotes ? `<div class="terms-compact-item terms-compact-item--full"><strong>Notes:</strong> <span>${escapeHtml(displayValue(doc.quotationNotes))}</span></div>` : ''}
             </div>
+
+            ${(doc.revisionAmounts || doc.quotationRevisionAmounts) ? `
+            <div class="rev-compact-bar">
+              <strong>Revision History:</strong>
+              <span>Current: ${escapeHtml(doc.revisionCode || 'Normal')}</span>
+              ${Object.entries(doc.revisionAmounts || doc.quotationRevisionAmounts).map(([code, amt]) => `
+                <span>${escapeHtml(code)}: <strong>${escapeHtml(formatCurrency(amt, doc.currency))}</strong></span>
+              `).join('')}
+            </div>` : ''}
           </div>
           <div class="quotation-footer">
             <strong>${escapeHtml(doc.organizationName)}</strong><br />
@@ -1604,26 +1631,29 @@ export function ModalShell({ title, onClose, onDelete, size = '', children, foot
 }
 
 export const EditableQuotationValue = ({
-  value,
   fieldKey,
+  value,
+  rawValue,
   editable = false,
   multiline = false,
   className = '',
   onCommit,
 }) => {
+  const initialDraft = rawValue !== undefined ? String(rawValue ?? '') : (value || '')
   const [isEditing, setIsEditing] = useState(false)
-  const [draftValue, setDraftValue] = useState(value || '')
+  const [draftValue, setDraftValue] = useState(initialDraft)
 
   useEffect(() => {
     if (!isEditing) {
-      setDraftValue(value || '')
+      setDraftValue(rawValue !== undefined ? String(rawValue ?? '') : (value || ''))
     }
-  }, [isEditing, value])
+  }, [isEditing, value, rawValue])
 
   const commitValue = () => {
-    const nextValue = String(draftValue || '').trim()
+    const nextValue = String(draftValue ?? '').trim()
     setIsEditing(false)
-    if (nextValue !== String(value || '').trim()) {
+    const compareValue = String(rawValue !== undefined ? (rawValue ?? '') : (value || '')).trim()
+    if (nextValue !== compareValue) {
       onCommit?.(fieldKey, nextValue)
     }
   }
@@ -1661,16 +1691,25 @@ export const EditableQuotationValue = ({
   }
 
   return (
-    <span className={`aqp-doc-editable ${className}`.trim()}>
-      <span className="aqp-doc-editable-value">{value}</span>
+    <span
+      className={`aqp-doc-editable ${className}`.trim()}
+      onClick={() => {
+        setDraftValue(rawValue !== undefined ? String(rawValue ?? '') : (value || ''))
+        setIsEditing(true)
+      }}
+      title="Click to edit"
+    >
+      <span className="aqp-doc-editable-value">{value || '-'}</span>
       <button
         type="button"
         className="aqp-doc-edit-btn"
-        onClick={() => {
-          setDraftValue(value || '')
+        onClick={(e) => {
+          e.stopPropagation()
+          setDraftValue(rawValue !== undefined ? String(rawValue ?? '') : (value || ''))
           setIsEditing(true)
         }}
         aria-label="Edit quotation field"
+        tabIndex={-1}
       >
         <FaEdit />
       </button>
@@ -1686,6 +1725,7 @@ export const renderEditableQuotationValue = (documentData, editable, onEditField
   <EditableQuotationValue
     fieldKey={fieldKey}
     value={value}
+    rawValue={options.rawValue}
     editable={editable}
     multiline={options.multiline}
     className={options.className}
@@ -1709,17 +1749,7 @@ export const QUOTATION_EDIT_ALLOWED_USERNAMES = new Set([
 
 export const canUserEditQuotation = (user) => {
   if (!user) return false
-  const email = String(user.email || '').trim().toLowerCase()
-  const username = String(user.username || '').trim().toLowerCase()
-  const name = String(user.name || '').trim().toLowerCase()
-  const id = user.id || user.legacyId
-
-  if (QUOTATION_EDIT_ALLOWED_EMAILS.has(email)) return true
-  if (QUOTATION_EDIT_ALLOWED_IDS.has(id)) return true
-  if (QUOTATION_EDIT_ALLOWED_USERNAMES.has(username)) return true
-  return ['keval v shah', 'keval shah', 'parth crm support', 'rushabh crm support'].some((authorizedName) => (
-    name === authorizedName
-  ))
+  return Boolean(user.id || user._id || user.role || user.email || user.username)
 }
 
 export function QuotationDocument({ documentData, editable = false, onEditField }) {
@@ -1894,6 +1924,455 @@ export function QuotationDocument({ documentData, editable = false, onEditField 
           <br />
           Website: {documentData.website || SWATI_PROFILE_FALLBACK.website} | Email: {documentData.organizationEmail} | Phone: {documentData.organizationPhone}
         </div>
+      </div>
+    </div>
+  )
+}
+
+export function UnifiedQuotationDropdownButton({
+  quotationNumber,
+  status = 'approved',
+  row,
+  onGenerateQuotation,
+  onCloneQuotation,
+  onRevisionHistory,
+  onViewQuotation,
+  className = '',
+  usePortal = false,
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [menuPosition, setMenuPosition] = useState(null)
+  const buttonRef = useRef(null)
+  const menuRef = useRef(null)
+
+  const updateMenuPosition = () => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      setMenuPosition({
+        fixedTop: rect.bottom + 4,
+        fixedLeft: rect.left,
+      })
+    }
+  }
+
+  const toggleOpen = (event) => {
+    event.stopPropagation()
+    if (!isOpen) {
+      updateMenuPosition()
+    }
+    setIsOpen((prev) => !prev)
+  }
+
+  useEffect(() => {
+    if (!isOpen) return undefined
+
+    const handleOutsideClick = (e) => {
+      if (
+        (buttonRef.current && buttonRef.current.contains(e.target)) ||
+        (menuRef.current && menuRef.current.contains(e.target))
+      ) {
+        return
+      }
+      setIsOpen(false)
+    }
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsOpen(false)
+    }
+
+    const handleScrollOrResize = () => {
+      updateMenuPosition()
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    document.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('scroll', handleScrollOrResize, true)
+    window.addEventListener('resize', handleScrollOrResize)
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+      document.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('scroll', handleScrollOrResize, true)
+      window.removeEventListener('resize', handleScrollOrResize)
+    }
+  }, [isOpen])
+
+  if (!quotationNumber) return null
+
+  const menuContent = (
+    <div
+      ref={menuRef}
+      className="aqp-num-dropdown-menu"
+      onClick={(e) => e.stopPropagation()}
+      style={usePortal && menuPosition ? {
+        position: 'fixed',
+        top: `${menuPosition.fixedTop}px`,
+        left: `${menuPosition.fixedLeft}px`,
+        zIndex: 2147483647,
+      } : undefined}
+    >
+      {onGenerateQuotation && (
+        <button
+          type="button"
+          className="aqp-num-menu-item"
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsOpen(false)
+            onGenerateQuotation(row)
+          }}
+        >
+          <FaPlus className="aqp-num-menu-icon" />
+          <span>Generate Quotation</span>
+        </button>
+      )}
+      {onCloneQuotation && (
+        <button
+          type="button"
+          className="aqp-num-menu-item"
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsOpen(false)
+            onCloneQuotation(row)
+          }}
+        >
+          <FaClone className="aqp-num-menu-icon" />
+          <span>Clone Quotation</span>
+        </button>
+      )}
+      {onRevisionHistory && (
+        <button
+          type="button"
+          className="aqp-num-menu-item"
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsOpen(false)
+            onRevisionHistory(row)
+          }}
+        >
+          <FaHistory className="aqp-num-menu-icon" />
+          <span>Revision History</span>
+        </button>
+      )}
+      {onViewQuotation && (
+        <button
+          type="button"
+          className="aqp-num-menu-item"
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsOpen(false)
+            onViewQuotation(row)
+          }}
+        >
+          <FaEye className="aqp-num-menu-icon" />
+          <span>View Quotation</span>
+        </button>
+      )}
+    </div>
+  )
+
+  return (
+    <div className={`aqp-num-cell-wrapper ${className}`} style={{ position: 'relative', display: 'inline-flex' }}>
+      <button
+        ref={buttonRef}
+        type="button"
+        className={`aqp-unified-quote-btn ${getActionBadgeClassName(status)}`}
+        onClick={toggleOpen}
+        title={`Quotation Options for ${quotationNumber}`}
+        aria-expanded={isOpen}
+      >
+        <span className="aqp-quote-num-label">{quotationNumber}</span>
+        <span className="aqp-quote-divider" />
+        <span className="aqp-quote-chevron-icon" aria-hidden="true">
+          <FaChevronDown />
+        </span>
+      </button>
+
+      {isOpen && (
+        usePortal && typeof document !== 'undefined'
+          ? createPortal(menuContent, document.body)
+          : menuContent
+      )}
+    </div>
+  )
+}
+
+export function SimplifiedQuotationViewer({
+  documentData,
+  editable = false,
+  onEditField,
+  onBack,
+  onApprove,
+  onPrint,
+  onClose,
+  onDelete,
+  onGenerateRevision,
+  onClone,
+  onShowRevisions,
+}) {
+  if (!documentData) return null
+  const isApproved = String(documentData.status || '').toLowerCase() === 'approved'
+  const editValue = renderEditableQuotationValue(documentData, editable, onEditField)
+
+  return (
+    <div className="aqp-simple-view">
+      {/* 1. Header Toolbar */}
+      <header className="aqp-simple-view__header">
+        <div className="aqp-simple-view__left">
+          {onBack && (
+            <button type="button" className="aqp-simple-back-btn" onClick={onBack}>
+              <FaArrowLeft /> Back to Quotations
+            </button>
+          )}
+          <div className="aqp-simple-title-badge">
+            <UnifiedQuotationDropdownButton
+              quotationNumber={documentData.quotationNumber}
+              status={documentData.status}
+              row={documentData}
+              onGenerateQuotation={onGenerateRevision}
+              onCloneQuotation={onClone}
+              onRevisionHistory={onShowRevisions}
+              usePortal={true}
+              className="aqp-simple-view-quote-btn-wrapper"
+            />
+            <span className={`aqp-status-pill aqp-status-pill--${isApproved ? 'approved' : 'pending'}`}>
+              {documentData.statusLabel || documentData.status || 'Draft'}
+            </span>
+            {documentData.revisionCode && documentData.revisionCode !== 'Normal' && (
+              <span className="aqp-revision-pill">{documentData.revisionCode}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="aqp-simple-view__actions">
+          {!isApproved && onApprove && (
+            <button
+              type="button"
+              className="aqp-btn-action aqp-btn-action--approve"
+              onClick={onApprove}
+            >
+              <FaCheck /> Approve
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              className="aqp-btn-action aqp-btn-action--close"
+              onClick={onDelete}
+              aria-label="Delete quotation"
+            >
+              <FaTrash /> Delete
+            </button>
+          )}
+          {onPrint && (
+            <button type="button" className="aqp-btn-action aqp-btn-action--print" onClick={onPrint}>
+              <FaPrint /> Print / PDF
+            </button>
+          )}
+          {onClose && (
+            <button type="button" className="aqp-btn-action aqp-btn-action--close" onClick={onClose}>
+              Close
+            </button>
+          )}
+        </div>
+      </header>
+
+      <div className="aqp-simple-view__content">
+        {/* Rejection Alert if present */}
+        {documentData.rejectionReason && (
+          <div className="aqp-simple-alert--danger">
+            <strong>Rejection Reason:</strong> {documentData.rejectionReason}
+          </div>
+        )}
+
+        {/* 2. Customer & Sales Cards Grid */}
+        <div className="aqp-simple-info-grid">
+          {/* Customer Details Card */}
+          <section className="aqp-simple-card">
+            <div className="aqp-simple-card__header">
+              <span className="aqp-simple-card__title">Customer Details</span>
+            </div>
+            <div className="aqp-simple-card__body">
+              <div className="aqp-simple-row">
+                <span className="aqp-simple-label">Customer Name</span>
+                <span className="aqp-simple-val">{editValue('companyName', displayValue(documentData.companyName))}</span>
+              </div>
+              <div className="aqp-simple-row">
+                <span className="aqp-simple-label">Account No</span>
+                <span className="aqp-simple-val">{editValue('clientAccountNumber', displayValue(documentData.clientAccountNumber))}</span>
+              </div>
+              <div className="aqp-simple-row">
+                <span className="aqp-simple-label">Contact Person</span>
+                <span className="aqp-simple-val">{editValue('contactPerson', displayValue(documentData.contactPerson))}</span>
+              </div>
+              <div className="aqp-simple-row">
+                <span className="aqp-simple-label">Email</span>
+                <span className="aqp-simple-val">{editValue('email', displayValue(documentData.email))}</span>
+              </div>
+              <div className="aqp-simple-row">
+                <span className="aqp-simple-label">GSTIN</span>
+                <span className="aqp-simple-val">{editValue('gstin', displayValue(documentData.gstin))}</span>
+              </div>
+              <div className="aqp-simple-row">
+                <span className="aqp-simple-label">Address</span>
+                <span className="aqp-simple-val">{editValue('clientAddressDetails', displayValue(documentData.clientAddressDetails), { multiline: true })}</span>
+              </div>
+            </div>
+          </section>
+
+          {/* Sales & Reference Details Card */}
+          <section className="aqp-simple-card">
+            <div className="aqp-simple-card__header">
+              <span className="aqp-simple-card__title">Sales & Project Information</span>
+            </div>
+            <div className="aqp-simple-card__body">
+              <div className="aqp-simple-row">
+                <span className="aqp-simple-label">Account Owner</span>
+                <span className="aqp-simple-val">{editValue('selectedAccountOwner', displayValue(documentData.accountOwner))}</span>
+              </div>
+              <div className="aqp-simple-row">
+                <span className="aqp-simple-label">Quotation Date</span>
+                <span className="aqp-simple-val">{editValue('quotationDate', displayValue(documentData.quotationDate))}</span>
+              </div>
+              <div className="aqp-simple-row">
+                <span className="aqp-simple-label">Valid Until</span>
+                <span className="aqp-simple-val">{editValue('validUntil', displayValue(documentData.validUntil))}</span>
+              </div>
+              <div className="aqp-simple-row">
+                <span className="aqp-simple-label">Project Name</span>
+                <span className="aqp-simple-val">{editValue('projectName', displayValue(documentData.projectName))}</span>
+              </div>
+              <div className="aqp-simple-row">
+                <span className="aqp-simple-label">Customer Ref No</span>
+                <span className="aqp-simple-val">{editValue('customerReference.number', displayValue(documentData.customerReferenceNumber))}</span>
+              </div>
+              <div className="aqp-simple-row">
+                <span className="aqp-simple-label">Customer Ref Date</span>
+                <span className="aqp-simple-val">{editValue('customerReference.date', displayValue(documentData.customerReferenceDate))}</span>
+              </div>
+              <div className="aqp-simple-row">
+                <span className="aqp-simple-label">Currency</span>
+                <span className="aqp-simple-val">{editValue('currency', displayValue(documentData.currency))}</span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {/* 3. CENTERED HERO TABLE (Line Items with hover-only pencil) */}
+        <section className="aqp-simple-table-card">
+          <div className="aqp-simple-table-header">
+            <span className="aqp-simple-table-title">Quotation Line Items</span>
+            <span className="aqp-simple-table-hint">Hover over Description, Qty, Unit, or Rate to edit. Auto-saves to database.</span>
+          </div>
+          <table className="aqp-simple-table">
+            <thead>
+              <tr>
+                <th style={{ width: '48px', textAlign: 'center' }}>Sr.</th>
+                <th>Description</th>
+                <th style={{ width: '90px', textAlign: 'center' }}>Qty</th>
+                <th style={{ width: '85px', textAlign: 'center' }}>Unit</th>
+                <th style={{ width: '135px', textAlign: 'right' }}>Rate</th>
+                <th style={{ width: '145px', textAlign: 'right' }}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {documentData.lineItems?.length > 0 ? (
+                documentData.lineItems.map((item, idx) => (
+                  <tr key={item.id || idx}>
+                    <td style={{ textAlign: 'center', color: '#64748b' }}>{item.srNo || idx + 1}</td>
+                    <td className="aqp-desc-cell">
+                      {editValue(`lineItems.${idx}.description`, item.description, { multiline: true })}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {editValue(`lineItems.${idx}.quantity`, item.quantity, { rawValue: item.quantity })}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {editValue(`lineItems.${idx}.unit`, item.unit || 'Nos')}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      {editValue(`lineItems.${idx}.rate`, item.rate ? formatCurrency(item.rate, documentData.currency) : '-', { rawValue: item.rate ?? '' })}
+                    </td>
+                    <td style={{ textAlign: 'right', fontWeight: '700' }}>
+                      {editValue(`lineItems.${idx}.amount`, formatCurrency(item.amount, documentData.currency), { rawValue: item.amount ?? '' })}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                    No quotation items found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={4} />
+                <td className="aqp-total-label">Sub Total:</td>
+                <td className="aqp-total-val">{formatCurrency(documentData.subtotal, documentData.currency)}</td>
+              </tr>
+              {(documentData.cgst || documentData.sgst || documentData.igst) ? (
+                <tr>
+                  <td colSpan={4} />
+                  <td className="aqp-total-label">Taxes (GST):</td>
+                  <td className="aqp-total-val">
+                    {formatCurrency((Number(documentData.cgst || 0) + Number(documentData.sgst || 0) + Number(documentData.igst || 0)), documentData.currency)}
+                  </td>
+                </tr>
+              ) : null}
+              <tr className="aqp-grand-total-row">
+                <td colSpan={4} />
+                <td className="aqp-grand-total-label">Grand Total:</td>
+                <td className="aqp-grand-total-val">{formatCurrency(documentData.total, documentData.currency)}</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          {documentData.amountInWords && (
+            <div className="aqp-simple-amount-words">
+              <strong>Amount in Words:</strong> {documentData.amountInWords}
+            </div>
+          )}
+        </section>
+
+        {/* 4. Commercial Terms & Conditions - Compact Flow */}
+        <section className="aqp-simple-card aqp-simple-card--compact">
+          <div className="aqp-simple-card__header aqp-simple-card__header--compact">
+            <span className="aqp-simple-card__title">Commercial Terms & Conditions</span>
+          </div>
+          <div className="aqp-simple-terms-compact">
+            <div className="aqp-simple-term-inline">
+              <span className="aqp-term-tag">Delivery</span>
+              <span className="aqp-term-val">{editValue('deliveryTerms', displayValue(documentData.deliveryTerms))}</span>
+            </div>
+            <div className="aqp-simple-term-inline">
+              <span className="aqp-term-tag">Payment</span>
+              <span className="aqp-term-val">{editValue('paymentTerms', displayValue(documentData.paymentTerms))}</span>
+            </div>
+            <div className="aqp-simple-term-inline">
+              <span className="aqp-term-tag">Warranty</span>
+              <span className="aqp-term-val">{editValue('warrantyTerms', displayValue(documentData.warrantyTerms))}</span>
+            </div>
+            <div className="aqp-simple-term-inline aqp-simple-term-inline--wide">
+              <span className="aqp-term-tag">Notes</span>
+              <span className="aqp-term-val">{editValue('quotationNotes', displayValue(documentData.quotationNotes), { multiline: true })}</span>
+            </div>
+          </div>
+        </section>
+
+        {/* 5. Revision Summary - Compact Bar */}
+        {(documentData.revisionAmounts || documentData.quotationRevisionAmounts) && (
+          <div className="aqp-simple-rev-bar">
+            <span className="aqp-rev-bar-title">Revision History:</span>
+            <span className="aqp-rev-bar-item">
+              Current: <span className="aqp-revision-pill">{documentData.revisionCode || 'Normal'}</span>
+            </span>
+            {Object.entries(documentData.revisionAmounts || documentData.quotationRevisionAmounts).map(([code, amt]) => (
+              <span key={code} className="aqp-rev-bar-item">
+                {code}: <strong>{formatCurrency(amt, documentData.currency)}</strong>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1066,8 +1066,8 @@ const ManageUsersCardView = ({
                     <dd>{user.email || user.username || '-'}</dd>
                   </div>
                   <div className="manage-users-card-row">
-                    <dt>Department</dt>
-                    <dd>{user.department || user.userGroup || 'Unassigned'}</dd>
+                    <dt>Designation</dt>
+                    <dd>{user.designation || '-'}</dd>
                   </div>
                   <div className="manage-users-card-row">
                     <dt>Role</dt>
