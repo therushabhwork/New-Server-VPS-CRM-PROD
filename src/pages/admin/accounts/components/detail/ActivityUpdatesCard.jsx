@@ -14,8 +14,17 @@ const formatActivityTime = (value) => {
   })
 }
 
-export default function ActivityUpdatesCard({ account = {}, remarks = [] }) {
+export default function ActivityUpdatesCard({ account = {}, remarks = [], reminders = [] }) {
   const [activeTab, setActiveTab] = useState('recent')
+
+  const reminderUpdates = (Array.isArray(reminders) ? reminders : []).map((r) => ({
+    id: `rem-${r.id || r._id}`,
+    title: `Reminder: ${r.title || r.message || 'Scheduled Follow-up'}`,
+    content: r.message || r.content || r.title || 'Follow-up reminder scheduled.',
+    createdAt: r.reminderDate || r.dueDate || r.createdAt,
+    author: r.ownerName || r.assignedTo || account.accountOwnerDisplay || account.accountOwner || 'User',
+    isReminder: true,
+  }))
 
   const systemUpdates = [
     ...(account.createdAt ? [{
@@ -32,7 +41,8 @@ export default function ActivityUpdatesCard({ account = {}, remarks = [] }) {
       createdAt: account.updatedAt,
       author: account.accountOwnerDisplay || account.accountOwner || 'System',
     }] : []),
-  ]
+    ...reminderUpdates,
+  ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
 
   const displayList = activeTab === 'recent' ? remarks : systemUpdates
 
@@ -67,11 +77,16 @@ export default function ActivityUpdatesCard({ account = {}, remarks = [] }) {
           displayList.map((item, index) => (
             <div key={item.id || `activity-${index}`} className="ad-activity-item">
               <div className="ad-activity-meta">
-                <strong style={{ color: 'var(--color-primary, #2563eb)' }}>
+                <strong style={{ color: 'var(--color-primary, #c60016)' }}>
                   {item.createdByName || item.userName || item.author || 'User'}
                 </strong>
                 <span>{formatActivityTime(item.createdAt || item.date)}</span>
               </div>
+              {item.title && (
+                <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.8rem', marginTop: '1px' }}>
+                  {item.title}
+                </div>
+              )}
               <div className="ad-activity-content">
                 {item.content || item.remark || item.note || item.text}
               </div>

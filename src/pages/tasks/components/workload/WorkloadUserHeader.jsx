@@ -3,7 +3,6 @@ import {
   FaSyncAlt,
   FaSlidersH,
 } from 'react-icons/fa'
-import { TaskStatusBadge } from '../common/TaskStatusBadge'
 
 export const WorkloadUserHeader = ({
   user,
@@ -15,7 +14,6 @@ export const WorkloadUserHeader = ({
   const email = user?.email || ''
   const role = user?.role || 'User'
   const department = user?.department || 'Operations'
-  const slaRate = user?.slaComplianceRate ?? 100
 
   const initials = name
     .split(' ')
@@ -74,14 +72,6 @@ export const WorkloadUserHeader = ({
             >
               {name}
             </h2>
-
-            {/* SLA Badge with small subtext styling */}
-            <span style={{ fontSize: '0.72rem', fontWeight: '600', display: 'inline-flex', alignItems: 'center' }}>
-              <TaskStatusBadge
-                value={slaRate >= 90 ? 'compliant' : slaRate >= 75 ? 'at_risk' : 'breached'}
-                type="sla"
-              />
-            </span>
           </div>
 
           <div

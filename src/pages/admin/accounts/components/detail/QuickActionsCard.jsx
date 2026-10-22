@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import {
   FaBolt,
   FaEnvelope,
@@ -13,7 +13,6 @@ import {
   FaFileAlt,
   FaExchangeAlt,
 } from 'react-icons/fa'
-import { FiSend } from 'react-icons/fi'
 
 const formatAssignmentDateTime = (value) => {
   if (!value) return '-'
@@ -29,27 +28,32 @@ const formatAssignmentDateTime = (value) => {
 export default function QuickActionsCard({
   account = {},
   form = {},
+  reminders = [],
   onQuickAction,
-  onSubmitRemark,
-  isSubmittingRemark = false,
   onRefresh,
+  onActivateReminder,
+  onCloseReminder,
 }) {
-  const [remarkText, setRemarkText] = useState('')
-
-  const handleRemarkSubmit = async (e) => {
-    if (e) e.preventDefault()
-    const trimmed = remarkText.trim()
-    if (!trimmed || isSubmittingRemark) return
-    if (typeof onSubmitRemark === 'function') {
-      const success = await onSubmitRemark(trimmed)
-      if (success) {
-        setRemarkText('')
-      }
-    }
-  }
-
   const assignedDate = account.assignedAt || account.updatedAt || account.createdAt || ''
   const assignedOwner = account.accountOwnerDisplay || form.accountOwner || account.accountOwner || 'You'
+
+  const banners = Array.isArray(reminders) && reminders.length > 0
+    ? reminders.map((r) => ({
+        id: r.id || r._id,
+        date: r.reminderDate || r.dueDate || r.createdAt,
+        owner: r.ownerName || r.assignedTo || assignedOwner,
+        message: r.title || r.message || r.content || 'Follow up required',
+        reminder: r,
+      }))
+    : [
+        {
+          id: 'default-assigned',
+          date: assignedDate,
+          owner: assignedOwner,
+          message: 'Account has been assigned to you.',
+          reminder: null,
+        },
+      ]
 
   return (
     <div className="ad-card">
@@ -143,66 +147,62 @@ export default function QuickActionsCard({
         </button>
       </div>
 
-      {/* Inline Remark Box */}
-      <form className="ad-inline-remark-box" onSubmit={handleRemarkSubmit}>
-        <input
-          type="text"
-          className="ad-inline-remark-input"
-          placeholder="Add remark here..."
-          value={remarkText}
-          onChange={(e) => setRemarkText(e.target.value)}
-          disabled={isSubmittingRemark}
-        />
-        <button
-          type="submit"
-          className="ad-inline-remark-submit"
-          disabled={!remarkText.trim() || isSubmittingRemark}
-          title="Submit Remark"
-        >
-          <FiSend />
-        </button>
-      </form>
+      {/* Reminders / Assignment Notification Banners */}
+      <div className="ad-assignment-banners-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+        {banners.map((item) => (
+          <div key={item.id} className="ad-assignment-banner">
+            <div className="ad-assignment-info">
+              <FaBell className="ad-assignment-bell" />
+              <div className="ad-assignment-text">
+                <span className="ad-assignment-header">
+                  {formatAssignmentDateTime(item.date)} | {item.owner}
+                </span>
+                <span className="ad-assignment-sub" title={item.message}>
+                  {item.message}
+                </span>
+              </div>
+            </div>
 
-      {/* Assignment Notification Banner */}
-      <div className="ad-assignment-banner">
-        <div className="ad-assignment-info">
-          <FaBell className="ad-assignment-bell" />
-          <div className="ad-assignment-text">
-            <span className="ad-assignment-header">
-              {formatAssignmentDateTime(assignedDate)} | {assignedOwner}
-            </span>
-            <span className="ad-assignment-sub">
-              Account has been assigned to you.
-            </span>
+            <div className="ad-assignment-actions">
+              <button
+                type="button"
+                className="ad-assignment-btn"
+                onClick={() => {
+                  if (item.reminder && typeof onActivateReminder === 'function') {
+                    onActivateReminder(item.reminder)
+                  } else {
+                    onQuickAction('acknowledge', item.reminder)
+                  }
+                }}
+                title={item.reminder ? 'Activate Reminder' : 'Mark Reviewed / Acknowledge'}
+              >
+                <FaCheck />
+              </button>
+              <button
+                type="button"
+                className="ad-assignment-btn"
+                onClick={() => onQuickAction('add-reminder', item.reminder)}
+                title="Create Task / Reschedule Reminder"
+              >
+                <FaPlus />
+              </button>
+              <button
+                type="button"
+                className="ad-assignment-btn"
+                onClick={() => {
+                  if (item.reminder && typeof onCloseReminder === 'function') {
+                    onCloseReminder(item.reminder)
+                  } else if (typeof onRefresh === 'function') {
+                    onRefresh()
+                  }
+                }}
+                title={item.reminder ? 'Close Reminder' : 'Refresh Account Data from MongoDB'}
+              >
+                <FaSyncAlt />
+              </button>
+            </div>
           </div>
-        </div>
-
-        <div className="ad-assignment-actions">
-          <button
-            type="button"
-            className="ad-assignment-btn"
-            onClick={() => onQuickAction('acknowledge')}
-            title="Mark Reviewed / Acknowledge"
-          >
-            <FaCheck />
-          </button>
-          <button
-            type="button"
-            className="ad-assignment-btn"
-            onClick={() => onQuickAction('add-reminder')}
-            title="Create Task / Reminder"
-          >
-            <FaPlus />
-          </button>
-          <button
-            type="button"
-            className="ad-assignment-btn"
-            onClick={onRefresh}
-            title="Refresh Account Data from MongoDB"
-          >
-            <FaSyncAlt />
-          </button>
-        </div>
+        ))}
       </div>
     </div>
   )

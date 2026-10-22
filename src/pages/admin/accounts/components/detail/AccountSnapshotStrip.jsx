@@ -166,7 +166,7 @@ export default function AccountSnapshotStrip({
         return (
           <div key={item.id} className="ad-snapshot-item">
             <div className="ad-snapshot-label-row">
-              <Icon style={{ fontSize: '0.68rem', color: 'var(--color-primary, #2563eb)' }} />
+              <Icon style={{ fontSize: '0.68rem', color: 'var(--color-primary, #c60016)' }} />
               <span>{item.label}</span>
               {item.editable && canEdit && !isThisEditing && (
                 <button

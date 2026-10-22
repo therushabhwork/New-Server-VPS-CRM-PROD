@@ -74,17 +74,15 @@ export const TaskWorkspaceLayout = ({ children, activeTabKey, activeTab }) => {
     ? [
         { key: 'dashboard', label: 'Overview', icon: <FaDesktop />, route: '/admin/tasks' },
         { key: 'all', label: 'Tasks Workspace', icon: <FaTasks />, route: '/admin/tasks/all' },
-        { key: 'workload', label: 'Team Workload', icon: <FaUsers />, route: '/admin/tasks/workload' },
+        { key: 'workload', label: 'Workload', icon: <FaUsers />, route: '/admin/tasks/workload' },
         { key: 'projects', label: 'Projects', icon: <FaProjectDiagram />, route: '/admin/tasks/projects' },
-        { key: 'approvals', label: 'Approvals', icon: <FaCheckCircle />, route: '/admin/tasks/approvals' },
         { key: 'activity', label: 'Activity Log', icon: <FaHistory />, route: '/admin/tasks/activity' },
       ]
     : [
         { key: 'dashboard', label: 'Overview', icon: <FaDesktop />, route: '/tasks/my-work' },
         { key: 'all', label: 'Tasks Workspace', icon: <FaTasks />, route: '/tasks/all' },
-        { key: 'workload', label: 'Team Workload', icon: <FaUsers />, route: '/tasks/workload' },
+        { key: 'workload', label: 'Workload', icon: <FaUsers />, route: '/tasks/workload' },
         { key: 'projects', label: 'Projects', icon: <FaProjectDiagram />, route: '/tasks/projects' },
-        { key: 'approvals', label: 'Approvals', icon: <FaCheckCircle />, route: '/tasks/approvals' },
         { key: 'activity', label: 'Activity Log', icon: <FaHistory />, route: '/tasks/activity' },
       ]
 

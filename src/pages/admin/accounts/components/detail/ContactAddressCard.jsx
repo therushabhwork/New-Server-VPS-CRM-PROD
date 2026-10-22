@@ -9,13 +9,14 @@ export default function ContactAddressCard({
   onAutoSave,
   canEdit = true,
 }) {
-  const alternatePhone = form.alternatePhone || account.alternatePhone || ''
-  const alternateEmail = form.alternateEmail || account.alternateEmail || ''
+  const contactPerson = form.contactPerson || account.contactPerson || ''
+  const email = form.email || account.email || account.contactEmail || ''
+  const mobile = form.mobile || account.mobile || account.contactMobile || account.phone || ''
+  const designation = form.designation || account.designation || account.contactDesignation || ''
   const address = form.address || account.address || ''
   const city = form.city || account.city || ''
   const state = form.state || account.state || ''
   const pincode = form.pincode || account.pincode || form.zipCode || account.zipCode || ''
-  const landline = form.landline || account.landline || form.phone2 || account.phone2 || ''
   const description = form.description || account.description || ''
 
   return (
@@ -33,31 +34,39 @@ export default function ContactAddressCard({
           <span className="ad-sub-section-title">Contact Details</span>
 
           <InlineAutoSaveField
-            label="Alternate Phone"
-            fieldKey="alternatePhone"
-            value={alternatePhone}
-            type="tel"
-            placeholder="Enter alternate phone"
+            label="Contact Person"
+            fieldKey="contactPerson"
+            value={contactPerson}
+            placeholder="Enter contact person"
             canEdit={canEdit}
             onSave={onAutoSave}
           />
 
           <InlineAutoSaveField
-            label="Alternate Email"
-            fieldKey="alternateEmail"
-            value={alternateEmail}
+            label="Email"
+            fieldKey="email"
+            value={email}
             type="email"
-            placeholder="Enter alternate email"
+            placeholder="Enter email"
             canEdit={canEdit}
             onSave={onAutoSave}
           />
 
           <InlineAutoSaveField
-            label="Landline"
-            fieldKey="landline"
-            value={landline}
+            label="Mobile Phone"
+            fieldKey="mobile"
+            value={mobile}
             type="tel"
-            placeholder="Enter landline"
+            placeholder="Enter mobile phone"
+            canEdit={canEdit}
+            onSave={onAutoSave}
+          />
+
+          <InlineAutoSaveField
+            label="Designation"
+            fieldKey="designation"
+            value={designation}
+            placeholder="Enter designation"
             canEdit={canEdit}
             onSave={onAutoSave}
           />

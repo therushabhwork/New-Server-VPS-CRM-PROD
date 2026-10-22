@@ -926,6 +926,8 @@
 .support-ticket-content--legacy .support-request-legacy-table-shell {
   max-height: calc(100vh - 14rem);
   padding: 0;
+  overflow-x: auto;
+  overflow-y: auto;
 }
 
 .support-ticket-content--legacy .support-request-legacy-table {
@@ -958,6 +960,8 @@
 .support-ticket-content--sr-list .support-request-legacy-table-shell {
   max-height: calc(100vh - 12.5rem);
   padding: 0;
+  overflow-x: auto;
+  overflow-y: auto;
 }
 
 .support-ticket-content--sr-list .support-request-legacy-table {

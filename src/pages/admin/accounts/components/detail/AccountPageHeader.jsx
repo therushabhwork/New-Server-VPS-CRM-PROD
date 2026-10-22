@@ -57,7 +57,7 @@ export default function AccountPageHeader({
               borderRadius: '6px',
               border: '1px solid var(--color-border, #cbd5e1)',
               background: 'var(--color-surface, #ffffff)',
-              color: 'var(--color-primary, #2563eb)',
+              color: 'var(--color-primary, #c60016)',
               cursor: 'pointer',
               fontSize: '15px',
             }}

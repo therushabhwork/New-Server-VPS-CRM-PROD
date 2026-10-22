@@ -48,27 +48,29 @@ export const TaskGroupListView = ({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: '1.5rem',
+        gap: '1rem',
         background: '#ffffff',
-        borderRadius: '16px',
-        padding: '0.75rem 1.25rem 1.5rem 1.25rem',
+        borderRadius: '14px',
+        padding: '0.65rem 0.95rem 1rem 0.95rem',
         border: '1px solid #e2e8f0',
         boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)',
+        overflowX: 'auto',
       }}
     >
-      {/* Table Column Headers matching Image 1 */}
+      {/* Table Column Headers */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(280px, 3fr) 100px minmax(140px, 1.5fr) 90px 70px 110px',
+          gridTemplateColumns: 'minmax(220px, 3fr) 85px minmax(110px, 1.2fr) 75px 60px 95px',
           alignItems: 'center',
-          padding: '0.6rem 0.75rem',
+          padding: '0.45rem 0.6rem',
           borderBottom: '1.5px solid #f1f5f9',
           color: '#94a3b8',
-          fontSize: '0.75rem',
+          fontSize: '0.7rem',
           fontWeight: '700',
           letterSpacing: '0.02em',
           userSelect: 'none',
+          minWidth: '650px',
         }}
       >
         <div>Task Name</div>
@@ -194,14 +196,15 @@ export const TaskGroupListView = ({
                         style={{
                           display: 'grid',
                           gridTemplateColumns:
-                            'minmax(280px, 3fr) 100px minmax(140px, 1.5fr) 90px 70px 110px',
+                            'minmax(220px, 3fr) 85px minmax(110px, 1.2fr) 75px 60px 95px',
                           alignItems: 'center',
-                          padding: '0.65rem 0.75rem',
+                          padding: '0.45rem 0.6rem',
                           borderBottom: '1px solid #f1f5f9',
                           cursor: 'pointer',
                           background: isDone ? '#fafafa' : '#ffffff',
                           transition: 'background 0.12s ease',
                           borderRadius: '8px',
+                          minWidth: '650px',
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.background = '#f8fafc'

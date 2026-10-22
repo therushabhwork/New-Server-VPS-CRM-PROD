@@ -2766,14 +2766,57 @@ html:not([data-theme="dark"]) body #root :is(.layout--admin, .layout--user) .adm
   border-color: var(--color-primary, #3b82f6);
 }
 
-/* Enforce bold white text color for Customer Number badges on /customers/search */
-html body #root :is(.admin-customers-page, .admin-customers-search-page, .customers-page, .customers-search-page) .admin-customers-grid-number-cell .admin-customers-grid-number-button,
-html body #root :is(.admin-customers-page, .admin-customers-search-page, .customers-page, .customers-search-page) .admin-customers-grid-number-cell .admin-customers-grid-number-button *,
-html body #root :is(.admin-customers-page, .admin-customers-search-page, .customers-page, .customers-search-page) .admin-customers-grid-number-cell .admin-customers-grid-number-button span {
+/* Enforce bold white text color and identical UI/theme for Customer Number column across Admin & User routes */
+html body #root :is(.layout--admin, .layout--user) :is(.admin-customers-page, .admin-customers-search-page, .customers-page, .customers-search-page) .admin-customers-grid-number-cell {
+  min-width: 6.8rem !important;
+  width: 140px !important;
+  padding: 0.16rem !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  vertical-align: middle !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+}
+
+html body #root :is(.layout--admin, .layout--user) :is(.admin-customers-page, .admin-customers-search-page, .customers-page, .customers-search-page) .admin-customers-grid-number-menu {
+  display: flex !important;
+  align-items: stretch !important;
+  border-radius: 4px !important;
+  overflow: hidden !important;
+  min-height: 1.45rem !important;
+  height: 1.45rem !important;
+}
+
+html body #root :is(.layout--admin, .layout--user) :is(.admin-customers-page, .admin-customers-search-page, .customers-page, .customers-search-page) .admin-customers-grid-number-cell .admin-customers-grid-number-button,
+html body #root :is(.layout--admin, .layout--user) :is(.admin-customers-page, .admin-customers-search-page, .customers-page, .customers-search-page) .admin-customers-grid-number-cell .admin-customers-grid-number-button *,
+html body #root :is(.layout--admin, .layout--user) :is(.admin-customers-page, .admin-customers-search-page, .customers-page, .customers-search-page) .admin-customers-grid-number-cell .admin-customers-grid-number-button span {
   background: #c60016 !important;
   background-color: #c60016 !important;
+  border-color: #a80012 !important;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
+  font-size: 0.72rem !important;
   font-weight: 800 !important;
   opacity: 1 !important;
+  box-shadow: none !important;
+}
+
+html body #root :is(.layout--admin, .layout--user) :is(.admin-customers-page, .admin-customers-search-page, .customers-page, .customers-search-page) .admin-customers-grid-number-cell .admin-customers-grid-number-button-arrow {
+  width: 1.55rem !important;
+  flex: 0 0 1.55rem !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.25) !important;
+}
+
+html body #root :is(.layout--admin, .layout--user) :is(.admin-customers-page, .admin-customers-search-page, .customers-page, .customers-search-page) .admin-customers-grid-number-cell .admin-customers-grid-number-button-arrow svg {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+  font-size: 0.55rem !important;
+}
+
+html body #root :is(.layout--admin, .layout--user) :is(.admin-customers-page, .admin-customers-search-page, .customers-page, .customers-search-page) .admin-customers-grid-head-row th:first-of-type,
+html body #root :is(.layout--admin, .layout--user) :is(.admin-customers-page, .admin-customers-search-page, .customers-page, .customers-search-page) .admin-customers-grid-head-row th:nth-child(2) {
+  min-width: 6.8rem !important;
+  width: 140px !important;
 }

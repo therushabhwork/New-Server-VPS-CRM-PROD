@@ -65,8 +65,6 @@ export const AdminTaskDashboard = () => {
     { label: 'Completed', value: kpis.completedTasks, icon: <FaCheckCircle />, color: '#15803d' },
     { label: 'In Progress', value: kpis.inProgressTasks, icon: <FaSyncAlt />, color: '#2563eb' },
     { label: 'Overdue Tasks', value: kpis.overdueTasks, icon: <FaExclamationTriangle />, color: '#dc2626' },
-    { label: 'Active Projects', value: kpis.activeProjects, icon: <FaProjectDiagram />, color: '#7c3aed' },
-    { label: 'Team Workload', value: `${kpis.teamWorkloadAverage}%`, icon: <FaUsers />, color: kpis.teamWorkloadAverage > 100 ? '#dc2626' : '#d97706' },
   ]
 
   const usersList = data?.userPerformanceSummary || []
@@ -80,13 +78,13 @@ export const AdminTaskDashboard = () => {
 
   return (
     <TaskWorkspaceLayout activeTabKey="dashboard">
-      {/* LEVEL 1: ORGANIZATION KPI OVERVIEW - EXACT MATCH TO /admin/monitoring KPI CARDS */}
+      {/* LEVEL 1: COMPACT ORGANIZATION KPI OVERVIEW */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(6, minmax(130px, 1fr))',
-          gap: '0.75rem',
-          marginBottom: '1.25rem',
+          gridTemplateColumns: 'repeat(4, minmax(130px, 1fr))',
+          gap: '0.65rem',
+          marginBottom: '1rem',
           width: '100%',
         }}
       >
@@ -96,18 +94,30 @@ export const AdminTaskDashboard = () => {
             className="ap-kpi-card"
             style={{
               cursor: 'default',
+              padding: '0.75rem 1rem',
+              borderRadius: '12px',
+              gap: '0.65rem',
+              minHeight: '80px',
             }}
           >
-            <div className="ap-kpi-icon-wrap">
+            <div
+              className="ap-kpi-icon-wrap"
+              style={{
+                width: '2.1rem',
+                height: '2.1rem',
+                borderRadius: '8px',
+                fontSize: '0.92rem',
+              }}
+            >
               {kpi.icon}
             </div>
             <div className="ap-kpi-main">
               <div className="ap-kpi-val-row">
-                <span className="ap-kpi-value">{kpi.value}</span>
+                <span className="ap-kpi-value" style={{ fontSize: '1.4rem' }}>{kpi.value}</span>
               </div>
-              <div className="ap-kpi-title">{kpi.label}</div>
+              <div className="ap-kpi-title" style={{ fontSize: '0.72rem' }}>{kpi.label}</div>
             </div>
-            <svg className="ap-kpi-wave" viewBox="0 0 100 30" preserveAspectRatio="none">
+            <svg className="ap-kpi-wave" viewBox="0 0 100 30" preserveAspectRatio="none" style={{ height: '22px' }}>
               <path d="M0,25 Q30,10 60,20 T100,5 L100,30 L0,30 Z" fill="rgba(198, 0, 22, 0.08)" />
             </svg>
           </div>
@@ -116,7 +126,7 @@ export const AdminTaskDashboard = () => {
 
       {/* LEVEL 2: USER PERFORMANCE SUMMARY TABLE (MONGODB USERS COLLECTION) */}
       <TaskCardShell
-        title="Team Workload & Execution Matrix"
+        title="Workload & Execution Matrix"
         icon={<FaUsers />}
         action={
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
@@ -197,14 +207,13 @@ export const AdminTaskDashboard = () => {
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>Completed</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>Overdue</th>
                   <th style={{ padding: '0.75rem 1rem' }}>Workload Capacity %</th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>SLA Compliance</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {usersList.length === 0 ? (
                   <tr>
-                    <td colSpan="9" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+                    <td colSpan="8" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
                       {loading ? 'Loading team performance data...' : 'No users found in MongoDB users collection.'}
                     </td>
                   </tr>
@@ -253,12 +262,6 @@ export const AdminTaskDashboard = () => {
                             </span>
                           </div>
                         </td>
-                        <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
-                          <TaskStatusBadge
-                            value={usr.slaComplianceRate >= 90 ? 'compliant' : usr.slaComplianceRate >= 75 ? 'at_risk' : 'breached'}
-                            type="sla"
-                          />
-                        </td>
                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
                           <button
                             type="button"
@@ -302,14 +305,10 @@ export const AdminTaskDashboard = () => {
                       gap: '0.65rem',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
                       <span style={{ fontSize: '0.72rem', fontWeight: '800', color: '#c60016', background: '#ffffff', border: '1px solid #fecdd3', padding: '0.15rem 0.45rem', borderRadius: '6px' }}>
                         {(workloadPage - 1) * PAGE_SIZE + idx + 1}
                       </span>
-                      <TaskStatusBadge
-                        value={usr.slaComplianceRate >= 90 ? 'compliant' : usr.slaComplianceRate >= 75 ? 'at_risk' : 'breached'}
-                        type="sla"
-                      />
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', marginTop: '0.15rem' }}>

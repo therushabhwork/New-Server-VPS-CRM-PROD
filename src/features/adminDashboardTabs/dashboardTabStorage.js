@@ -172,8 +172,10 @@ export const subscribeDashboardTabs = (callback) => {
 
 export const DASHBOARD_TAB_TEMPLATES = [
   { value: 'salesSwati', label: 'Sales Swati' },
+  { value: 'swatiGroup', label: 'Swati Group' },
   { value: 'salesLumos', label: 'Sales Lumos' },
   { value: 'userWisePerformance', label: 'All Users Deal Performance' },
+  { value: 'allUsers', label: 'All Users (Everyone by Name)' },
   { value: 'salesPerformanceA', label: 'Sales 1 Performance' },
   { value: 'salesPerformanceB', label: 'Sales 2 Performance' },
   { value: 'myCrm', label: 'My CRM' },

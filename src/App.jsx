@@ -241,7 +241,7 @@ function App() {
                 <Route path="tasks/edit/:taskId" element={<EditTaskPage />} />
                 <Route path="tasks/projects" element={<ProjectsPortfolioPage />} />
                 <Route path="tasks/workload" element={<TeamWorkloadPage />} />
-                <Route path="tasks/approvals" element={<ApprovalsHubPage />} />
+                <Route path="tasks/approvals" element={<Navigate to="/tasks/all" replace />} />
                 <Route path="tasks/activity" element={<ActivityLogPage />} />
                 <Route path="tasks/reminders" element={<TaskRemindersPage />} />
                 <Route path="team-view" element={<TeamViewPage isAdminView={false} />} />
@@ -383,7 +383,7 @@ function App() {
                 <Route path="tasks/edit/:taskId" element={<EditTaskPage />} />
                 <Route path="tasks/projects" element={<ProjectsPortfolioPage />} />
                 <Route path="tasks/workload" element={<TeamWorkloadPage />} />
-                <Route path="tasks/approvals" element={<ApprovalsHubPage />} />
+                <Route path="tasks/approvals" element={<Navigate to="/admin/tasks/all" replace />} />
                 <Route path="tasks/reminders" element={<TaskRemindersPage />} />
                 <Route path="tasks/activity" element={<ActivityLogPage />} />
                 <Route path="team-view" element={<TeamViewPage />} />

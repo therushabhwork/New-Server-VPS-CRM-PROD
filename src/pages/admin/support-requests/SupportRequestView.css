@@ -895,7 +895,7 @@
 .sr-table-view-container {
   padding: 1.25rem;
   background: var(--surface-card, #ffffff);
-  overflow-x: auto;
+  overflow: hidden;
 }
 
 .support-request-legacy-table-shell {
@@ -903,7 +903,8 @@
   border: 1px solid var(--border-subtle, #e2e8f0);
   border-radius: 10px;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
+  max-height: calc(100vh - 14rem);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
 }
 
@@ -917,6 +918,9 @@
 }
 
 .support-request-legacy-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   background: #c60016 !important;
   color: #ffffff !important;
   font-size: 0.76rem;
@@ -943,6 +947,10 @@
   background: rgba(198, 0, 22, 0.03) !important;
 }
 
+.sr-table-row {
+  cursor: default;
+}
+
 .sr-ticket-code-badge {
   display: inline-flex;
   align-items: center;
@@ -954,8 +962,12 @@
   -webkit-text-fill-color: #ffffff !important;
   font-size: 0.74rem;
   font-weight: 800;
-  cursor: pointer;
+  cursor: default;
   letter-spacing: 0.02em;
+}
+
+.sr-ticket-code-badge--static {
+  cursor: default !important;
 }
 
 .sr-type-tag {

@@ -50,8 +50,8 @@ export const WorkloadKpiCards = ({ summary = {}, periodLabel = 'the selected per
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '0.85rem',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: '0.65rem',
       }}
     >
       {cards.map((c) => (
@@ -61,46 +61,46 @@ export const WorkloadKpiCards = ({ summary = {}, periodLabel = 'the selected per
           style={{
             backgroundColor: '#ffffff',
             border: '1.5px solid #e2e8f0',
-            borderBottom: `3.5px solid ${c.bottomColor}`,
-            borderRadius: '14px',
-            padding: '1rem 1.15rem',
-            boxShadow: '0 4px 18px rgba(0, 0, 0, 0.03)',
+            borderBottom: `2.5px solid ${c.bottomColor}`,
+            borderRadius: '12px',
+            padding: '0.65rem 0.85rem',
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            gap: '0.5rem',
+            gap: '0.35rem',
             cursor: onCardClick ? 'pointer' : 'default',
             transition: 'transform 0.15s ease, box-shadow 0.15s ease',
           }}
           onMouseEnter={(e) => {
             if (onCardClick) {
               e.currentTarget.style.transform = 'translateY(-2px)'
-              e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.06)'
+              e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.05)'
             }
           }}
           onMouseLeave={(e) => {
             if (onCardClick) {
               e.currentTarget.style.transform = 'translateY(0)'
-              e.currentTarget.style.boxShadow = '0 4px 18px rgba(0, 0, 0, 0.03)'
+              e.currentTarget.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.02)'
             }
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.78rem', fontWeight: '700', color: '#64748b' }}>
+            <span style={{ fontSize: '0.74rem', fontWeight: '700', color: '#64748b' }}>
               {c.title}
             </span>
             <div
               style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
+                width: '26px',
+                height: '26px',
+                borderRadius: '6px',
                 backgroundColor: c.iconBg,
                 color: '#ffffff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '0.9rem',
-                boxShadow: `0 2px 8px ${c.iconBg}40`,
+                fontSize: '0.78rem',
+                boxShadow: `0 2px 6px ${c.iconBg}35`,
               }}
             >
               {c.icon}
@@ -109,7 +109,7 @@ export const WorkloadKpiCards = ({ summary = {}, periodLabel = 'the selected per
 
           <div
             style={{
-              fontSize: '1.9rem',
+              fontSize: '1.35rem',
               fontWeight: '900',
               color: '#1e293b',
               lineHeight: 1.1,
@@ -119,7 +119,7 @@ export const WorkloadKpiCards = ({ summary = {}, periodLabel = 'the selected per
             {c.value < 10 && c.value >= 0 ? `0${c.value}` : c.value}
           </div>
 
-          <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+          <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>
             {c.subtext}
           </div>
         </div>

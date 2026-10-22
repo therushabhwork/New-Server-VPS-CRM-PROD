@@ -281,3 +281,31 @@
   background: #f1f5f9;
   border-color: #94a3b8;
 }
+
+/* User Card Grid matching Workload & Execution Matrix */
+.all-users-cards-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.all-users-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(285px, 1fr));
+  gap: 1.1rem;
+}
+
+.all-users-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.all-users-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06) !important;
+  border-color: #fca5a5 !important;
+}
+
+.all-users-card-btn:hover {
+  background: #c60016 !important;
+  color: #ffffff !important;
+  border-color: #c60016 !important;
+}

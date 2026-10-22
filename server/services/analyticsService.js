@@ -4,6 +4,7 @@ const User = getMongoModel('users')
 const Lead = getMongoModel('leads')
 const Deal = getMongoModel('deals')
 const ConvertedDeal = getMongoModel('converted_deals')
+const Quotation = getMongoModel('quotations')
 const UserGroup = getMongoModel('user_groups')
 const UserGroupMember = getMongoModel('user_group_members')
 
@@ -200,7 +201,10 @@ const getDashboardAnalytics = async (actor) => {
 }
 
 const resolveGroupUsers = async (companyId, group) => {
-  const companyFilter = companyId ? { companyId } : {}
+  const normalizedGroup = String(group || '').toLowerCase().replace(/[\s-_]/g, '')
+  const isSwatiGroup = normalizedGroup === 'salesswati' || normalizedGroup === 'swati' || normalizedGroup === 'swatigroup' || normalizedGroup === 'ahmedabad' || normalizedGroup.includes('swati') || normalizedGroup.includes('ahmedabad')
+  const companyFilter = (companyId && !isSwatiGroup) ? { companyId } : {}
+
   const allUsers = await User.find({
     ...companyFilter,
     $or: [
@@ -208,30 +212,107 @@ const resolveGroupUsers = async (companyId, group) => {
       { status: 'approved' },
       { isApproved: true },
       { is_approved: true },
+      { email: { $regex: 'swatiswitchgears\\.com', $options: 'i' } },
+      { legacyId: 16 },
+      { name: { $regex: 'keval', $options: 'i' } },
+      { email: { $regex: 'keval', $options: 'i' } },
+      { username: { $regex: 'keval', $options: 'i' } },
     ],
-  }).select('id legacyId name username email role designation userGroup isOnline lastLoginAt createdAt').lean().catch(() => [])
+  }).select('id legacyId name fullName displayName ownerDisplayName username email role designation userGroup isOnline lastLoginAt createdAt ownerCode').lean().catch(() => [])
 
-  if (!group || group === 'userWisePerformance' || group === 'all') {
+  allUsers.forEach((u) => {
+    u.name = String(u.name || u.fullName || u.displayName || u.ownerDisplayName || u.username || 'User').trim()
+  })
+
+  if (!group || group === 'userWisePerformance' || group === 'all' || group === 'allUsers') {
     return allUsers
   }
 
-  const normalizedGroup = String(group || '').toLowerCase().replace(/[\s-_]/g, '')
+  if (isSwatiGroup) {
+    const targetGroupId = '6ad9d8aa33a1972497a4756b'
+    const mongoose = require('mongoose')
+    let targetObjectId = null
+    try {
+      targetObjectId = new mongoose.Types.ObjectId(targetGroupId)
+    } catch (_) {}
 
-  if (normalizedGroup === 'salesswati' || normalizedGroup === 'swati') {
-    const swatiUsers = allUsers.filter((u) => {
-      const email = String(u.email || '').toLowerCase()
-      const name = String(u.name || '').toLowerCase()
-      const ug = String(u.userGroup || '').toLowerCase()
-      return (
-        email.includes('@swatiswitchgears.com') ||
-        (name.includes('swati') && !email.includes('lumossolution')) ||
-        ug.includes('swati')
-      )
+    // 1. Fetch matching Swati / Ahmedabad groups from user_groups collection
+    const swatiGroups = await UserGroup.find({
+      $or: [
+        { groupName: { $regex: '^ahmedabad$', $options: 'i' } },
+        { groupName: { $regex: 'ahmedabad', $options: 'i' } },
+        { groupName: { $regex: 'swati', $options: 'i' } },
+        { companyName: { $regex: 'swati', $options: 'i' } },
+        { 'createdBy.userId': { $in: [16, '16'] } },
+        { 'createdBy.name': { $regex: 'keval', $options: 'i' } },
+        ...(targetObjectId ? [{ _id: targetObjectId }] : []),
+      ],
+    }).select('_id legacyId groupName createdBy').lean().catch(() => [])
+
+    // 2. Collect group IDs (both _id and legacyId) and creator IDs
+    const swatiGroupIds = [targetGroupId]
+    const swatiCreatorUserIds = new Set(['16'])
+    swatiGroups.forEach((g) => {
+      if (g._id) swatiGroupIds.push(String(g._id))
+      if (g.legacyId != null) swatiGroupIds.push(String(g.legacyId))
+      const creatorId = g.createdBy?.userId || (typeof g.createdBy === 'string' ? g.createdBy : null)
+      if (creatorId) swatiCreatorUserIds.add(String(creatorId))
     })
-    return swatiUsers
+
+    // 3. Fetch all member records from user_group_members collection using chosen Option 2: groupName: "Ahmedabad"
+    const swatiMembers = await UserGroupMember.find({
+      status: { $ne: 'inactive' },
+      $or: [
+        { groupName: { $regex: '^ahmedabad$', $options: 'i' } },
+        { groupName: { $regex: 'ahmedabad', $options: 'i' } },
+        { groupName: { $regex: 'swati', $options: 'i' } },
+        { groupId: targetGroupId },
+        ...(targetObjectId ? [{ groupId: targetObjectId }] : []),
+        ...(swatiGroupIds.length > 0 ? [{ groupId: { $in: swatiGroupIds } }] : []),
+        { userId: { $in: ['16', 16] } },
+        { email: { $regex: 'keval', $options: 'i' } },
+        { name: { $regex: 'keval', $options: 'i' } },
+      ],
+    }).select('userId user_id id groupName name userName email memberEmail groupId').lean().catch(() => [])
+
+    const memberUserIds = new Set(swatiMembers.map((m) => String(m.userId || m.user_id || m.id || '')).filter(Boolean))
+    memberUserIds.add('16')
+    const memberEmails = new Set(swatiMembers.map((m) => String(m.email || m.memberEmail || '').toLowerCase().trim()).filter(Boolean))
+    const memberNames = new Set(swatiMembers.map((m) => String(m.name || m.userName || '').toLowerCase().trim()).filter(Boolean))
+
+    const swatiUsers = allUsers.filter((u) => {
+      const uId = String(u.id ?? u.legacyId ?? u._id ?? '')
+      const uLegacyId = String(u.legacyId ?? '')
+      const email = String(u.email || '').toLowerCase().trim()
+      const name = String(u.name || '').toLowerCase().trim()
+      const ug = String(u.userGroup || '').toLowerCase()
+
+      const isMember = memberUserIds.has(uId) || memberUserIds.has(uLegacyId) || memberEmails.has(email) || memberNames.has(name)
+      const isCreator = swatiCreatorUserIds.has(uId) || swatiCreatorUserIds.has(uLegacyId)
+      const isKeval = name.includes('keval') || email === 'keval@swatiswitchgears.com' || uLegacyId === '16'
+      const isSwatiDomain = email.includes('@swatiswitchgears.com') && !email.includes('lumossolution')
+
+      return isMember || isCreator || isKeval || isSwatiDomain || ug.includes('swati') || ug.includes('ahmedabad')
+    })
+
+    if (swatiUsers.length === 0) {
+      const kevalUser = allUsers.find((u) => String(u.name || '').toLowerCase().includes('keval') || String(u.email || '').toLowerCase().includes('keval'))
+      if (kevalUser) swatiUsers.push(kevalUser)
+    }
+
+    // Sort to place Keval V Shah at the top of the roster
+    swatiUsers.sort((a, b) => {
+      const aKeval = String(a.name || '').toLowerCase().includes('keval') || String(a.legacyId) === '16'
+      const bKeval = String(b.name || '').toLowerCase().includes('keval') || String(b.legacyId) === '16'
+      if (aKeval && !bKeval) return -1
+      if (!aKeval && bKeval) return 1
+      return 0
+    })
+
+    return swatiUsers.length > 0 ? swatiUsers : allUsers
   }
 
-  if (normalizedGroup === 'saleslumos' || normalizedGroup === 'lumos') {
+  if (normalizedGroup === 'saleslumos' || normalizedGroup === 'lumos' || normalizedGroup === 'lumosgroup') {
     const lumosUsers = allUsers.filter((u) => {
       const email = String(u.email || '').toLowerCase()
       const name = String(u.name || '').toLowerCase()
@@ -254,7 +335,6 @@ const resolveGroupUsers = async (companyId, group) => {
 
   if (filtered.length === 0) {
     const matchedGroup = await UserGroup.findOne({
-      ...companyFilter,
       groupName: { $regex: keyword, $options: 'i' },
     }).lean().catch(() => null)
 
@@ -270,23 +350,115 @@ const resolveGroupUsers = async (companyId, group) => {
   return filtered.length > 0 ? filtered : allUsers
 }
 
+const matchesUser = (entity, userRecord) => {
+  if (!entity || !userRecord) return false
+
+  const userIds = new Set([
+    String(userRecord.legacyId ?? '').trim(),
+    String(userRecord.id ?? '').trim(),
+    String(userRecord._id ?? '').trim(),
+  ].filter(Boolean))
+
+  const uName = String(userRecord.name || userRecord.ownerDisplayName || userRecord.fullName || '').trim().toLowerCase()
+  const uUsername = String(userRecord.username || '').trim().toLowerCase()
+  const uEmail = String(userRecord.email || '').trim().toLowerCase()
+  const uCode = String(userRecord.ownerCode || '').trim().toLowerCase()
+  const isKeval = uName.includes('keval') || uEmail === 'keval@swatiswitchgears.com' || userIds.has('16')
+
+  // Match by User ID
+  const entityUserId = String(entity.ownerUserId || entity.dealOwner || entity.createdBy || entity.userId || '').trim()
+  if (entityUserId && userIds.has(entityUserId)) {
+    return true
+  }
+  if (entity.ownerUserId != null && userIds.has(String(entity.ownerUserId).trim())) {
+    return true
+  }
+  if (entity.createdBy != null && userIds.has(String(entity.createdBy).trim())) {
+    return true
+  }
+
+  // Special match for Keval V Shah's legacy numeric ownership (ownerUserId: 16)
+  if (isKeval) {
+    if (String(entity.ownerUserId) === '16' || String(entity.createdBy) === '16' || String(entity.userId) === '16') {
+      return true
+    }
+  }
+
+  // Match by Name (supports Keval V Shah and all owner names)
+  const entityOwnerName = String(
+    entity.dealOwnerName || entity.ownerName || entity.accountOwner || entity.preparedBy || entity.userName || entity.createdByUserName || ''
+  ).trim().toLowerCase()
+  if (entityOwnerName) {
+    if (uName && (entityOwnerName === uName || entityOwnerName.replace(/\s+/g, '') === uName.replace(/\s+/g, ''))) {
+      return true
+    }
+    // Keval alias matching
+    if (isKeval && entityOwnerName.includes('keval')) {
+      return true
+    }
+    if (uUsername && entityOwnerName === uUsername) {
+      return true
+    }
+    if (uEmail && (entityOwnerName === uEmail || entityOwnerName === uEmail.split('@')[0])) {
+      return true
+    }
+  }
+
+  // Match by Email
+  const entityEmail = String(entity.createdUserBy || entity.userEmail || entity.email || '').trim().toLowerCase()
+  if (entityEmail && uEmail && entityEmail === uEmail) {
+    return true
+  }
+
+  // Match by ownerCode
+  const entityCode = String(entity.ownerCode || '').trim().toLowerCase()
+  if (uCode && entityCode && entityCode === uCode) {
+    return true
+  }
+
+  return false
+}
+
 const getUserDealPerformance = async (actor, { group = null } = {}) => {
   const companyId = actor.companyId
+  const normalizedGroup = String(group || '').toLowerCase().replace(/[\s-_]/g, '')
+  const isSwatiGroup = normalizedGroup === 'salesswati' || normalizedGroup === 'swati' || normalizedGroup === 'swatigroup'
+  
   const targetUsers = await resolveGroupUsers(companyId, group)
-  const companyFilter = companyId ? { companyId } : {}
+  const targetUserIds = targetUsers.map((u) => u.legacyId ?? u.id ?? u._id).filter(Boolean)
+  const targetUserStrings = targetUsers.flatMap((u) => [
+    String(u.legacyId ?? ''),
+    String(u.id ?? ''),
+    String(u._id ?? ''),
+  ]).filter(Boolean)
+
+  // Construct non-restrictive query for Swati team data
+  const dataQuery = isSwatiGroup
+    ? {
+        $or: [
+          { companyId: 1 },
+          { ownerUserId: { $in: [...targetUserIds, ...targetUserStrings] } },
+          { createdBy: { $in: [...targetUserIds, ...targetUserStrings] } },
+        ],
+      }
+    : (companyId ? { companyId } : {})
 
   const dailyList = buildDailyKeys(14)
   const monthlyList = buildMonthKeys(12)
   const yearlyList = buildYearKeys(4)
 
-  // Fetch deals and leads dynamically from MongoDB collections
-  const [allDeals, allLeads] = await Promise.all([
-    Deal.find(companyFilter)
-      .select('ownerUserId dealOwner dealOwnerName ownerName accountOwner status stage value createdAt')
+  // Fetch deals, leads, and quotations dynamically from MongoDB collections
+  const [allDeals, allLeads, allQuotations] = await Promise.all([
+    Deal.find(dataQuery)
+      .select('ownerUserId dealOwner dealOwnerName ownerName accountOwner status stage value createdAt ownerCode')
       .lean()
       .catch(() => []),
-    Lead.find(companyFilter)
-      .select('ownerUserId accountOwner ownerName createdBy createdAt status')
+    Lead.find(dataQuery)
+      .select('ownerUserId accountOwner ownerName createdBy createdAt status ownerCode createdByUserName createdUserBy userEmail')
+      .lean()
+      .catch(() => []),
+    Quotation.find({ ...dataQuery, frontendDeleted: { $ne: true } })
+      .select('ownerUserId createdBy preparedBy dealOwner accountOwner userName ownerName createdAt quotationNumber quoteNumber ownerCode createdByUserName createdUserBy userEmail')
       .lean()
       .catch(() => []),
   ])
@@ -299,33 +471,28 @@ const getUserDealPerformance = async (actor, { group = null } = {}) => {
     const uRole = u.designation || u.role || 'Sales'
 
     // Match deals for this user
-    const userDeals = allDeals.filter((deal) => {
-      const dealOwnerId = String(deal.ownerUserId || deal.dealOwner || '')
-      const dealOwnerName = String(deal.dealOwnerName || deal.ownerName || deal.accountOwner || '').trim().toLowerCase()
-      return dealOwnerId === uId || (uName && dealOwnerName === uName.toLowerCase())
-    })
+    const userDeals = allDeals.filter((deal) => matchesUser(deal, u))
 
     // Match leads/accounts for this user
-    const userLeads = allLeads.filter((lead) => {
-      const leadOwnerId = String(lead.ownerUserId || lead.createdBy || '')
-      const leadOwnerName = String(lead.accountOwner || lead.ownerName || '').trim().toLowerCase()
-      return leadOwnerId === uId || (uName && leadOwnerName === uName.toLowerCase())
-    })
+    const userLeads = allLeads.filter((lead) => matchesUser(lead, u))
+
+    // Match quotations for this user
+    const userQuotations = allQuotations.filter((q) => matchesUser(q, u))
 
     // Build map helpers
     const dailyMap = new Map()
     dailyList.forEach((d) => {
-      dailyMap.set(d.key, { key: d.key, label: d.label, accounts: 0, closedWon: 0, closedLost: 0, totalDeals: 0, wonValue: 0, lostValue: 0 })
+      dailyMap.set(d.key, { key: d.key, label: d.label, accounts: 0, closedWon: 0, closedLost: 0, totalDeals: 0, wonValue: 0, lostValue: 0, quotations: 0 })
     })
 
     const monthlyMap = new Map()
     monthlyList.forEach((m) => {
-      monthlyMap.set(m.key, { key: m.key, label: m.label, accounts: 0, closedWon: 0, closedLost: 0, totalDeals: 0, wonValue: 0, lostValue: 0 })
+      monthlyMap.set(m.key, { key: m.key, label: m.label, accounts: 0, closedWon: 0, closedLost: 0, totalDeals: 0, wonValue: 0, lostValue: 0, quotations: 0 })
     })
 
     const yearlyMap = new Map()
     yearlyList.forEach((y) => {
-      yearlyMap.set(y.key, { key: y.key, label: y.label, accounts: 0, closedWon: 0, closedLost: 0, totalDeals: 0, wonValue: 0, lostValue: 0 })
+      yearlyMap.set(y.key, { key: y.key, label: y.label, accounts: 0, closedWon: 0, closedLost: 0, totalDeals: 0, wonValue: 0, lostValue: 0, quotations: 0 })
     })
 
     // Aggregate user accounts from leads collection
@@ -373,6 +540,22 @@ const getUserDealPerformance = async (actor, { group = null } = {}) => {
       if (dailyMap.has(dayKey)) updateBucket(dailyMap.get(dayKey))
       if (monthlyMap.has(mKey)) updateBucket(monthlyMap.get(mKey))
       if (yearlyMap.has(yKey)) updateBucket(yearlyMap.get(yKey))
+    })
+
+    // Aggregate user quotations from quotations collection
+    userQuotations.forEach((q) => {
+      const qDate = q.createdAt || q.quotationDate || q.date
+      if (!qDate) return
+      const d = new Date(qDate)
+      if (isNaN(d.getTime())) return
+
+      const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const yKey = String(d.getFullYear())
+
+      if (dailyMap.has(dayKey)) dailyMap.get(dayKey).quotations += 1
+      if (monthlyMap.has(mKey)) monthlyMap.get(mKey).quotations += 1
+      if (yearlyMap.has(yKey)) yearlyMap.get(yKey).quotations += 1
     })
 
     return {

@@ -1,5 +1,4 @@
 import React from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   ResponsiveContainer,
   BarChart,
@@ -22,7 +21,6 @@ import {
   FaHandshake,
   FaCheckCircle,
   FaClock,
-  FaArrowRight,
 } from 'react-icons/fa'
 import { formatCurrency } from '../../utils/helpers'
 import './AdminAnalyticsGraphs.css'
@@ -30,7 +28,6 @@ import './AdminAnalyticsGraphs.css'
 const DONUT_COLORS = ['#16a34a', '#2563eb', '#dc2626']
 
 const AdminAnalyticsGraphs = ({ analyticsData, loading = false }) => {
-  const navigate = useNavigate()
 
   const summary = analyticsData?.summary || {
     totalUsers: 0,
@@ -52,75 +49,6 @@ const AdminAnalyticsGraphs = ({ analyticsData, loading = false }) => {
 
   return (
     <section className="aag-container">
-      {/* 6 Summary Cards */}
-      <div className="aag-summary-grid">
-        <div className="aag-summary-card">
-          <div className="aag-summary-icon aag-summary-icon--users">
-            <FaUsers />
-          </div>
-          <div className="aag-summary-content">
-            <span className="aag-summary-label">Total Users</span>
-            <span className="aag-summary-val">{summary.totalUsers}</span>
-          </div>
-        </div>
-
-        <div className="aag-summary-card">
-          <div className="aag-summary-icon aag-summary-icon--online">
-            <FaSignal />
-          </div>
-          <div className="aag-summary-content">
-            <span className="aag-summary-label">Online Users</span>
-            <span className="aag-summary-val" style={{ color: '#16a34a' }}>
-              {summary.onlineUsers}
-            </span>
-          </div>
-        </div>
-
-        <div className="aag-summary-card">
-          <div className="aag-summary-icon aag-summary-icon--accounts">
-            <FaBuilding />
-          </div>
-          <div className="aag-summary-content">
-            <span className="aag-summary-label">Total Accounts</span>
-            <span className="aag-summary-val">{summary.totalAccounts}</span>
-          </div>
-        </div>
-
-        <div className="aag-summary-card">
-          <div className="aag-summary-icon aag-summary-icon--deals">
-            <FaHandshake />
-          </div>
-          <div className="aag-summary-content">
-            <span className="aag-summary-label">Total Deals</span>
-            <span className="aag-summary-val">{summary.totalDeals}</span>
-          </div>
-        </div>
-
-        <div className="aag-summary-card">
-          <div className="aag-summary-icon aag-summary-icon--won">
-            <FaCheckCircle />
-          </div>
-          <div className="aag-summary-content">
-            <span className="aag-summary-label">Converted Deals</span>
-            <span className="aag-summary-val" style={{ color: '#059669' }}>
-              {summary.convertedDeals}
-            </span>
-          </div>
-        </div>
-
-        <div className="aag-summary-card">
-          <div className="aag-summary-icon aag-summary-icon--pending">
-            <FaClock />
-          </div>
-          <div className="aag-summary-content">
-            <span className="aag-summary-label">Pending Deals</span>
-            <span className="aag-summary-val" style={{ color: '#d97706' }}>
-              {summary.pendingDeals}
-            </span>
-          </div>
-        </div>
-      </div>
-
       {/* 4 Interactive Recharts Graphs */}
       <div className="aag-graphs-grid">
         {/* Graph 1: Accounts Created by User */}
@@ -249,23 +177,6 @@ const AdminAnalyticsGraphs = ({ analyticsData, loading = false }) => {
             </ResponsiveContainer>
           </div>
         </div>
-      </div>
-
-      {/* Prominent View All Users Banner */}
-      <div className="aag-view-all-banner">
-        <div className="aag-view-all-copy">
-          <h4>All Registered Employees & Sales Performance Roster</h4>
-          <p>
-            Monitor real-time online/offline presence, total accounts, total deals, conversion rates, and individual performance for all employees.
-          </p>
-        </div>
-        <button
-          type="button"
-          className="aag-view-all-btn"
-          onClick={() => navigate('/admin/users')}
-        >
-          View All Users & Analytics <FaArrowRight />
-        </button>
       </div>
     </section>
   )

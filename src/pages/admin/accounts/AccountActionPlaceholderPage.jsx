@@ -669,7 +669,7 @@ const AccountActionPlaceholderPage = () => {
           boardStateQuery={searchParams}
           onSaveAccount={handleSaveManagedAccount}
           onRefresh={() => Promise.resolve()}
-          canEdit={isAdminUser || selectedAccount?.recordSource === 'live'}
+          canEdit={isAdminUser || user?.role !== 'viewer' || selectedAccount?.recordSource === 'live'}
         />
       </div>
     )

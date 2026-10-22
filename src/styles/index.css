@@ -102,11 +102,11 @@ html.is-admin .layout--admin .header-panel::after {
   visibility: visible !important;
 }
 
-/* 2. Sidebar View Toolbar Active Route (SaaS Blue Box) */
+/* 2. Sidebar View Toolbar Active Route (Corporate Red Box) */
 .sidebar--admin .sb-view-toolbar-button--route-active,
 .sidebar--admin .sb-view-toolbar-button:active {
-  background: #2563EB !important;
-  border-color: #1D4ED8 !important;
+  background: #c60016 !important;
+  border-color: #a80012 !important;
   color: #ffffff !important;
 }
 
@@ -190,21 +190,19 @@ html.is-admin .sidebar--admin .sb-today-section {
 }
 
 .md-btn--primary,
-.login-pill-submit-btn,
 .sales-header .btn-primary,
 .ud-todo-mini-btn {
-  background: #2563EB !important;
-  border-color: #1D4ED8 !important;
+  background: #c60016 !important;
+  border-color: #a80012 !important;
   color: #FFFFFF !important;
-  box-shadow: 0 1px 2px 0 rgba(37, 99, 235, 0.2) !important;
+  box-shadow: 0 1px 2px 0 rgba(198, 0, 22, 0.2) !important;
 }
 
 .md-btn--primary:hover,
-.login-pill-submit-btn:hover,
 .sales-header .btn-primary:hover,
 .ud-todo-mini-btn:hover {
-  background: #1D4ED8 !important;
-  border-color: #1E40AF !important;
+  background: #a80012 !important;
+  border-color: #88000e !important;
 }
 
 .login-bg-shape { display: none !important; }
@@ -225,19 +223,19 @@ html.is-admin .sidebar--admin .sb-today-section {
    DESIGN TOKENS - Premium SaaS CRM (No Animations)
    ============================================================ */
 :root {
-  /* Brand — Modern SaaS Blue & Clean Slate Theme */
-  --admin-red: #2563EB;
-  --admin-red-border: #1D4ED8;
-  --color-primary: #2563EB;
-  --color-primary-hover: #1D4ED8;
-  --color-primary-soft: #EFF6FF;
-  --color-primary-border: #BFDBFE;
-  --color-primary-strong: #1D4ED8;
+  /* Brand — Corporate Red & Clean Slate Theme */
+  --admin-red: #c60016;
+  --admin-red-border: #a80012;
+  --color-primary: #c60016;
+  --color-primary-hover: #a80012;
+  --color-primary-soft: #fff5f5;
+  --color-primary-border: rgba(198, 0, 22, 0.32);
+  --color-primary-strong: #a80012;
 
-  --color-accent-admin: #2563EB;
-  --color-accent-admin-soft: #EFF6FF;
-  --color-accent-user: #2563EB;
-  --color-accent-user-soft: #EFF6FF;
+  --color-accent-admin: #c60016;
+  --color-accent-admin-soft: #fff5f5;
+  --color-accent-user: #c60016;
+  --color-accent-user-soft: #fff5f5;
 
   /* Status */
   --color-success: #10b981;
@@ -2579,20 +2577,11 @@ html:not([data-theme="dark"]) .layout--admin .right-panel button.rp-action-card.
 }
 
 html:not([data-theme="dark"]) .layout--admin .right-panel button.rp-action-card.rp-action-card--integration.rp-action-card--outlook .rp-action-card__icon {
-  border-color: var(--admin-red-border, #c60016) !important;
-  background: var(--admin-red, #dc2626) !important;
-  background-color: var(--admin-red, #dc2626) !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
+  width: 30px !important;
+  height: 28px !important;
+  border-radius: 8px !important;
+  background: #eef6ff !important;
   box-shadow: none !important;
-}
-
-html:not([data-theme="dark"]) .layout--admin .right-panel button.rp-action-card.rp-action-card--integration.rp-action-card--outlook .rp-action-card__icon svg,
-html:not([data-theme="dark"]) .layout--admin .right-panel button.rp-action-card.rp-action-card--integration.rp-action-card--outlook .rp-action-card__icon svg :where(path, circle, rect, line, polyline, polygon) {
-  color: #ffffff !important;
-  fill: currentColor !important;
-  stroke: currentColor !important;
-  -webkit-text-fill-color: #ffffff !important;
 }
 
 html:not([data-theme="dark"]) .layout--admin .right-panel button.rp-action-card.rp-action-card--integration.rp-action-card--outlook .rp-action-card__label,
@@ -2615,6 +2604,7 @@ html:not([data-theme="dark"]) .layout--admin .right-panel button.rp-action-card.
 .rp-ticket-add-btn__icon {
   width: 30px !important;
   height: 28px !important;
+  border-radius: 8px !important;
   background: #eef6ff !important;
   box-shadow: none !important;
 }
@@ -2662,7 +2652,9 @@ html.is-user:not([data-theme="dark"]) body {
 }
 
 html.is-user:not([data-theme="dark"]) .layout--user {
-  background: #FAF7F2 !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
   color: #0f172a !important;
 }
 
@@ -2875,26 +2867,6 @@ html:not([data-theme="dark"]) :where(.layout--user, .layout--admin) :where(.side
   box-shadow: 0 4px 12px rgba(220, 38, 38, 0.12) !important;
 }
 
-html:not([data-theme="dark"]) :where(.layout--user, .layout--admin) :where(.sidebar--user, .sidebar--admin) :where(
-  .sb-link--active,
-  .sb-link--team.sb-link--active,
-  .sb-plain-link--active,
-  .sb-group-trigger--route-active
-) :where(.sb-link-icon, .sb-plain-icon, .sb-group-icon) {
-  background: #c60016 !important;
-  color: #ffffff !important;
-}
-
-html:not([data-theme="dark"]) :where(.layout--user, .layout--admin) :where(.sidebar--user, .sidebar--admin) :where(
-  .sb-link--active,
-  .sb-link--team.sb-link--active,
-  .sb-plain-link--active,
-  .sb-group-trigger--route-active
-) :where(.sb-link-icon svg, .sb-plain-icon svg, .sb-group-icon svg) {
-  color: #ffffff !important;
-  fill: #ffffff !important;
-  stroke: #ffffff !important;
-}
 
 /* Top View Toolbar Buttons Contrast */
 html.is-user:not([data-theme="dark"]) .layout--user .sidebar--user .sb-view-toolbar-button:not(.sb-view-toolbar-button--route-active):not(.active) {

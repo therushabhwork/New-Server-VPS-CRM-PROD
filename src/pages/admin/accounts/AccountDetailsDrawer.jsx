@@ -266,6 +266,7 @@ const buildInitialForm = (account, deal = {}) => ({
   mobile: account.contactMobile || account.phone || '',
   alternatePhone: account.alternatePhone || '',
   alternateEmail: account.alternateEmail || '',
+  landline: account.landline || account.phone2 || account.raw?.landline || account.data?.landline || '',
   email: account.email || account.contactEmail || account.formData?.email || '',
   contactEmail: account.contactEmail || account.email || account.formData?.contactEmail || '',
   website: account.website || '',
@@ -360,6 +361,8 @@ const buildUpdatePayload = (form) => ({
   phone: form.mobile,
   alternatePhone: form.alternatePhone,
   alternateEmail: form.alternateEmail,
+  landline: form.landline || '',
+  phone2: form.landline || '',
   contactEmail: form.email || form.contactEmail || '',
   email: form.email || form.contactEmail || '',
   website: form.website,
@@ -423,7 +426,7 @@ const AccountDetailsDrawer = ({
 }) => {
   const location = useLocation()
   const navigate = useNavigate()
-  const { convertedDeals, convertAccountToDeal, addNotification } = useData()
+  const { convertedDeals, convertAccountToDeal, addNotification, reminders, updateReminder, deleteReminder } = useData()
   const { user } = useAuth()
   
   const relatedConvertedDeals = useMemo(() => (
@@ -434,6 +437,20 @@ const AccountDetailsDrawer = ({
         - new Date(left.convertedAt || left.createdAt || 0).getTime()
       ))
   ), [account?.id, convertedDeals])
+
+  const accountReminders = useMemo(() => {
+    const accId = String(account?.id || '')
+    const accName = String(account?.name || account?.accountName || '').toLowerCase().trim()
+    if (!accId && !accName) return []
+    return (Array.isArray(reminders) ? reminders : [])
+      .filter((r) => {
+        const matchesId = r.accountId && String(r.accountId) === accId
+        const matchesEntity = String(r.relatedEntityType || '').toLowerCase() === 'account' && String(r.relatedEntityId || '') === accId
+        const matchesName = accName && r.accountName && String(r.accountName).toLowerCase().trim() === accName
+        return matchesId || matchesEntity || matchesName
+      })
+      .sort((a, b) => new Date(b.reminderDate || b.createdAt || 0) - new Date(a.reminderDate || a.createdAt || 0))
+  }, [account?.id, account?.name, account?.accountName, reminders])
   
   const [isActionsOpen, setIsActionsOpen] = useState(false)
   const [editingSection, setEditingSection] = useState(null)
@@ -998,15 +1015,44 @@ const AccountDetailsDrawer = ({
               <QuickActionsCard
                 account={account}
                 form={form}
+                reminders={accountReminders}
                 onQuickAction={handleQuickAction}
-                onSubmitRemark={handleInlineRemarkSubmit}
-                isSubmittingRemark={isSubmittingRemark}
+                onActivateReminder={async (rem) => {
+                  if (!rem?.id) return
+                  try {
+                    if (typeof updateReminder === 'function') {
+                      await updateReminder(rem.id, { isActivated: true, status: 'activated', activatedAt: new Date().toISOString() })
+                    }
+                    if (typeof addNotification === 'function') {
+                      addNotification('success', 'Reminder Activated', 'Reminder has been marked as active.')
+                    }
+                    if (typeof onRefresh === 'function') onRefresh()
+                  } catch (err) {
+                    console.error('Failed to activate reminder:', err)
+                  }
+                }}
+                onCloseReminder={async (rem) => {
+                  if (!rem?.id) return
+                  try {
+                    if (typeof updateReminder === 'function') {
+                      await updateReminder(rem.id, { status: 'closed', closedAt: new Date().toISOString() })
+                    } else if (typeof deleteReminder === 'function') {
+                      await deleteReminder(rem.id)
+                    }
+                    if (typeof addNotification === 'function') {
+                      addNotification('success', 'Reminder Closed', 'Reminder has been closed.')
+                    }
+                    if (typeof onRefresh === 'function') onRefresh()
+                  } catch (err) {
+                    console.error('Failed to close reminder:', err)
+                  }
+                }}
                 onRefresh={async () => {
                   await fetchAccountRemarks(account)
                   if (typeof onRefresh === 'function') onRefresh()
                 }}
               />
-              <ActivityUpdatesCard account={account} remarks={accountHistoryRemarks} />
+              <ActivityUpdatesCard account={account} remarks={accountHistoryRemarks} reminders={accountReminders} />
             </div>
           </div>
 

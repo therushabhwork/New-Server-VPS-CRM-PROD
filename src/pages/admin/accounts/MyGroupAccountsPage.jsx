@@ -1572,7 +1572,7 @@ const activeStageParam = searchParams.get('stage')
           onSaveAccount={handleSaveAccountDetails}
           onRefresh={refreshData}
           onDeleteAccount={handleDeleteAccount}
-          canEdit={user?.role === 'admin' || selectedAccount?.recordSource === 'live'}
+          canEdit={user?.role === 'admin' || user?.role !== 'viewer' || selectedAccount?.recordSource === 'live'}
           actionItems={drawerActions}
           hiddenFieldKeys={(!location.pathname.startsWith('/admin') || variantKey === 'myGroup') ? ['accountState'] : []}
         />

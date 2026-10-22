@@ -14,6 +14,9 @@ import {
   FaUsers,
   FaComments,
   FaCheck,
+  FaPlus,
+  FaSyncAlt,
+  FaTimes,
 } from 'react-icons/fa'
 import { useAuth } from '../../context/AuthContext'
 import { useData } from '../../context/DataContext'
@@ -105,23 +108,24 @@ const UserDashboardPage = () => {
     user?.email,
   ].filter(Boolean).map((v) => String(v).trim().toLowerCase()), [user])
 
-  const todoItems = useMemo(() => {
-    const matchesUser = (target) => {
-      if (!target) return false
-      const norm = String(target).trim().toLowerCase()
+  const allReminderItems = useMemo(() => {
+    const matchesUser = (assigned) => {
+      if (!assigned) return false
+      const norm = String(assigned).trim().toLowerCase()
       return userIdentity.some((id) => id === norm || norm.includes(id))
     }
 
-    const reminderItems = (reminders || [])
+    return (reminders || [])
       .filter((reminder) => String(reminder.status || '').toLowerCase() !== 'closed')
       .filter((reminder) => matchesUser(reminder.assignedTo) || matchesUser(reminder.createdBy) || !reminder.assignedTo)
-      .slice(0, 6)
       .map((reminder) => ({
         id: `reminder-${reminder.id}`,
-        type: 'REMINDER (NONE)',
-        title: reminder.title || reminder.message || 'abc',
-        meta: formatTodoDateTime(reminder.remindAt || reminder.reminderDate) || '30 Sept, 05:30 am',
-        message: reminder.message || reminder.note || 'abc',
+        type: String(reminder.status || '').toLowerCase() === 'activated'
+          ? 'REMINDER (ACTIVATED)'
+          : (reminder.reminderMode ? `REMINDER (${reminder.reminderMode.toUpperCase()})` : 'REMINDER'),
+        title: reminder.title || reminder.message || 'Reminder',
+        meta: formatTodoDateTime(reminder.remindAt || reminder.reminderDate) || 'Today',
+        message: reminder.message || reminder.note || '-',
         date: reminder.remindAt || reminder.reminderDate,
         reminder,
         onClick: () => navigate('/reminders/my', {
@@ -131,49 +135,67 @@ const UserDashboardPage = () => {
           },
         }),
       }))
+      .sort((left, right) => new Date(right.date || 0).getTime() - new Date(left.date || 0).getTime())
+  }, [navigate, reminders, userIdentity])
 
-    const replyItems = todoReplies.slice(0, 6).map((reply, index) => {
-      const requestId = reply.support_request_id || reply.supportRequestId || ''
-      const matchedRequest = supportRequests.find((request) => (
-        [request.id, request.mongoId, request._id, request.legacyId].some((value) => String(value || '') === String(requestId || ''))
-      ))
-      const targetRequestId = matchedRequest?.id || requestId
-      return {
-        id: `reply-${reply._id || reply.id || index}`,
-        type: 'REPLY',
-        title: reply.sender_email || reply.senderEmail || 'Support Reply',
-        meta: formatTodoDateTime(reply.created_at || reply.createdAt),
-        message: reply.message || 'abc',
-        date: reply.created_at || reply.createdAt,
-        onClick: () => navigate('/tickets', {
-          state: {
-            activeTab: 'replied',
-            expandedTicketId: targetRequestId,
-            supportRequestId: targetRequestId,
-          },
-        }),
-      }
-    })
+  const allTaskAndReplyItems = useMemo(() => {
+    const matchesUser = (assigned) => {
+      if (!assigned) return false
+      const norm = String(assigned).trim().toLowerCase()
+      return userIdentity.some((id) => id === norm || norm.includes(id))
+    }
+
+    const replyItems = (todoReplies || [])
+      .map((reply, index) => {
+        const requestId = reply.support_request_id || reply.supportRequestId || ''
+        const matchedRequest = supportRequests.find((request) => (
+          [request.id, request.mongoId, request._id, request.legacyId].some((value) => String(value || '') === String(requestId || ''))
+        ))
+        const targetRequestId = matchedRequest?.id || requestId
+        return {
+          id: `reply-${reply._id || reply.id || index}`,
+          type: 'REPLY',
+          title: reply.sender_email || reply.senderEmail || 'Support Reply',
+          meta: formatTodoDateTime(reply.created_at || reply.createdAt),
+          message: reply.message || '-',
+          date: reply.created_at || reply.createdAt,
+          onClick: () => navigate('/tickets', {
+            state: {
+              activeTab: 'replied',
+              expandedTicketId: targetRequestId,
+              supportRequestId: targetRequestId,
+            },
+          }),
+        }
+      })
+      .sort((left, right) => new Date(right.date || 0).getTime() - new Date(left.date || 0).getTime())
 
     const taskItems = (tasks || [])
       .filter((task) => String(task.status || '').toLowerCase() === 'pending' || String(task.status || '').toLowerCase() === 'open')
       .filter((task) => matchesUser(task.assignedTo) || matchesUser(task.createdBy) || matchesUser(task.userEmail) || matchesUser(task.ownerUserId) || !task.assignedTo)
-      .slice(0, 6)
-      .map((task) => ({
-        id: `task-${task.id || task._id}`,
-        type: 'TASK',
-        title: task.title || task.name || 'abc',
-        meta: formatTodoDateTime(task.dueDate || task.createdAt) || '30 Sept, 05:30 am',
-        message: task.description || task.note || 'abc',
-        date: task.dueDate || task.createdAt,
-        task,
-        onClick: () => navigate('/accounts/my-accounts'),
-      }))
+      .map((task) => {
+        const timestamp = new Date(task.createdAt || task.created_at || task.dueDate || task.date || 0).getTime()
+        return {
+          id: `task-${task.id || task._id}`,
+          type: 'TASK',
+          title: task.title || task.name || 'Pending Task',
+          meta: formatTodoDateTime(task.dueDate || task.createdAt) || 'Today',
+          message: task.description || task.note || '-',
+          date: task.createdAt || task.dueDate || task.createdAt,
+          timestamp,
+          task,
+          onClick: () => navigate('/tasks/all'),
+        }
+      })
 
-    return [...reminderItems, ...replyItems, ...taskItems]
-      .sort((left, right) => new Date(right.date || 0).getTime() - new Date(left.date || 0).getTime())
-      .slice(0, 8)
-  }, [navigate, reminders, supportRequests, tasks, todoReplies, user?.id, userIdentity])
+    const replyItemsWithTs = (replyItems || []).map((r) => ({
+      ...r,
+      timestamp: new Date(r.date || r.created_at || r.createdAt || 0).getTime(),
+    }))
+
+    return [...replyItemsWithTs, ...taskItems]
+      .sort((left, right) => (right.timestamp || 0) - (left.timestamp || 0))
+  }, [navigate, supportRequests, tasks, todoReplies, userIdentity])
 
   const [activeReminderModalItem, setActiveReminderModalItem] = useState(null)
 
@@ -273,24 +295,43 @@ const UserDashboardPage = () => {
   const [todoFilter, setTodoFilter] = useState('all')
 
   const counts = useMemo(() => {
-    const reminderCount = todoItems.filter((item) => item.type.includes('REMINDER')).length
-    const taskCount = todoItems.filter((item) => item.type === 'TASK').length
-    const replyCount = todoItems.filter((item) => item.type === 'REPLY').length
-    return { all: todoItems.length, reminder: reminderCount, task: taskCount, reply: replyCount }
-  }, [todoItems])
-
-  const displayedTodoItems = useMemo(() => {
-    if (todoFilter === 'reminder') {
-      return todoItems.filter((item) => item.type.includes('REMINDER'))
+    return {
+      all: allTaskAndReplyItems.length,
+      task: allTaskAndReplyItems.filter((item) => item.type === 'TASK').length,
+      reply: allTaskAndReplyItems.filter((item) => item.type === 'REPLY').length,
+      reminder: allReminderItems.length,
     }
+  }, [allReminderItems.length, allTaskAndReplyItems])
+
+  const [reminderPage, setReminderPage] = useState(1)
+  const REMINDERS_PER_PAGE = 10
+  const totalReminderPages = Math.ceil(allReminderItems.length / REMINDERS_PER_PAGE) || 1
+
+  const paginatedReminderItems = useMemo(() => {
+    const page = Math.min(Math.max(1, reminderPage), totalReminderPages)
+    const start = (page - 1) * REMINDERS_PER_PAGE
+    return allReminderItems.slice(start, start + REMINDERS_PER_PAGE)
+  }, [allReminderItems, reminderPage, totalReminderPages])
+
+  const [todoPage, setTodoPage] = useState(1)
+  const TODOS_PER_PAGE = 10
+  const displayedTodoItems = useMemo(() => {
     if (todoFilter === 'task') {
-      return todoItems.filter((item) => item.type === 'TASK')
+      return allTaskAndReplyItems.filter((item) => item.type === 'TASK')
     }
     if (todoFilter === 'reply') {
-      return todoItems.filter((item) => item.type === 'REPLY')
+      return allTaskAndReplyItems.filter((item) => item.type === 'REPLY')
     }
-    return todoItems
-  }, [todoItems, todoFilter])
+    return allTaskAndReplyItems
+  }, [allTaskAndReplyItems, todoFilter])
+
+  const totalTodoPages = Math.ceil(displayedTodoItems.length / TODOS_PER_PAGE) || 1
+
+  const paginatedTodoItems = useMemo(() => {
+    const page = Math.min(Math.max(1, todoPage), totalTodoPages)
+    const start = (page - 1) * TODOS_PER_PAGE
+    return displayedTodoItems.slice(start, start + TODOS_PER_PAGE)
+  }, [displayedTodoItems, todoPage, totalTodoPages])
 
   return (
     <div className="ud-page">
@@ -320,7 +361,7 @@ const UserDashboardPage = () => {
 
         {/* Card 2: Customer */}
         <div className="ud-stat-card ud-stat-card--customer" onClick={() => navigate('/customers/my-customers')}>
-          <div className="ud-stat-icon-wrapper ud-stat-icon-wrapper--blue">
+          <div className="ud-stat-icon-wrapper ud-stat-icon-wrapper--red">
             <FaUser />
           </div>
           <div className="ud-stat-content">
@@ -330,12 +371,12 @@ const UserDashboardPage = () => {
             </div>
             <span className="ud-stat-title">Customers</span>
           </div>
-          <div className="ud-stat-curve ud-stat-curve--blue" />
+          <div className="ud-stat-curve ud-stat-curve--red" />
         </div>
 
         {/* Card 3: Deals */}
         <div className="ud-stat-card ud-stat-card--deal" onClick={() => navigate('/deals/view')}>
-          <div className="ud-stat-icon-wrapper ud-stat-icon-wrapper--green">
+          <div className="ud-stat-icon-wrapper ud-stat-icon-wrapper--red">
             <FaHandshake />
           </div>
           <div className="ud-stat-content">
@@ -345,12 +386,12 @@ const UserDashboardPage = () => {
             </div>
             <span className="ud-stat-title">Deals</span>
           </div>
-          <div className="ud-stat-curve ud-stat-curve--green" />
+          <div className="ud-stat-curve ud-stat-curve--red" />
         </div>
 
         {/* Card 4: Quotation Manager */}
         <div className="ud-stat-card ud-stat-card--quotation" onClick={() => navigate('/quotation-manager/view')}>
-          <div className="ud-stat-icon-wrapper ud-stat-icon-wrapper--orange">
+          <div className="ud-stat-icon-wrapper ud-stat-icon-wrapper--red">
             <FaFileAlt />
           </div>
           <div className="ud-stat-content">
@@ -359,208 +400,578 @@ const UserDashboardPage = () => {
             </div>
             <span className="ud-stat-title">Quotation Manager</span>
           </div>
-          <div className="ud-stat-curve ud-stat-curve--orange" />
+          <div className="ud-stat-curve ud-stat-curve--red" />
         </div>
       </div>
 
-      {/* Full Width To Do List Card */}
-      <div className="ud-todo-full-container">
-        <div className="ud-card ud-todo-card ud-todo-card--expansive">
-          <div className="ud-card-header ud-todo-header-expansive">
-            <div className="ud-card-header-left">
-              <div className="ud-todo-header-icon-box">
-                <FaClipboardList className="ud-card-header-icon" />
-              </div>
-              <div>
-                <div className="ud-todo-title-row">
-                  <h3>To Do List</h3>
-                  <span className="ud-todo-count-badge">{counts.all} items</span>
+      {/* Side-by-Side Monitoring Grid: Left = To Do List & Reminders, Right = Communication Activity */}
+      <div className="ud-dashboard-main-grid ud-monitoring-side-by-side" style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', gap: '1.25rem', marginTop: '1.25rem', marginBottom: '1.25rem', alignItems: 'start' }}>
+        {/* Left Column: Stacked To Do List & Dedicated Reminders */}
+        <div className="ud-todo-full-container" style={{ margin: 0, width: '100%', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {/* Card 1: To Do List */}
+          <div className="ud-card ud-todo-card ud-todo-card--expansive" style={{ margin: 0 }}>
+            <div className="ud-card-header ud-todo-header-expansive" style={{ padding: '0.85rem 1.15rem' }}>
+              <div className="ud-card-header-left">
+                <div className="ud-todo-header-icon-box" style={{ width: '2.3rem', height: '2.3rem', fontSize: '1.1rem' }}>
+                  <FaClipboardList className="ud-card-header-icon" />
                 </div>
-                <p className="ud-todo-subtitle">Prioritized follow-ups, pending tasks, and support updates</p>
+                <div>
+                  <div className="ud-todo-title-row">
+                    <h3 style={{ fontSize: '1.05rem' }}>To Do List</h3>
+                    <span className="ud-todo-count-badge">{counts.all} items</span>
+                  </div>
+                  <p className="ud-todo-subtitle" style={{ fontSize: '0.75rem' }}>Prioritized pending tasks and support replies</p>
+                </div>
               </div>
-            </div>
 
-            <div className="ud-todo-filter-tabs">
-              <button
-                type="button"
-                className={`ud-todo-tab ${todoFilter === 'all' ? 'active' : ''}`}
-                onClick={() => setTodoFilter('all')}
-              >
-                All ({counts.all})
-              </button>
-              <button
-                type="button"
-                className={`ud-todo-tab ${todoFilter === 'reminder' ? 'active' : ''}`}
-                onClick={() => setTodoFilter('reminder')}
-              >
-                Reminders ({counts.reminder})
-              </button>
-              <button
-                type="button"
-                className={`ud-todo-tab ${todoFilter === 'task' ? 'active' : ''}`}
-                onClick={() => setTodoFilter('task')}
-              >
-                Tasks ({counts.task})
-              </button>
-              <button
-                type="button"
-                className={`ud-todo-tab ${todoFilter === 'reply' ? 'active' : ''}`}
-                onClick={() => setTodoFilter('reply')}
-              >
-                Replies ({counts.reply})
-              </button>
-            </div>
-
-            <div className="ud-card-header-right">
-              <button
-                type="button"
-                className="ud-link-btn"
-                onClick={() => navigate('/reminders/my')}
-              >
-                View All &rarr;
-              </button>
-              <button
-                type="button"
-                className="ud-red-btn"
-                onClick={() => navigate('/tasks')}
-              >
-                + Add Task
-              </button>
-            </div>
-          </div>
-
-          <div className="ud-todo-list ud-todo-list--expansive">
-            {displayedTodoItems.length > 0 ? displayedTodoItems.map((item) => (
-              <div key={item.id} className={`ud-todo-row ud-todo-row--${item.type.toLowerCase().replace(/[^a-z]/g, '')}`} onClick={item.onClick}>
+              <div className="ud-todo-filter-tabs">
                 <button
                   type="button"
-                  className={`ud-todo-icon-box ud-todo-icon-box--${item.type.toLowerCase().includes('reminder') ? 'reminder' : item.type.toLowerCase().includes('task') ? 'task' : 'reply'}`}
-                  onClick={item.onClick}
-                  aria-label={`Open ${item.type}`}
-                  title={`Open ${item.type}`}
+                  className={`ud-todo-tab ${todoFilter === 'all' ? 'active' : ''}`}
+                  onClick={() => {
+                    setTodoFilter('all')
+                    setTodoPage(1)
+                  }}
                 >
-                  <FaCalendarAlt />
+                  All ({counts.all})
                 </button>
-                <div className="ud-todo-body">
-                  <div className="ud-todo-meta-line">
-                    <span className={`ud-todo-badge ud-todo-badge--${item.type.toLowerCase().includes('reminder') ? 'reminder' : item.type.toLowerCase().includes('task') ? 'task' : 'reply'}`}>
-                      {item.type}
+                <button
+                  type="button"
+                  className={`ud-todo-tab ${todoFilter === 'task' ? 'active' : ''}`}
+                  onClick={() => {
+                    setTodoFilter('task')
+                    setTodoPage(1)
+                  }}
+                >
+                  Tasks ({counts.task})
+                </button>
+                <button
+                  type="button"
+                  className={`ud-todo-tab ${todoFilter === 'reply' ? 'active' : ''}`}
+                  onClick={() => {
+                    setTodoFilter('reply')
+                    setTodoPage(1)
+                  }}
+                >
+                  Replies ({counts.reply})
+                </button>
+              </div>
+
+              <div className="ud-card-header-right">
+                <button
+                  type="button"
+                  className="ud-red-btn"
+                  onClick={() => navigate('/tasks')}
+                >
+                  + Add Task
+                </button>
+              </div>
+            </div>
+
+            <div className="ud-todo-list ud-todo-list--expansive" style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '0.85rem 1rem', background: '#fdfcfb', maxHeight: '250px', overflowY: 'auto' }}>
+              {paginatedTodoItems.length > 0 ? paginatedTodoItems.map((item) => {
+                const isTask = Boolean(item.task || item.type?.toLowerCase().includes('task') || item.type?.toLowerCase().includes('reassignment'))
+                if (isTask) {
+                  return (
+                    <div
+                      key={item.id}
+                      className="ud-todo-row ud-todo-row--task"
+                      onClick={() => navigate('/tasks/all')}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        background: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        cursor: 'pointer',
+                        minHeight: '44px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                        transition: 'all 0.18s ease',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: '16px',
+                          height: '16px',
+                          borderRadius: '50%',
+                          border: '2px solid #94a3b8',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.title}
+                      </span>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div
+                    key={item.id}
+                    className="ud-todo-row ud-todo-row--reply"
+                    onClick={item.onClick}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      cursor: 'pointer',
+                      minHeight: '44px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                      transition: 'all 0.18s ease',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '16px',
+                        height: '16px',
+                        borderRadius: '50%',
+                        border: '2px solid #3b82f6',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.title}
                     </span>
-                    <span className="ud-todo-date">{item.meta}</span>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>{item.meta}</span>
                   </div>
-                  <div className="ud-todo-title-text">{item.title || item.message}</div>
-                  {item.message && item.title && item.message !== item.title ? (
-                    <div className="ud-todo-desc-text">{item.message}</div>
-                  ) : null}
+                )
+              }) : (
+                <div className="ud-todo-empty-state">
+                  <FaClipboardList className="ud-todo-empty-icon" />
+                  <p>No {todoFilter !== 'all' ? todoFilter : ''} to-do items found right now.</p>
                 </div>
-                {item.reminder ? (
-                  <div className="ud-todo-btn-group" onClick={(e) => e.stopPropagation()}>
-                    {isReminderItemActivated(item.reminder) ? (
+              )}
+            </div>
+
+            {totalTodoPages > 1 && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.45rem 0.85rem',
+                  borderTop: '1px solid #f1f5f9',
+                  background: '#fafafa',
+                  borderBottomLeftRadius: '12px',
+                  borderBottomRightRadius: '12px',
+                  fontSize: '0.75rem',
+                  color: '#64748b',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setTodoPage(1)}
+                  disabled={todoPage === 1}
+                  style={{
+                    padding: '3px 9px',
+                    borderRadius: '5px',
+                    border: '1px solid #e2e8f0',
+                    background: todoPage === 1 ? '#f8fafc' : '#ffffff',
+                    color: todoPage === 1 ? '#94a3b8' : '#c60016',
+                    fontWeight: 700,
+                    cursor: todoPage === 1 ? 'not-allowed' : 'pointer',
+                    fontSize: '0.72rem',
+                  }}
+                >
+                  &laquo; First
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ marginRight: '4px', fontSize: '0.72rem', color: '#64748b' }}>
+                    Page {todoPage} of {totalTodoPages}
+                  </span>
+                  {Array.from({ length: totalTodoPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalTodoPages || Math.abs(p - todoPage) <= 1)
+                    .map((p, idx, arr) => (
+                      <React.Fragment key={p}>
+                        {idx > 0 && p - arr[idx - 1] > 1 && (
+                          <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>...</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setTodoPage(p)}
+                          style={{
+                            minWidth: '22px',
+                            height: '22px',
+                            padding: '0 4px',
+                            borderRadius: '4px',
+                            border: p === todoPage ? '1px solid #c60016' : '1px solid #e2e8f0',
+                            background: p === todoPage ? '#c60016' : '#ffffff',
+                            color: p === todoPage ? '#ffffff' : '#334155',
+                            fontWeight: p === todoPage ? 700 : 500,
+                            fontSize: '0.72rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {p}
+                        </button>
+                      </React.Fragment>
+                    ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setTodoPage(totalTodoPages)}
+                  disabled={todoPage === totalTodoPages}
+                  style={{
+                    padding: '3px 9px',
+                    borderRadius: '5px',
+                    border: '1px solid #e2e8f0',
+                    background: todoPage === totalTodoPages ? '#f8fafc' : '#ffffff',
+                    color: todoPage === totalTodoPages ? '#94a3b8' : '#c60016',
+                    fontWeight: 700,
+                    cursor: todoPage === totalTodoPages ? 'not-allowed' : 'pointer',
+                    fontSize: '0.72rem',
+                  }}
+                >
+                  Last &raquo;
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Card 2: Dedicated Reminders Section */}
+          <div className="ud-card ud-reminders-card--expansive" style={{ margin: 0 }}>
+            <div className="ud-card-header ud-todo-header-expansive" style={{ padding: '0.85rem 1.15rem' }}>
+              <div className="ud-card-header-left">
+                <div className="ud-todo-header-icon-box" style={{ width: '2.3rem', height: '2.3rem', fontSize: '1.1rem', background: '#fff1f2', color: '#c60016', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FaBell style={{ color: '#c60016' }} />
+                </div>
+                <div>
+                  <div className="ud-todo-title-row">
+                    <h3 style={{ fontSize: '1.05rem' }}>Reminders</h3>
+                    <span className="ud-todo-count-badge" style={{ background: '#fff1f2', color: '#c60016', borderColor: '#fecdd3' }}>{allReminderItems.length} items</span>
+                  </div>
+                  <p className="ud-todo-subtitle" style={{ fontSize: '0.75rem' }}>Active follow-ups & account/deal alerts</p>
+                </div>
+              </div>
+
+              <div className="ud-card-header-right">
+                <button
+                  type="button"
+                  className="ud-link-btn"
+                  onClick={() => navigate('/reminders/my')}
+                >
+                  View All &rarr;
+                </button>
+                <button
+                  type="button"
+                  className="ud-red-btn"
+                  onClick={() => navigate('/reminders/add')}
+                >
+                  + Add Reminder
+                </button>
+              </div>
+            </div>
+
+            <div className="ud-reminders-list--expansive" style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '0.85rem 1rem', background: '#fdfcfb', maxHeight: '280px', overflowY: 'auto' }}>
+              {paginatedReminderItems.length > 0 ? (
+                paginatedReminderItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`ud-todo-row ud-todo-row--${item.type.toLowerCase().replace(/[^a-z]/g, '')}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.75rem',
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      background: '#fffbeb',
+                      border: '1px solid #fde68a',
+                      minHeight: '44px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                      transition: 'all 0.18s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+                      <FaBell style={{ color: '#dc2626', fontSize: '1.15rem', flexShrink: 0 }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', minWidth: 0, flex: 1 }}>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {item.reminder?.accountName || item.reminder?.dealName ? `${item.reminder.accountName || item.reminder.dealName} | ` : ''}{item.meta || 'Follow up'} {item.reminder?.ownerName ? `| ${item.reminder.ownerName}` : ''}
+                        </span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title || item.message}>
+                          {item.title || item.message}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                      {!isReminderItemActivated(item.reminder) && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            if (item.reminder) handleOpenReminderModal(item.reminder, e)
+                            else item.onClick?.(e)
+                          }}
+                          title="Activate Reminder"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '6px',
+                            border: '1.5px solid #ef4444',
+                            background: '#ffffff',
+                            color: '#dc2626',
+                            fontSize: '0.78rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <FaCheck />
+                        </button>
+                      )}
                       <button
                         type="button"
-                        className="ud-activated-pill-btn"
-                        onClick={(e) => handleOpenReminderModal(item.reminder, e)}
-                        title="Reminder is activated in database. Click to inspect or manage."
+                        onClick={(e) => {
+                          if (item.reminder) handleOpenReminderModal(item.reminder, e)
+                          else navigate('/tasks')
+                        }}
+                        title="Create Task / Reschedule"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '6px',
+                          border: '1.5px solid #ef4444',
+                          background: '#ffffff',
+                          color: '#dc2626',
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                        }}
                       >
-                        <FaCheck size={9} /> Activated
+                        <FaPlus />
                       </button>
-                    ) : (
-                      <>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          if (item.reminder) handleTodoReminderClose(item.reminder, e)
+                          else if (typeof refreshData === 'function') refreshData()
+                        }}
+                        title="Close Reminder"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '6px',
+                          border: '1.5px solid #ef4444',
+                          background: '#ffffff',
+                          color: '#dc2626',
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <FaTimes />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="ud-todo-empty-state">
+                  <FaBell className="ud-todo-empty-icon" style={{ color: '#dc2626' }} />
+                  <p>No active reminders right now.</p>
+                </div>
+              )}
+            </div>
+
+            {totalReminderPages > 1 && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.45rem 0.85rem',
+                  borderTop: '1px solid #f1f5f9',
+                  background: '#fafafa',
+                  borderBottomLeftRadius: '12px',
+                  borderBottomRightRadius: '12px',
+                  fontSize: '0.75rem',
+                  color: '#64748b',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setReminderPage(1)}
+                  disabled={reminderPage === 1}
+                  style={{
+                    padding: '3px 9px',
+                    borderRadius: '5px',
+                    border: '1px solid #e2e8f0',
+                    background: reminderPage === 1 ? '#f8fafc' : '#ffffff',
+                    color: reminderPage === 1 ? '#94a3b8' : '#c60016',
+                    fontWeight: 700,
+                    cursor: reminderPage === 1 ? 'not-allowed' : 'pointer',
+                    fontSize: '0.72rem',
+                  }}
+                >
+                  &laquo; First
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ marginRight: '4px', fontSize: '0.72rem', color: '#64748b' }}>
+                    Page {reminderPage} of {totalReminderPages}
+                  </span>
+                  {Array.from({ length: totalReminderPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalReminderPages || Math.abs(p - reminderPage) <= 1)
+                    .map((p, idx, arr) => (
+                      <React.Fragment key={p}>
+                        {idx > 0 && p - arr[idx - 1] > 1 && (
+                          <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>...</span>
+                        )}
                         <button
                           type="button"
-                          className="ud-active-pill-btn"
-                          onClick={(e) => handleOpenReminderModal(item.reminder, e)}
-                          title="Inspect who can activate & view active details"
+                          onClick={() => setReminderPage(p)}
+                          style={{
+                            minWidth: '22px',
+                            height: '22px',
+                            padding: '0 4px',
+                            borderRadius: '4px',
+                            border: p === reminderPage ? '1px solid #c60016' : '1px solid #e2e8f0',
+                            background: p === reminderPage ? '#c60016' : '#ffffff',
+                            color: p === reminderPage ? '#ffffff' : '#334155',
+                            fontWeight: p === reminderPage ? 700 : 500,
+                            fontSize: '0.72rem',
+                            cursor: 'pointer',
+                          }}
                         >
-                          Active
+                          {p}
                         </button>
-                        <button
-                          type="button"
-                          className="ud-close-pill-btn"
-                          onClick={(e) => handleTodoReminderClose(item.reminder, e)}
-                        >
-                          Close
-                        </button>
-                      </>
-                    )}
-                  </div>
-                ) : (
-                  <div className="ud-todo-btn-group">
-                    <button
-                      type="button"
-                      className="ud-view-action-btn"
-                      onClick={item.onClick}
-                    >
-                      Open &rarr;
-                    </button>
-                  </div>
-                )}
-              </div>
-            )) : (
-              <div className="ud-todo-empty-state">
-                <FaClipboardList className="ud-todo-empty-icon" />
-                <p>No {todoFilter !== 'all' ? todoFilter : ''} to-do items found right now.</p>
+                      </React.Fragment>
+                    ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setReminderPage(totalReminderPages)}
+                  disabled={reminderPage === totalReminderPages}
+                  style={{
+                    padding: '3px 9px',
+                    borderRadius: '5px',
+                    border: '1px solid #e2e8f0',
+                    background: reminderPage === totalReminderPages ? '#f8fafc' : '#ffffff',
+                    color: reminderPage === totalReminderPages ? '#94a3b8' : '#c60016',
+                    fontWeight: 700,
+                    cursor: reminderPage === totalReminderPages ? 'not-allowed' : 'pointer',
+                    fontSize: '0.72rem',
+                  }}
+                >
+                  Last &raquo;
+                </button>
               </div>
             )}
           </div>
         </div>
-      </div>
-      {/* Communication Activity Section */}
-      <div className="ud-card ud-communication-card" style={{ marginTop: '1.25rem', marginBottom: '1.5rem' }}>
-        <div className="ud-card-header">
-          <div className="ud-card-header-left">
-            <FaComments className="ud-card-header-icon" style={{ color: '#740a03' }} />
-            <h3>Communication Activity</h3>
-          </div>
-          <button
-            type="button"
-            className="ud-link-btn"
-            onClick={() => navigate('/communication-activities')}
-          >
-            View All &rarr;
-          </button>
-        </div>
-        <div className="ud-card-body" style={{ padding: '1.25rem' }}>
 
-          {communicationRemarks.length === 0 ? (
-            <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: '8px', color: '#94a3b8', fontSize: '0.875rem', textAlign: 'center' }}>
-              No recent communication activities found.
+        {/* Right: Communication Activity Section */}
+        <div className="ud-card ud-communication-card" style={{ margin: 0, padding: '1.15rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', width: '100%', boxSizing: 'border-box' }}>
+          <div className="ud-card-header" style={{ padding: '0 0 0.75rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="ud-card-header-left" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <FaComments className="ud-card-header-icon" style={{ color: '#c60016', fontSize: '1.2rem' }} />
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '700', color: '#0f172a' }}>Communication Activity</h3>
             </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-              {communicationRemarks.slice(0, 5).map((rmk) => (
-                <div
-                  key={rmk.id || rmk._id}
-                  style={{
-                    padding: '0.75rem 1rem',
-                    background: '#f8fafc',
-                    borderRadius: '8px',
-                    borderLeft: '4px solid #740a03',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.35rem',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', color: '#740a03', letterSpacing: '0.5px' }}>
-                      {String(rmk.category || 'General').toUpperCase()}
-                    </span>
-                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                      {rmk.createdAt ? new Date(rmk.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-'}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '0.875rem', color: '#1e293b', fontWeight: '500', lineHeight: '1.4' }}>
-                    {rmk.content || '-'}
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', fontSize: '0.75rem', color: '#64748b', marginTop: '0.125rem' }}>
-                    <span><strong>Account/Deal:</strong> {rmk.accountName || rmk.dealName || `ID: ${rmk.accountId || rmk.dealId || '-'}`}</span>
-                    <span><strong>By:</strong> {rmk.createdByName || 'User'} ({rmk.createdByEmail || rmk.accountOwnerEmail || '-'})</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+            <button
+              type="button"
+              className="ud-link-btn"
+              onClick={() => navigate('/communication-activities')}
+              style={{ background: 'none', border: 'none', color: '#c60016', fontWeight: '600', cursor: 'pointer', fontSize: '0.875rem' }}
+            >
+              View All &rarr;
+            </button>
+          </div>
+          <div className="ud-card-body" style={{ padding: 0 }}>
+            {communicationRemarks.length === 0 ? (
+              <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', color: '#94a3b8', fontSize: '0.875rem', textAlign: 'center' }}>
+                No recent communication activities found.
+              </div>
+            ) : (
+              <div className="ud-communication-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.35rem', maxHeight: '270px', overflowY: 'auto', paddingRight: '4px' }}>
+                {communicationRemarks.map((rmk) => {
+                  const isGeneral = String(rmk.category || 'General').toLowerCase() === 'general'
+                  const isCall = String(rmk.category || '').toLowerCase().includes('call')
+                  const badgeBg = isGeneral ? '#fee2e2' : isCall ? '#e0f2fe' : '#f1f5f9'
+                  const badgeColor = isGeneral ? '#dc2626' : isCall ? '#0284c7' : '#475569'
+                  const formattedDate = rmk.createdAt
+                    ? new Date(rmk.createdAt).toLocaleDateString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : '-'
+                  const authorName = rmk.createdByName || 'User'
+
+                  return (
+                    <div
+                      key={rmk.id || rmk._id}
+                      style={{
+                        padding: '4px 8px',
+                        background: '#fffdfa',
+                        borderRadius: '7px',
+                        border: '1px solid #fde68a',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '0.35rem',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                      }}
+                    >
+                      <div style={{ marginTop: '1px', color: '#64748b', fontSize: '0.72rem', flexShrink: 0 }}>
+                        <FaComments />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                        {/* Line 1: Date & Time + Author on left; Category badge on right */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.25rem' }}>
+                          <span style={{ fontSize: '0.60rem', color: '#64748b', fontWeight: 600 }}>
+                            {formattedDate} | By: {authorName}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '0.55rem',
+                              fontWeight: 800,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.3px',
+                              padding: '1px 5px',
+                              borderRadius: '9999px',
+                              background: badgeBg,
+                              color: badgeColor,
+                            }}
+                          >
+                            {String(rmk.category || 'General').toUpperCase()}
+                          </span>
+                        </div>
+
+                        {/* Line 2: Bold title / account or deal name */}
+                        <div style={{ fontSize: '0.70rem', fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {rmk.accountName || rmk.dealName || `Account #${rmk.accountId || rmk.dealId || '-'}`}
+                        </div>
+
+                        {/* Line 3: Content / remark */}
+                        <div style={{ fontSize: '0.64rem', color: '#475569', fontWeight: 500, lineHeight: 1.2, wordBreak: 'break-word' }}>
+                          {rmk.content || '-'}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

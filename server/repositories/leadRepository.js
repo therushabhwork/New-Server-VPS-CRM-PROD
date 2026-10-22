@@ -80,7 +80,9 @@ const mapLeadRow = (record) => {
       ...mergedFormData,
       id: row.id,
       name: rawAccountName,
-      customerName: rawAccountName,
+      customerName: (row.customerName && row.customerName !== rawAccountName)
+        ? row.customerName
+        : (mergedFormData.customerName || row.customerName || rawAccountName),
       accountName: rawAccountName,
       accountDate: row.accountDate || mergedFormData.accountDate || null,
       accountCategory: row.accountCategory || mergedFormData.accountCategory || null,
@@ -100,6 +102,9 @@ const mapLeadRow = (record) => {
       customerRefNo: row.customerRefNo || mergedFormData.customerRefNo || null,
       jobNo: row.jobNo || mergedFormData.jobNo || row.customerRefNo || mergedFormData.customerRefNo || null,
       consultantName: row.consultantName || mergedFormData.consultantName || null,
+      projectLocation: row.projectLocation || mergedFormData.projectLocation || null,
+      pmcName: row.pmcName || mergedFormData.pmcName || null,
+      architectName: row.architectName || mergedFormData.architectName || null,
       poValue: [
         row.poValue,
         mergedFormData.poValue,

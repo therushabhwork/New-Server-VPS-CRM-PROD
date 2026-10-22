@@ -264,7 +264,6 @@ const Sidebar = ({ isAdmin = false }) => {
     { label: 'All Tasks', to: '/admin/tasks/all' },
     { label: 'Projects', to: '/admin/tasks/projects' },
     { label: 'Workload', to: '/admin/tasks/workload' },
-    { label: 'Approvals', to: '/admin/tasks/approvals' },
     { label: 'Activity', to: '/admin/tasks/activity' },
   ]
 

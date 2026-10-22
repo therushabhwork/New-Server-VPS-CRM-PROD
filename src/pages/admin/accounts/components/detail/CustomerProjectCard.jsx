@@ -57,6 +57,7 @@ export default function CustomerProjectCard({
   const orderStatus = form.statusAsPerOrderReceived || account.statusAsPerOrderReceived || ''
   const quotationStatus = form.statusAsPerQuotationGiven || account.statusAsPerQuotationGiven || ''
   const reasonForLost = form.reasonForLost || account.reasonForLost || ''
+  const dealOwner = form.dealOwner || account.dealOwner || deal.ownerName || account.accountOwner || ''
 
   return (
     <div className="ad-card">
@@ -194,6 +195,15 @@ export default function CustomerProjectCard({
             value={reasonForLost}
             type="select"
             options={REASON_FOR_LOST_OPTIONS}
+            canEdit={canEdit}
+            onSave={onAutoSave}
+          />
+
+          <InlineAutoSaveField
+            label="Deal Owner"
+            fieldKey="dealOwner"
+            value={dealOwner}
+            placeholder="Enter deal owner"
             canEdit={canEdit}
             onSave={onAutoSave}
           />

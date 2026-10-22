@@ -283,7 +283,21 @@ const buildLeadPayload = async (payload = {}, actor, existingLead = null) => {
     ...sanitizedPayload,
     poValue: resolvedExplicitPoValue,
     dealValue: resolvedExplicitPoValue,
-    customerName: sanitizedPayload.accountName || sanitizedPayload.customerName || existingLead?.customerName || '',
+    customerName: sanitizedPayload.customerName !== undefined
+      ? String(sanitizedPayload.customerName).trim()
+      : (existingLead?.customerName || sanitizedPayload.accountName || ''),
+    projectLocation: sanitizedPayload.projectLocation !== undefined
+      ? sanitizedPayload.projectLocation
+      : (existingLead?.projectLocation || existingLead?.formData?.projectLocation || ''),
+    consultantName: sanitizedPayload.consultantName !== undefined
+      ? sanitizedPayload.consultantName
+      : (existingLead?.consultantName || existingLead?.formData?.consultantName || ''),
+    pmcName: sanitizedPayload.pmcName !== undefined
+      ? sanitizedPayload.pmcName
+      : (existingLead?.pmcName || existingLead?.formData?.pmcName || ''),
+    architectName: sanitizedPayload.architectName !== undefined
+      ? sanitizedPayload.architectName
+      : (existingLead?.architectName || existingLead?.formData?.architectName || ''),
     mobile: sanitizedPayload.alternatePhone || sanitizedPayload.mobile || existingLead?.mobile || '',
     email: sanitizedPayload.email ?? sanitizedPayload.contactEmail ?? sanitizedPayload.alternateEmail ?? existingLead?.email ?? existingLead?.contactEmail ?? '',
     contactEmail: sanitizedPayload.contactEmail ?? sanitizedPayload.email ?? existingLead?.contactEmail ?? existingLead?.email ?? '',
@@ -661,6 +675,41 @@ const updateLead = async (actor, leadId, payload) => {
 
   if (!updatedLead) {
     throw new AppError('Lead not found.', 404)
+  }
+
+  const { getMongoModel } = require('../models/mongoModels')
+  const Lead = getMongoModel('leads')
+  if (Lead) {
+    const directSet = {}
+    if (payload.customerName !== undefined) {
+      directSet.customerName = String(payload.customerName).trim()
+      directSet['formData.customerName'] = String(payload.customerName).trim()
+    }
+    if (payload.projectLocation !== undefined) {
+      directSet.projectLocation = payload.projectLocation
+      directSet['formData.projectLocation'] = payload.projectLocation
+    }
+    if (payload.consultantName !== undefined) {
+      directSet.consultantName = payload.consultantName
+      directSet['formData.consultantName'] = payload.consultantName
+    }
+    if (payload.pmcName !== undefined) {
+      directSet.pmcName = payload.pmcName
+      directSet['formData.pmcName'] = payload.pmcName
+    }
+    if (payload.architectName !== undefined) {
+      directSet.architectName = payload.architectName
+      directSet['formData.architectName'] = payload.architectName
+    }
+    if (Object.keys(directSet).length > 0) {
+      directSet.updatedAt = new Date().toISOString()
+      await Lead.updateMany(
+        { $or: buildLeadIdMatchFilters(leadId) },
+        { $set: directSet }
+      ).catch(() => {})
+      const refreshed = await leadRepository.findLeadById(normalizeLeadId(leadId))
+      if (refreshed) updatedLead = refreshed
+    }
   }
 
   if (payload.email !== undefined || payload.contactEmail !== undefined) {

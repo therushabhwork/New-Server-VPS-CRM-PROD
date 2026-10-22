@@ -403,22 +403,14 @@ const SupportRequestView = () => {
                     <tr
                       key={supportRequest.id}
                       className="sr-table-row"
-                      onClick={() => navigate(`${basePath}/details/${supportRequest.id}`)}
                     >
                       <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)' }}>
                         {index + 1}
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          className="sr-ticket-code-badge"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            navigate(`${basePath}/details/${supportRequest.id}`)
-                          }}
-                        >
+                        <span className="sr-ticket-code-badge sr-ticket-code-badge--static">
                           {supportRequest.srNumber || `SR-${String(supportRequest.id || '').slice(-4).toUpperCase()}`}
-                        </button>
+                        </span>
                       </td>
                       <td>
                         <span className="sr-type-tag">

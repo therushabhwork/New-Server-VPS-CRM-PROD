@@ -12,7 +12,7 @@ import workManagementService from '../../services/workManagementService'
 import taskApi from '../../services/taskApi'
 
 // Workload Analytics Components
-import { WorkloadUserList } from './components/workload/WorkloadUserList'
+import { WorkloadUserDropdown } from './components/workload/WorkloadUserDropdown'
 import { WorkloadUserHeader } from './components/workload/WorkloadUserHeader'
 import { WorkloadViewTabs } from './components/workload/WorkloadViewTabs'
 import { WorkloadKpiCards } from './components/workload/WorkloadKpiCards'
@@ -292,60 +292,68 @@ export const TeamWorkloadPage = () => {
 
   return (
     <TaskWorkspaceLayout activeTab="workload">
+      {/* Team Workload Header Strip with User Directory Dropdown on Right */}
       <div
         style={{
           display: 'flex',
-          gap: '1rem',
-          alignItems: 'stretch',
-          width: '100%',
-          minHeight: '100%',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '0.85rem',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
         }}
       >
-        {/* PANEL 1: Left User Selection Sidebar (Sticky, equal height as main dashboard sections) */}
-        {isAdmin && (
-          <div
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <FaUsers style={{ color: '#c60016', fontSize: '1.1rem' }} />
+          <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '800', color: '#1e293b' }}>
+            Workload
+          </h2>
+          <span
             style={{
-              width: '280px',
-              minWidth: '280px',
-              position: 'sticky',
-              top: '0.75rem',
-              alignSelf: 'stretch',
-              height: 'calc(120vh - 175px)',
-              maxHeight: 'calc(120vh - 175px)',
-              minHeight: '950px',
-              display: 'flex',
-              flexDirection: 'column',
+              fontSize: '0.72rem',
+              fontWeight: '800',
+              color: '#c60016',
+              backgroundColor: '#fff1f2',
+              border: '1px solid #fecdd3',
+              padding: '0.12rem 0.5rem',
+              borderRadius: '10px',
             }}
           >
-            <WorkloadUserList
-              users={members}
+            {members.length} Users
+          </span>
+        </div>
+
+        {/* Right side Dropdown with Current Users Directory */}
+        {isAdmin && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.76rem', fontWeight: '700', color: '#64748b' }}>
+              Select Member:
+            </span>
+            <WorkloadUserDropdown
+              members={members}
               selectedUser={selectedUser}
               onSelectUser={handleSelectUser}
-              favorites={favorites}
-              onToggleFavorite={handleToggleFavorite}
-              departments={departments}
-              loading={loadingMembers}
             />
           </div>
         )}
+      </div>
 
-        {/* PANEL 2: Selected User Analytics Workspace */}
-        <div
-          style={{
-            flex: 1,
-            minWidth: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1rem',
-          }}
-        >
-          {/* Header Controls (No Export Button, SLA Compliant White Background) */}
-          <WorkloadUserHeader
-            user={displayUser}
-            onRefresh={() => fetchUserAnalytics(selectedUser?.email, period, customDates)}
-            onOpenCapacitySettings={isAdmin ? () => setIsCapacityModalOpen(true) : null}
-            isRefreshing={analyticsLoading}
-          />
+      {/* Selected User Analytics Workspace (Full Width with Proper Alignment) */}
+      <div
+        style={{
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1rem',
+        }}
+      >
+        {/* Header Controls (Nita Bhavsar ... text, avatar, refresh & capacity settings) */}
+        <WorkloadUserHeader
+          user={displayUser}
+          onRefresh={() => fetchUserAnalytics(selectedUser?.email, period, customDates)}
+          onOpenCapacitySettings={isAdmin ? () => setIsCapacityModalOpen(true) : null}
+          isRefreshing={analyticsLoading}
+        />
 
           {/* View Switcher Tabs + Period Tabs on Right (On top of KPI Cards) */}
           <WorkloadViewTabs
@@ -407,22 +415,23 @@ export const TeamWorkloadPage = () => {
               style={{
                 backgroundColor: '#ffffff',
                 border: '1.5px solid #e2e8f0',
-                borderRadius: '16px',
-                padding: '1.15rem 1.25rem',
+                borderRadius: '14px',
+                padding: '0.75rem 1rem',
                 boxShadow: '0 4px 18px rgba(0, 0, 0, 0.03)',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.85rem',
+                gap: '0.65rem',
+                overflowX: 'auto',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <FaTasks style={{ color: '#c60016', fontSize: '1rem' }} />
-                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '800', color: '#1e293b' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <FaTasks style={{ color: '#c60016', fontSize: '0.9rem' }} />
+                  <h3 style={{ margin: 0, fontSize: '0.88rem', fontWeight: '800', color: '#1e293b' }}>
                     Tasks &bull; {displayUser?.name || displayUser?.email}
                   </h3>
                 </div>
-                <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: '700' }}>
+                <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: '700' }}>
                   {userTasks.length} Assigned Tasks
                 </span>
               </div>
@@ -459,7 +468,6 @@ export const TeamWorkloadPage = () => {
             />
           )}
         </div>
-      </div>
 
       {/* Capacity Settings Modal */}
       {isCapacityModalOpen && (

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -21,6 +21,8 @@ import {
   FaUsers,
   FaComments,
   FaCheck,
+  FaPlus,
+  FaTimes,
   FaExternalLinkAlt,
 } from 'react-icons/fa'
 import { FiArrowLeft, FiArrowRight, FiChevronDown, FiEdit2, FiPlus, FiSettings, FiTrash2 } from 'react-icons/fi'
@@ -133,7 +135,7 @@ const buildStatusSummary = (records, getValue, fallbackLabels = [], maxItems = 6
 
 const buildEmptyTabDraft = () => ({
   name: '',
-  viewKey: 'salesDashboard',
+  viewKey: 'swatiGroup',
 })
 
 const buildDashboardBookmarkRoute = (tab) => `/admin/monitoring?view=${encodeURIComponent(tab.viewKey)}`
@@ -244,6 +246,9 @@ const AdminPanel = () => {
   const [loadingAnalytics, setLoadingAnalytics] = useState(true)
   const [userPerformanceList, setUserPerformanceList] = useState([])
   const [loadingUserPerformance, setLoadingUserPerformance] = useState(false)
+  const isFetchingPerfRef = useRef(false)
+  const lastFetchedKeyRef = useRef('')
+  const lastToastKeyRef = useRef('')
 
   const fetchAnalytics = useCallback(async () => {
     try {
@@ -257,17 +262,64 @@ const AdminPanel = () => {
     }
   }, [])
 
-  const fetchUserPerformance = useCallback(async (viewKey) => {
+  const notifyGroupPerformance = useCallback((tabName, perfList, isRealtime = false) => {
+    if (!perfList || !Array.isArray(perfList) || perfList.length === 0) return
+
+    const toastKey = `${tabName}_${perfList.length}`
+    if (!isRealtime && lastToastKeyRef.current === toastKey) {
+      return
+    }
+    lastToastKeyRef.current = toastKey
+
+    let totalAccounts = 0
+    let totalWon = 0
+    let totalLost = 0
+    let totalQuotations = 0
+
+    perfList.forEach((u) => {
+      const monthly = u.monthly || []
+      monthly.forEach((m) => {
+        totalAccounts += Number(m.accounts || 0)
+        totalWon += Number(m.closedWon || 0)
+        totalLost += Number(m.closedLost || 0)
+        totalQuotations += Number(m.quotations || 0)
+      })
+    })
+
+    const memberNames = perfList.map((p) => p.ownerName).filter(Boolean)
+    const displayNames = memberNames.slice(0, 4).join(', ') + (memberNames.length > 4 ? ` +${memberNames.length - 4} more` : '')
+
+    addNotification(
+      'info',
+      `${tabName} — ${isRealtime ? 'Real-Time Live Update' : 'Real-Time Performance'}`,
+      `Members: ${displayNames} | Accounts: ${totalAccounts} | Closed Won: ${totalWon} | Closed Lost: ${totalLost} | Quotations: ${totalQuotations}`
+    )
+  }, [addNotification])
+
+  const fetchUserPerformance = useCallback(async (viewKey, isRealtime = false) => {
+    if (!viewKey) return
+    if (!isRealtime && isFetchingPerfRef.current && lastFetchedKeyRef.current === viewKey) {
+      return
+    }
+
     try {
+      isFetchingPerfRef.current = true
+      lastFetchedKeyRef.current = viewKey
       setLoadingUserPerformance(true)
       const data = await analyticsApi.getUserDealPerformance({ group: viewKey })
-      if (Array.isArray(data)) setUserPerformanceList(data)
+      if (Array.isArray(data)) {
+        setUserPerformanceList(data)
+        const currentTab = dashboardTabs.find((tab) => tab.id === activeSection || tab.viewKey === viewKey)
+        const tabTitle = currentTab?.name || 'Group Performance'
+        notifyGroupPerformance(tabTitle, data, isRealtime)
+      }
     } catch (err) {
       console.error('Failed to fetch user deal performance:', err)
     } finally {
+      isFetchingPerfRef.current = false
       setLoadingUserPerformance(false)
     }
-  }, [])
+  }, [activeSection, dashboardTabs, notifyGroupPerformance])
 
   useEffect(() => {
     fetchAnalytics()
@@ -277,8 +329,9 @@ const AdminPanel = () => {
     if (activeSection !== 'home') {
       const currentTab = dashboardTabs.find((tab) => tab.id === activeSection)
       const vk = currentTab?.viewKey || ''
-      if (['salesSwati', 'salesLumos', 'userWisePerformance', 'salesPerformanceA', 'salesPerformanceB'].includes(vk)) {
-        fetchUserPerformance(vk)
+      const isSwatiOrGroup = /swati|ahmedabad/i.test(vk) || /swati|ahmedabad/i.test(currentTab?.name || '') || /swati|ahmedabad/i.test(activeSection)
+      if (isSwatiOrGroup || ['salesSwati', 'swatiGroup', 'salesLumos', 'userWisePerformance', 'allUsers', 'salesPerformanceA', 'salesPerformanceB'].includes(vk)) {
+        fetchUserPerformance(isSwatiOrGroup ? (vk || 'salesSwati') : vk)
       }
     }
   }, [activeSection, dashboardTabs, fetchUserPerformance])
@@ -288,8 +341,10 @@ const AdminPanel = () => {
     const handleRealtimeRefresh = () => {
       fetchAnalytics()
       const currentTab = dashboardTabs.find((tab) => tab.id === activeSection)
-      if (currentTab && ['salesSwati', 'salesLumos', 'userWisePerformance', 'salesPerformanceA', 'salesPerformanceB'].includes(currentTab.viewKey)) {
-        fetchUserPerformance(currentTab.viewKey)
+      const vk = currentTab?.viewKey || ''
+      const isSwatiOrGroup = /swati|ahmedabad/i.test(vk) || /swati|ahmedabad/i.test(currentTab?.name || '') || /swati|ahmedabad/i.test(activeSection)
+      if (currentTab && (isSwatiOrGroup || ['salesSwati', 'swatiGroup', 'salesLumos', 'userWisePerformance', 'allUsers', 'salesPerformanceA', 'salesPerformanceB'].includes(vk))) {
+        fetchUserPerformance(isSwatiOrGroup ? (vk || 'salesSwati') : vk, true)
       }
     }
 
@@ -724,7 +779,7 @@ const AdminPanel = () => {
     })
   }, [navigate, updateReminder, user?.name, user?.username])
 
-  const todoItems = useMemo(() => {
+  const allReminderItems = useMemo(() => {
     const reminderItems = getAdminReminders({
       accounts,
       deals,
@@ -735,7 +790,6 @@ const AdminPanel = () => {
       isAdmin,
     })
       .filter((reminder) => ['active', 'activated'].includes(reminder.status))
-      .slice(0, 8)
       .map((reminder) => ({
         id: `reminder-${reminder.id}`,
         type: reminder.status === 'activated' ? 'Reminder (Activated)' : 'Reminder',
@@ -754,7 +808,6 @@ const AdminPanel = () => {
 
     const dbReminderItems = (reminders || [])
       .filter((r) => String(r.status || '').toLowerCase() !== 'closed')
-      .slice(0, 8)
       .map((r) => ({
         id: `db-reminder-${r.id || r._id}`,
         type: String(r.status || '').toLowerCase() === 'activated'
@@ -768,7 +821,20 @@ const AdminPanel = () => {
         onClick: () => navigate('/admin/reminders/my'),
       }))
 
-    const replyItems = todoReplies.slice(0, 8).map((reply, index) => {
+    const seen = new Set()
+    const list = []
+    for (const item of [...reminderItems, ...dbReminderItems]) {
+      const key = item.reminder?.id || item.reminder?._id || item.id
+      if (!seen.has(key)) {
+        seen.add(key)
+        list.push(item)
+      }
+    }
+    return list.sort((left, right) => new Date(right.date || 0).getTime() - new Date(left.date || 0).getTime())
+  }, [accounts, deals, isAdmin, navigate, reminderStatesById, reminders, supportRequests, user])
+
+  const allTaskAndReplyItems = useMemo(() => {
+    const replyItems = (todoReplies || []).map((reply, index) => {
       const requestId = reply.support_request_id || reply.supportRequestId || reply.relatedEntityId || ''
       const matchedRequest = supportRequests.find((request) => (
         [request.id, request.mongoId, request._id, request.legacyId].some((value) => String(value || '') === String(requestId || ''))
@@ -793,44 +859,68 @@ const AdminPanel = () => {
 
     const taskItems = (tasks || [])
       .filter((task) => String(task.status || '').toLowerCase() === 'pending' || String(task.status || '').toLowerCase() === 'open')
-      .slice(0, 8)
-      .map((task) => ({
-        id: `task-${task.id || task._id}`,
-        type: task.activityType === 're-assign-account' ? 'Reassignment' : 'Task',
-        title: task.title || task.name || 'Pending Task',
-        meta: formatTodoDateTime(task.dueDate || task.createdAt),
-        message: task.description || task.note || '-',
-        date: task.dueDate || task.createdAt,
-        task,
-        onClick: () => navigate(isAdmin ? '/admin/accounts/my-accounts' : '/accounts/my-accounts'),
-      }))
+      .map((task) => {
+        const timestamp = new Date(task.createdAt || task.created_at || task.dueDate || task.date || 0).getTime()
+        return {
+          id: `task-${task.id || task._id}`,
+          type: task.activityType === 're-assign-account' ? 'Reassignment' : 'Task',
+          title: task.title || task.name || 'Pending Task',
+          meta: formatTodoDateTime(task.dueDate || task.createdAt),
+          message: task.description || task.note || '-',
+          date: task.createdAt || task.dueDate || task.date,
+          timestamp,
+          task,
+          onClick: () => navigate('/admin/tasks/all'),
+        }
+      })
 
-    return [...replyItems, ...reminderItems, ...dbReminderItems, ...taskItems]
-      .sort((left, right) => new Date(right.date || 0).getTime() - new Date(left.date || 0).getTime())
-      .slice(0, 8)
-  }, [accounts, deals, isAdmin, navigate, reminderStatesById, reminders, supportRequests, tasks, todoReplies, user])
+    const replyItemsWithTs = (replyItems || []).map((r) => ({
+      ...r,
+      timestamp: new Date(r.date || r.created_at || r.createdAt || 0).getTime(),
+    }))
 
-    const todoCounts = useMemo(() => {
+    return [...replyItemsWithTs, ...taskItems]
+      .sort((left, right) => (right.timestamp || 0) - (left.timestamp || 0))
+  }, [navigate, supportRequests, tasks, todoReplies])
+
+  const todoCounts = useMemo(() => {
     return {
-      all: todoItems.length,
-      reminder: todoItems.filter((i) => i.type?.toLowerCase().includes('reminder')).length,
-      task: todoItems.filter((i) => i.type?.toLowerCase().includes('task') || i.type?.toLowerCase().includes('reassignment')).length,
-      reply: todoItems.filter((i) => i.type?.toLowerCase().includes('reply')).length,
+      all: allTaskAndReplyItems.length,
+      task: allTaskAndReplyItems.filter((i) => i.type?.toLowerCase().includes('task') || i.type?.toLowerCase().includes('reassignment')).length,
+      reply: allTaskAndReplyItems.filter((i) => i.type?.toLowerCase().includes('reply')).length,
+      reminder: allReminderItems.length,
     }
-  }, [todoItems])
+  }, [allReminderItems.length, allTaskAndReplyItems])
 
+  const [reminderPage, setReminderPage] = useState(1)
+  const REMINDERS_PER_PAGE = 10
+  const totalReminderPages = Math.ceil(allReminderItems.length / REMINDERS_PER_PAGE) || 1
+
+  const paginatedReminderItems = useMemo(() => {
+    const page = Math.min(Math.max(1, reminderPage), totalReminderPages)
+    const start = (page - 1) * REMINDERS_PER_PAGE
+    return allReminderItems.slice(start, start + REMINDERS_PER_PAGE)
+  }, [allReminderItems, reminderPage, totalReminderPages])
+
+  const [todoPage, setTodoPage] = useState(1)
+  const TODOS_PER_PAGE = 10
   const displayedTodoItems = useMemo(() => {
-    if (todoFilter === 'reminder') {
-      return todoItems.filter((i) => i.type?.toLowerCase().includes('reminder'))
-    }
     if (todoFilter === 'task') {
-      return todoItems.filter((i) => i.type?.toLowerCase().includes('task') || i.type?.toLowerCase().includes('reassignment'))
+      return allTaskAndReplyItems.filter((i) => i.type?.toLowerCase().includes('task') || i.type?.toLowerCase().includes('reassignment'))
     }
     if (todoFilter === 'reply') {
-      return todoItems.filter((i) => i.type?.toLowerCase().includes('reply'))
+      return allTaskAndReplyItems.filter((i) => i.type?.toLowerCase().includes('reply'))
     }
-    return todoItems
-  }, [todoFilter, todoItems])
+    return allTaskAndReplyItems
+  }, [allTaskAndReplyItems, todoFilter])
+
+  const totalTodoPages = Math.ceil(displayedTodoItems.length / TODOS_PER_PAGE) || 1
+
+  const paginatedTodoItems = useMemo(() => {
+    const page = Math.min(Math.max(1, todoPage), totalTodoPages)
+    const start = (page - 1) * TODOS_PER_PAGE
+    return displayedTodoItems.slice(start, start + TODOS_PER_PAGE)
+  }, [displayedTodoItems, todoPage, totalTodoPages])
 
   const handleMyCrmViewList = (card) => {
     addNotification('info', 'View list', `Opening ${card.title}.`)
@@ -952,233 +1042,575 @@ const AdminPanel = () => {
           </div>
         </div>
 
-        {/* Expansive Full-Width To Do List Section */}
-        <div className="ap-todo-full-container">
-          <div className="ap-card-box ap-todo-card--expansive">
-            <div className="ap-todo-header-expansive">
-              <div className="ap-todo-header-left">
-                <div className="ap-todo-header-icon-box">
-                  <FaClipboardList />
-                </div>
-                <div>
-                  <div className="ap-todo-title-row">
-                    <h3 className="ap-todo-main-title">To Do List</h3>
-                    <span className="ap-todo-count-badge">{todoCounts.all} items</span>
+        {/* Side-by-Side Monitoring Grid: Left = To Do List & Reminders, Right = Communication Activity */}
+        <div className="ap-dashboard-main-grid ap-monitoring-side-by-side" style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', gap: '1.25rem', marginTop: '1.25rem', marginBottom: '1.25rem', alignItems: 'start' }}>
+          {/* Left Column: Stacked To Do List & Dedicated Reminders */}
+          <div className="ap-todo-full-container" style={{ margin: 0, width: '100%', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Card 1: To Do List */}
+            <div className="ap-card-box ap-todo-card--expansive" style={{ margin: 0 }}>
+              <div className="ap-todo-header-expansive" style={{ padding: '0.85rem 1.15rem' }}>
+                <div className="ap-todo-header-left">
+                  <div className="ap-todo-header-icon-box" style={{ width: '2.3rem', height: '2.3rem', fontSize: '1.1rem' }}>
+                    <FaClipboardList />
                   </div>
-                  <p className="ap-todo-subtitle">Prioritized follow-ups, pending tasks, and support updates</p>
+                  <div>
+                    <div className="ap-todo-title-row">
+                      <h3 className="ap-todo-main-title" style={{ fontSize: '1.05rem' }}>To Do List</h3>
+                      <span className="ap-todo-count-badge">{todoCounts.all} items</span>
+                    </div>
+                    <p className="ap-todo-subtitle" style={{ fontSize: '0.75rem' }}>Prioritized pending tasks and support replies</p>
+                  </div>
+                </div>
+
+                <div className="ap-todo-filter-tabs">
+                  <button
+                    type="button"
+                    className={`ap-todo-tab ${todoFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => {
+                      setTodoFilter('all')
+                      setTodoPage(1)
+                    }}
+                  >
+                    All ({todoCounts.all})
+                  </button>
+                  <button
+                    type="button"
+                    className={`ap-todo-tab ${todoFilter === 'task' ? 'active' : ''}`}
+                    onClick={() => {
+                      setTodoFilter('task')
+                      setTodoPage(1)
+                    }}
+                  >
+                    Tasks ({todoCounts.task})
+                  </button>
+                  <button
+                    type="button"
+                    className={`ap-todo-tab ${todoFilter === 'reply' ? 'active' : ''}`}
+                    onClick={() => {
+                      setTodoFilter('reply')
+                      setTodoPage(1)
+                    }}
+                  >
+                    Replies ({todoCounts.reply})
+                  </button>
+                </div>
+
+                <div className="ap-todo-header-right">
+                  <button
+                    type="button"
+                    className="ap-btn-red"
+                    onClick={() => navigate('/admin/tasks')}
+                  >
+                    + Add Task
+                  </button>
                 </div>
               </div>
 
-              <div className="ap-todo-filter-tabs">
-                <button
-                  type="button"
-                  className={`ap-todo-tab ${todoFilter === 'all' ? 'active' : ''}`}
-                  onClick={() => setTodoFilter('all')}
-                >
-                  All ({todoCounts.all})
-                </button>
-                <button
-                  type="button"
-                  className={`ap-todo-tab ${todoFilter === 'reminder' ? 'active' : ''}`}
-                  onClick={() => setTodoFilter('reminder')}
-                >
-                  Reminders ({todoCounts.reminder})
-                </button>
-                <button
-                  type="button"
-                  className={`ap-todo-tab ${todoFilter === 'task' ? 'active' : ''}`}
-                  onClick={() => setTodoFilter('task')}
-                >
-                  Tasks ({todoCounts.task})
-                </button>
-                <button
-                  type="button"
-                  className={`ap-todo-tab ${todoFilter === 'reply' ? 'active' : ''}`}
-                  onClick={() => setTodoFilter('reply')}
-                >
-                  Replies ({todoCounts.reply})
-                </button>
-              </div>
-
-              <div className="ap-todo-header-right">
-                <button
-                  type="button"
-                  className="ap-link-btn"
-                  onClick={() => navigate('/admin/reminders/my')}
-                >
-                  View All &rarr;
-                </button>
-                <button
-                  type="button"
-                  className="ap-btn-red"
-                  onClick={() => navigate('/admin/tasks')}
-                >
-                  + Add Task
-                </button>
-              </div>
-            </div>
-
-            <div className="ap-todo-list--expansive">
-              {displayedTodoItems.length > 0 ? (
-                displayedTodoItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`ap-todo-row ap-todo-row--${item.type.toLowerCase().replace(/[^a-z]/g, '')}`}
-                    onClick={item.onClick}
-                  >
-                    <button
-                      type="button"
-                      className={`ap-todo-icon-box ap-todo-icon-box--${item.type.toLowerCase().includes('reminder') ? 'reminder' : item.type.toLowerCase().includes('task') ? 'task' : 'reply'}`}
-                      onClick={item.onClick}
-                      aria-label={`Open ${item.type}`}
-                      title={`Open ${item.type}`}
-                    >
-                      <FaCalendarAlt />
-                    </button>
-                    <div className="ap-todo-body">
-                      <div className="ap-todo-meta-line">
-                        <span className={`ap-todo-badge ap-todo-badge--${item.type.toLowerCase().includes('reminder') ? 'reminder' : item.type.toLowerCase().includes('task') ? 'task' : 'reply'}`}>
-                          {item.type}
-                        </span>
-                        <span className="ap-todo-date">{item.meta}</span>
-                        {item.reminder?.ownerName ? (
-                          <span className="ap-todo-owner-chip" title={`Assigned Owner: ${item.reminder.ownerName}`}>
-                            <FaUser size={9} /> {item.reminder.ownerName}
+              <div className="ap-todo-list--expansive" style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '0.85rem 1rem', background: '#fdfcfb', maxHeight: '250px', overflowY: 'auto' }}>
+                {paginatedTodoItems.length > 0 ? (
+                  paginatedTodoItems.map((item) => {
+                    const isTask = Boolean(item.task || item.type?.toLowerCase().includes('task') || item.type?.toLowerCase().includes('reassignment'))
+                    if (isTask) {
+                      return (
+                        <div
+                          key={item.id}
+                          className="ap-todo-row ap-todo-row--task"
+                          onClick={() => navigate('/admin/tasks/all')}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            padding: '10px 14px',
+                            borderRadius: '10px',
+                            background: '#ffffff',
+                            border: '1px solid #e2e8f0',
+                            cursor: 'pointer',
+                            minHeight: '44px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                            transition: 'all 0.18s ease',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: '16px',
+                              height: '16px',
+                              borderRadius: '50%',
+                              border: '2px solid #94a3b8',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.title}
                           </span>
-                        ) : null}
-                        {item.reminder ? (
-                          isReminderItemActivated(item.reminder) ? (
-                            <span
-                              className="ap-todo-can-active-chip ap-todo-can-active-chip--activated"
-                              title="Status: Activated in Database"
-                            >
-                              ✓ Status: Activated
-                            </span>
-                          ) : (
-                            <span
-                              className={`ap-todo-can-active-chip ${isCurrentUserOwner(item.reminder) ? 'ap-todo-can-active-chip--self' : 'ap-todo-can-active-chip--team'}`}
-                              title="Who can activate this reminder"
-                            >
-                              ⚡ {isCurrentUserOwner(item.reminder) ? 'Can Activate: You' : `Can Activate: ${item.reminder.ownerName || 'Owner'}${isAdmin ? ' & Admin' : ''}`}
-                            </span>
-                          )
-                        ) : null}
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="ap-todo-row ap-todo-row--reply"
+                        onClick={item.onClick}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.75rem',
+                          padding: '10px 14px',
+                          borderRadius: '10px',
+                          background: '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          cursor: 'pointer',
+                          minHeight: '44px',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                          transition: 'all 0.18s ease',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '16px',
+                            height: '16px',
+                            borderRadius: '50%',
+                            border: '2px solid #3b82f6',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        />
+                        <span style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {item.title}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>{item.meta}</span>
                       </div>
-                      <div className="ap-todo-title-text">{item.title || item.message}</div>
-                      {item.message && item.title && item.message !== item.title ? (
-                        <div className="ap-todo-desc-text">{item.message}</div>
-                      ) : null}
-                    </div>
-                    {item.reminder ? (
-                      <div className="ap-todo-btn-group" onClick={(e) => e.stopPropagation()}>
-                        {isReminderItemActivated(item.reminder) ? (
+                    )
+                  })
+                ) : (
+                  <div className="ap-todo-empty-state">
+                    <FaClipboardList className="ap-todo-empty-icon" />
+                    <p>No {todoFilter !== 'all' ? todoFilter : ''} to-do items found right now.</p>
+                  </div>
+                )}
+              </div>
+
+              {totalTodoPages > 1 && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.45rem 0.85rem',
+                    borderTop: '1px solid #f1f5f9',
+                    background: '#fafafa',
+                    borderBottomLeftRadius: '12px',
+                    borderBottomRightRadius: '12px',
+                    fontSize: '0.75rem',
+                    color: '#64748b',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setTodoPage(1)}
+                    disabled={todoPage === 1}
+                    style={{
+                      padding: '3px 9px',
+                      borderRadius: '5px',
+                      border: '1px solid #e2e8f0',
+                      background: todoPage === 1 ? '#f8fafc' : '#ffffff',
+                      color: todoPage === 1 ? '#94a3b8' : '#c60016',
+                      fontWeight: 700,
+                      cursor: todoPage === 1 ? 'not-allowed' : 'pointer',
+                      fontSize: '0.72rem',
+                    }}
+                  >
+                    &laquo; First
+                  </button>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ marginRight: '4px', fontSize: '0.72rem', color: '#64748b' }}>
+                      Page {todoPage} of {totalTodoPages}
+                    </span>
+                    {Array.from({ length: totalTodoPages }, (_, i) => i + 1)
+                      .filter((p) => p === 1 || p === totalTodoPages || Math.abs(p - todoPage) <= 1)
+                      .map((p, idx, arr) => (
+                        <React.Fragment key={p}>
+                          {idx > 0 && p - arr[idx - 1] > 1 && (
+                            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>...</span>
+                          )}
                           <button
                             type="button"
-                            className="ap-activated-pill-btn"
-                            onClick={(e) => handleOpenReminderModal(item.reminder, e)}
-                            title="Reminder is activated in database. Click to inspect or manage."
+                            onClick={() => setTodoPage(p)}
+                            style={{
+                              minWidth: '22px',
+                              height: '22px',
+                              padding: '0 4px',
+                              borderRadius: '4px',
+                              border: p === todoPage ? '1px solid #c60016' : '1px solid #e2e8f0',
+                              background: p === todoPage ? '#c60016' : '#ffffff',
+                              color: p === todoPage ? '#ffffff' : '#334155',
+                              fontWeight: p === todoPage ? 700 : 500,
+                              fontSize: '0.72rem',
+                              cursor: 'pointer',
+                            }}
                           >
-                            <FaCheck size={9} /> Activated
+                            {p}
                           </button>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              className="ap-active-pill-btn"
-                              onClick={(e) => handleOpenReminderModal(item.reminder, e)}
-                              title="Inspect who can activate & view active details"
-                            >
-                              Active
-                            </button>
-                            <button
-                              type="button"
-                              className="ap-close-pill-btn"
-                              onClick={(e) => handleTodoReminderClose(item.reminder, e)}
-                            >
-                              Close
-                            </button>
-                          </>
-                        )}
+                        </React.Fragment>
+                      ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setTodoPage(totalTodoPages)}
+                    disabled={todoPage === totalTodoPages}
+                    style={{
+                      padding: '3px 9px',
+                      borderRadius: '5px',
+                      border: '1px solid #e2e8f0',
+                      background: todoPage === totalTodoPages ? '#f8fafc' : '#ffffff',
+                      color: todoPage === totalTodoPages ? '#94a3b8' : '#c60016',
+                      fontWeight: 700,
+                      cursor: todoPage === totalTodoPages ? 'not-allowed' : 'pointer',
+                      fontSize: '0.72rem',
+                    }}
+                  >
+                    Last &raquo;
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Card 2: Dedicated Reminders Section */}
+            <div className="ap-card-box ap-reminders-card--expansive" style={{ margin: 0 }}>
+              <div className="ap-todo-header-expansive" style={{ padding: '0.85rem 1.15rem' }}>
+                <div className="ap-todo-header-left">
+                  <div className="ap-todo-header-icon-box" style={{ width: '2.3rem', height: '2.3rem', fontSize: '1.1rem', background: '#fff1f2', color: '#c60016', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <FaBell style={{ color: '#c60016' }} />
+                  </div>
+                  <div>
+                    <div className="ap-todo-title-row">
+                      <h3 className="ap-todo-main-title" style={{ fontSize: '1.05rem' }}>Reminders</h3>
+                      <span className="ap-todo-count-badge" style={{ background: '#fff1f2', color: '#c60016', borderColor: '#fecdd3' }}>{allReminderItems.length} items</span>
+                    </div>
+                    <p className="ap-todo-subtitle" style={{ fontSize: '0.75rem' }}>Active follow-ups & account/deal alerts</p>
+                  </div>
+                </div>
+
+                <div className="ap-todo-header-right">
+                  <button
+                    type="button"
+                    className="ap-link-btn"
+                    onClick={() => navigate('/admin/reminders/my')}
+                  >
+                    View All &rarr;
+                  </button>
+                  <button
+                    type="button"
+                    className="ap-btn-red"
+                    onClick={() => navigate('/admin/reminders/add')}
+                  >
+                    + Add Reminder
+                  </button>
+                </div>
+              </div>
+
+              <div className="ap-reminders-list--expansive" style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '0.85rem 1rem', background: '#fdfcfb', maxHeight: '280px', overflowY: 'auto' }}>
+                {paginatedReminderItems.length > 0 ? (
+                  paginatedReminderItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`ap-todo-row ap-todo-row--${item.type.toLowerCase().replace(/[^a-z]/g, '')}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.75rem',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        background: '#fffbeb',
+                        border: '1px solid #fde68a',
+                        minHeight: '44px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                        transition: 'all 0.18s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+                        <FaBell style={{ color: '#dc2626', fontSize: '1.15rem', flexShrink: 0 }} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', minWidth: 0, flex: 1 }}>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.reminder?.accountName || item.reminder?.dealName ? `${item.reminder.accountName || item.reminder.dealName} | ` : ''}{item.meta || 'Follow up'} {item.reminder?.ownerName ? `| ${item.reminder.ownerName}` : ''}
+                          </span>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title || item.message}>
+                            {item.title || item.message}
+                          </span>
+                        </div>
                       </div>
-                    ) : (
-                      <div className="ap-todo-btn-group" onClick={(e) => e.stopPropagation()}>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                        {!isReminderItemActivated(item.reminder) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              if (item.reminder) handleOpenReminderModal(item.reminder, e)
+                              else item.onClick?.(e)
+                            }}
+                            title="Activate Reminder"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '6px',
+                              border: '1.5px solid #ef4444',
+                              background: '#ffffff',
+                              color: '#dc2626',
+                              fontSize: '0.78rem',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <FaCheck />
+                          </button>
+                        )}
                         <button
                           type="button"
-                          className="ap-view-action-btn"
-                          onClick={item.onClick}
+                          onClick={(e) => {
+                            if (item.reminder) handleOpenReminderModal(item.reminder, e)
+                            else navigate('/admin/tasks')
+                          }}
+                          title="Create Task / Reschedule"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '6px',
+                            border: '1.5px solid #ef4444',
+                            background: '#ffffff',
+                            color: '#dc2626',
+                            fontSize: '0.78rem',
+                            cursor: 'pointer',
+                          }}
                         >
-                          Open &rarr;
+                          <FaPlus />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            if (item.reminder) handleTodoReminderClose(item.reminder, e)
+                            else if (typeof refreshData === 'function') refreshData()
+                          }}
+                          title="Close Reminder"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '6px',
+                            border: '1.5px solid #ef4444',
+                            background: '#ffffff',
+                            color: '#dc2626',
+                            fontSize: '0.78rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <FaTimes />
                         </button>
                       </div>
-                    )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="ap-todo-empty-state">
+                    <FaBell className="ap-todo-empty-icon" style={{ color: '#dc2626' }} />
+                    <p>No active reminders right now.</p>
                   </div>
-                ))
-              ) : (
-                <div className="ap-todo-empty-state">
-                  <FaClipboardList className="ap-todo-empty-icon" />
-                  <p>No {todoFilter !== 'all' ? todoFilter : ''} to-do items found right now.</p>
+                )}
+              </div>
+
+              {totalReminderPages > 1 && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.45rem 0.85rem',
+                    borderTop: '1px solid #f1f5f9',
+                    background: '#fafafa',
+                    borderBottomLeftRadius: '12px',
+                    borderBottomRightRadius: '12px',
+                    fontSize: '0.75rem',
+                    color: '#64748b',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setReminderPage(1)}
+                    disabled={reminderPage === 1}
+                    style={{
+                      padding: '3px 9px',
+                      borderRadius: '5px',
+                      border: '1px solid #e2e8f0',
+                      background: reminderPage === 1 ? '#f8fafc' : '#ffffff',
+                      color: reminderPage === 1 ? '#94a3b8' : '#c60016',
+                      fontWeight: 700,
+                      cursor: reminderPage === 1 ? 'not-allowed' : 'pointer',
+                      fontSize: '0.72rem',
+                    }}
+                  >
+                    &laquo; First
+                  </button>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ marginRight: '4px', fontSize: '0.72rem', color: '#64748b' }}>
+                      Page {reminderPage} of {totalReminderPages}
+                    </span>
+                    {Array.from({ length: totalReminderPages }, (_, i) => i + 1)
+                      .filter((p) => p === 1 || p === totalReminderPages || Math.abs(p - reminderPage) <= 1)
+                      .map((p, idx, arr) => (
+                        <React.Fragment key={p}>
+                          {idx > 0 && p - arr[idx - 1] > 1 && (
+                            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>...</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setReminderPage(p)}
+                            style={{
+                              minWidth: '22px',
+                              height: '22px',
+                              padding: '0 4px',
+                              borderRadius: '4px',
+                              border: p === reminderPage ? '1px solid #c60016' : '1px solid #e2e8f0',
+                              background: p === reminderPage ? '#c60016' : '#ffffff',
+                              color: p === reminderPage ? '#ffffff' : '#334155',
+                              fontWeight: p === reminderPage ? 700 : 500,
+                              fontSize: '0.72rem',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {p}
+                          </button>
+                        </React.Fragment>
+                      ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setReminderPage(totalReminderPages)}
+                    disabled={reminderPage === totalReminderPages}
+                    style={{
+                      padding: '3px 9px',
+                      borderRadius: '5px',
+                      border: '1px solid #e2e8f0',
+                      background: reminderPage === totalReminderPages ? '#f8fafc' : '#ffffff',
+                      color: reminderPage === totalReminderPages ? '#94a3b8' : '#c60016',
+                      fontWeight: 700,
+                      cursor: reminderPage === totalReminderPages ? 'not-allowed' : 'pointer',
+                      fontSize: '0.72rem',
+                    }}
+                  >
+                    Last &raquo;
+                  </button>
                 </div>
               )}
             </div>
           </div>
-        </div>
-        {/* Communication Activity Summary Section */}
-        <div className="ap-card-box ap-communication-summary-card" style={{ marginTop: '1.25rem', marginBottom: '1.25rem', padding: '1.25rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <FaComments style={{ color: '#740a03', fontSize: '1.2rem' }} />
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '700', color: '#0f172a' }}>Communication Activity</h3>
+
+          {/* Right: Communication Activity Summary Section */}
+          <div className="ap-card-box ap-communication-summary-card" style={{ margin: 0, padding: '1.15rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', width: '100%', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <FaComments style={{ color: '#c60016', fontSize: '1.2rem' }} />
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '700', color: '#0f172a' }}>Communication Activity</h3>
+              </div>
+              <button
+                type="button"
+                className="ap-link-btn"
+                onClick={() => navigate('/admin/communication-activities')}
+                style={{ background: 'none', border: 'none', color: '#c60016', fontWeight: '600', cursor: 'pointer', fontSize: '0.875rem' }}
+              >
+                View All &rarr;
+              </button>
             </div>
-            <button
-              type="button"
-              className="ap-link-btn"
-              onClick={() => navigate('/admin/communication-activities')}
-              style={{ background: 'none', border: 'none', color: '#740a03', fontWeight: '600', cursor: 'pointer', fontSize: '0.875rem' }}
-            >
-              View All &rarr;
-            </button>
+            {communicationRemarks.length === 0 ? (
+              <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', color: '#94a3b8', fontSize: '0.875rem', textAlign: 'center' }}>
+                No recent communication activities found.
+              </div>
+            ) : (
+              <div className="ap-communication-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.35rem', maxHeight: '270px', overflowY: 'auto', paddingRight: '4px' }}>
+                {communicationRemarks.map((rmk) => {
+                  const isGeneral = String(rmk.category || 'General').toLowerCase() === 'general'
+                  const isCall = String(rmk.category || '').toLowerCase().includes('call')
+                  const badgeBg = isGeneral ? '#fee2e2' : isCall ? '#e0f2fe' : '#f1f5f9'
+                  const badgeColor = isGeneral ? '#dc2626' : isCall ? '#0284c7' : '#475569'
+                  const formattedDate = rmk.createdAt
+                    ? new Date(rmk.createdAt).toLocaleDateString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : '-'
+                  const authorName = rmk.createdByName || 'User'
+
+                  return (
+                    <div
+                      key={rmk.id || rmk._id}
+                      style={{
+                        padding: '4px 8px',
+                        background: '#fffdfa',
+                        borderRadius: '7px',
+                        border: '1px solid #fde68a',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '0.35rem',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                      }}
+                    >
+                      <div style={{ marginTop: '1px', color: '#64748b', fontSize: '0.72rem', flexShrink: 0 }}>
+                        <FaComments />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                        {/* Line 1: Date & Time + Author on left; Category badge on right */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.25rem' }}>
+                          <span style={{ fontSize: '0.60rem', color: '#64748b', fontWeight: 600 }}>
+                            {formattedDate} | By: {authorName}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '0.55rem',
+                              fontWeight: 800,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.3px',
+                              padding: '1px 5px',
+                              borderRadius: '9999px',
+                              background: badgeBg,
+                              color: badgeColor,
+                            }}
+                          >
+                            {String(rmk.category || 'General').toUpperCase()}
+                          </span>
+                        </div>
+
+                        {/* Line 2: Bold title / account or deal name */}
+                        <div style={{ fontSize: '0.70rem', fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {rmk.accountName || rmk.dealName || `Account #${rmk.accountId || rmk.dealId || '-'}`}
+                        </div>
+
+                        {/* Line 3: Content / remark */}
+                        <div style={{ fontSize: '0.64rem', color: '#475569', fontWeight: 500, lineHeight: 1.2, wordBreak: 'break-word' }}>
+                          {rmk.content || '-'}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '0.875rem' }}>
-            Track and monitor all recent call logs, general remarks, feedback, and interactive team discussion threads across Accounts and Deals.
-          </p>
-          {communicationRemarks.length === 0 ? (
-            <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', color: '#94a3b8', fontSize: '0.875rem', textAlign: 'center' }}>
-              No recent communication activities found.
-            </div>
-          ) : (
-            <div className="ap-communication-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.75rem' }}>
-              {communicationRemarks.slice(0, 5).map((rmk) => (
-                <div
-                  key={rmk.id || rmk._id}
-                  style={{
-                    padding: '0.625rem 0.875rem',
-                    background: '#f8fafc',
-                    borderRadius: '8px',
-                    borderLeft: '4px solid #740a03',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.25rem',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', color: '#740a03' }}>
-                      {String(rmk.category || 'General').toUpperCase()}
-                    </span>
-                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                      {rmk.createdAt ? new Date(rmk.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-'}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '0.875rem', color: '#1e293b', fontWeight: '500' }}>
-                    {rmk.content || '-'}
-                  </div>
-                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', color: '#64748b', marginTop: '0.125rem', flexWrap: 'wrap' }}>
-                    <span><strong>Account/Deal:</strong> {rmk.accountName || rmk.dealName || `ID: ${rmk.accountId || rmk.dealId || '-'}`}</span>
-                    <span><strong>By:</strong> {rmk.createdByName || 'User'} ({rmk.createdByEmail || rmk.accountOwnerEmail || '-'})</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         <AdminAnalyticsGraphs
@@ -1581,32 +2013,9 @@ const AdminPanel = () => {
       <div style={{ marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700, color: '#0f172a' }}>
-            {activeTab.name} — Real-Time Accounts & Deals Performance
+            {activeTab.name} — Real-Time Accounts, Deals & Quotations Performance
           </h2>
-          <p style={{ margin: '0.25rem 0 0 0', color: '#64748b', fontSize: '0.875rem' }}>
-            Direct one-by-one owner-wise dynamic accounts & deals graphs from MongoDB leads & deals collections.
-          </p>
         </div>
-        <button
-          type="button"
-          className="ap-link-btn"
-          onClick={() => navigate('/admin/users')}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            padding: '0.5rem 1rem',
-            background: '#eff6ff',
-            border: '1px solid #bfdbfe',
-            color: '#1d4ed8',
-            borderRadius: '8px',
-            fontWeight: 600,
-            cursor: 'pointer',
-            fontSize: '0.875rem',
-          }}
-        >
-          <FaUsers /> View All Users Roster &rarr;
-        </button>
       </div>
 
       {loadingUserPerformance ? (
@@ -1633,8 +2042,10 @@ const AdminPanel = () => {
 
     switch (activeTab.viewKey) {
       case 'salesSwati':
+      case 'swatiGroup':
       case 'salesLumos':
       case 'userWisePerformance':
+      case 'allUsers':
       case 'salesPerformanceA':
       case 'salesPerformanceB':
         return renderUserWisePerformanceGraphs()
@@ -1656,15 +2067,6 @@ const AdminPanel = () => {
 
   return (
     <div className="admin-panel">
-      {/* Top Welcome Header */}
-      <div className="ap-welcome-row" style={{ marginBottom: '0.75rem' }}>
-        <div className="ap-welcome-header-block">
-          <span className="ap-welcome-subhead">Welcome,</span>
-          <h1 className="ap-welcome-heading">{user?.name || 'Keval V Shah'}!</h1>
-          <p className="ap-welcome-sub">Here&apos;s what&apos;s happening with your business today.</p>
-        </div>
-      </div>
-
       <div className="ap-tabbar">
         <button
           type="button"
@@ -1723,6 +2125,15 @@ const AdminPanel = () => {
         </div>
       </div>
       <div className="ap-tabbar-divider-line" style={{ height: '1px', background: '#cbd5e1', margin: '0 0 1rem 0' }} />
+
+      {/* Top Welcome Header - Placed below tab bar */}
+      <div className="ap-welcome-row" style={{ marginBottom: '0.75rem' }}>
+        <div className="ap-welcome-header-block">
+          <span className="ap-welcome-subhead">Welcome,</span>
+          <h1 className="ap-welcome-heading">{user?.name || 'Keval V Shah'}!</h1>
+          <p className="ap-welcome-sub">Here&apos;s what&apos;s happening with your business today.</p>
+        </div>
+      </div>
 
       {isAdmin && openMenuTab && openMenuState ? createPortal(
         (
@@ -1811,7 +2222,7 @@ const AdminPanel = () => {
           reminder={activeReminderModalItem}
           currentUser={user}
           isAdmin={isAdmin}
-          allReminders={todoItems.map((i) => i.reminder).filter(Boolean)}
+          allReminders={allReminderItems.map((i) => i.reminder).filter(Boolean)}
           onActivateInPlace={handleModalActivateInPlace}
           onCloseInPlace={handleModalCloseInPlace}
           onRescheduleInPlace={handleModalRescheduleInPlace}

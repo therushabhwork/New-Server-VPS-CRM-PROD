@@ -19,7 +19,7 @@
 .ud-welcome-section {
   position: relative;
   margin-bottom: 1.35rem;
-  padding: 0 !important;
+  padding: 0.85rem 0 0 !important;
   border: none !important;
   background: transparent !important;
   background-color: transparent !important;
@@ -91,9 +91,9 @@
   border-radius: 10px;
   font-size: 1.15rem;
   flex-shrink: 0;
-  background: #2563eb !important;
+  background: #c60016 !important;
   color: #ffffff !important;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2) !important;
+  box-shadow: 0 2px 8px rgba(198, 0, 22, 0.2) !important;
 }
 
 .ud-stat-icon-wrapper svg {
@@ -102,7 +102,7 @@
 }
 
 .ud-stat-icon-wrapper--red {
-  background: #2563eb !important;
+  background: #c60016 !important;
   color: #ffffff !important;
 }
 
@@ -184,12 +184,14 @@
   width: 100%;
 }
 
-.ud-todo-card--expansive {
+.ud-todo-card--expansive,
+.ud-reminders-card--expansive {
   border-radius: 12px;
   background: #ffffff !important;
   border: 1px solid #e2e8f0 !important;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
   transition: all 0.25s ease;
+  overflow: hidden;
 }
 
 .ud-todo-header-expansive {
@@ -796,6 +798,12 @@
   }
 }
 
+@media (max-width: 1024px) {
+  .ud-monitoring-side-by-side {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 @media (max-width: 640px) {
   .ud-stats-grid {
     grid-template-columns: 1fr;
@@ -804,3 +812,4 @@
     grid-template-columns: 1fr;
   }
 }
+

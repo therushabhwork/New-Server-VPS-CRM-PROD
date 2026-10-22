@@ -5,10 +5,19 @@
   --user-muted: #64748b;
   --user-border: #e2e8f0;
   --user-surface: #ffffff;
-  --user-primary: #2563eb;
-  --user-primary-soft: #eff6ff;
-  background: #F8FAFC !important;
+  --user-primary: #c60016;
+  --user-primary-soft: #fff5f5;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
   color: var(--user-ink);
+}
+
+html.is-user body,
+html.is-user #root {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
 }
 
 .layout--user .layout-body {
@@ -116,8 +125,8 @@
 }
 
 .layout--user :not(.add-account-landscape-page) :is(input, select, textarea):not(.legacy-form-control):focus {
-  border-color: #2563eb !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+  border-color: #c60016 !important;
+  box-shadow: 0 0 0 3px rgba(198, 0, 22, 0.12) !important;
   outline: none;
 }
 
@@ -223,9 +232,9 @@
 
 .project-details-card input:focus,
 .project-details-card select:focus {
-  border-color: #2563eb !important;
+  border-color: #c60016 !important;
   background: #ffffff !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+  box-shadow: 0 0 0 3px rgba(198, 0, 22, 0.12) !important;
   outline: none !important;
 }
 
@@ -318,46 +327,6 @@
   align-items: center !important;
   gap: 0.65rem !important;
   flex-shrink: 0 !important;
-}
-
-.layout--user .admin-accounts-actions-trigger {
-  min-height: 2.35rem !important;
-  padding: 0.4rem 0.95rem !important;
-  border-radius: 8px !important;
-  border: 1px solid #dc2626 !important;
-  background: #ffffff !important;
-  color: #dc2626 !important;
-  font-size: 0.85rem !important;
-  font-weight: 600 !important;
-  transition: all 0.18s ease !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 0.45rem !important;
-}
-
-.layout--user .admin-accounts-actions-trigger:hover {
-  background: #ffe4e6 !important;
-  color: #b91c1c !important;
-  border-color: #b91c1c !important;
-}
-
-.layout--user .admin-accounts-workspace-close {
-  min-height: 2.35rem !important;
-  padding: 0.4rem 1.15rem !important;
-  border-radius: 8px !important;
-  border: none !important;
-  background: #2563eb !important;
-  color: #ffffff !important;
-  font-size: 0.85rem !important;
-  font-weight: 600 !important;
-  transition: all 0.18s ease !important;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25) !important;
-}
-
-.layout--user .admin-accounts-workspace-close:hover {
-  background: #1d4ed8 !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3) !important;
 }
 
 .layout--user .admin-accounts-workspace-body {
@@ -522,9 +491,9 @@
 }
 
 .layout--user .admin-accounts-workspace-field--single-editing {
-  border-color: #2563eb !important;
+  border-color: #c60016 !important;
   background: #ffffff !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+  box-shadow: 0 0 0 3px rgba(198, 0, 22, 0.12) !important;
 }
 
 .layout--user .admin-accounts-workspace-field-label {
@@ -552,7 +521,7 @@
 }
 
 .layout--user .admin-accounts-workspace-field-edit-btn:hover {
-  color: #2563eb !important;
+  color: #c60016 !important;
 }
 
 .layout--user .admin-accounts-workspace-field-value {
@@ -596,8 +565,8 @@
 .layout--user .admin-accounts-workspace-field input:focus,
 .layout--user .admin-accounts-workspace-field select:focus,
 .layout--user .admin-accounts-workspace-field textarea:focus {
-  border-color: #2563eb !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+  border-color: #c60016 !important;
+  box-shadow: 0 0 0 3px rgba(198, 0, 22, 0.12) !important;
   outline: none !important;
 }
 
@@ -685,9 +654,9 @@
 .layout--user .admin-accounts-bulk-field input:focus,
 .layout--user .admin-accounts-bulk-field select:focus,
 .layout--user .admin-accounts-bulk-field textarea:focus {
-  border-color: #2563eb !important;
+  border-color: #c60016 !important;
   background: #ffffff !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+  box-shadow: 0 0 0 3px rgba(198, 0, 22, 0.12) !important;
   outline: none !important;
 }
 
@@ -697,18 +666,18 @@
   justify-content: center !important;
   padding: 0.45rem 1rem !important;
   border-radius: 6px !important;
-  border: 1px solid #2563eb !important;
-  background: #2563eb !important;
+  border: 1px solid #c60016 !important;
+  background: linear-gradient(135deg, #c60016 0%, #990011 100%) !important;
   color: #ffffff !important;
   font-size: 0.85rem !important;
   font-weight: 600 !important;
   cursor: pointer !important;
   transition: background 0.18s ease, transform 0.1s ease !important;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25) !important;
+  box-shadow: 0 1px 3px rgba(198, 0, 22, 0.25) !important;
 }
 
 .layout--user .admin-accounts-header-save-btn:hover:not(:disabled) {
-  background: #1d4ed8 !important;
+  background: #a80012 !important;
   transform: translateY(-1px) !important;
 }
 

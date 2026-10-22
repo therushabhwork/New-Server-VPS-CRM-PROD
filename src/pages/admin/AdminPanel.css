@@ -2768,7 +2768,8 @@ html:not([data-theme="dark"]) select.ap-performance-select option {
   width: 100%;
 }
 
-.ap-todo-card--expansive {
+.ap-todo-card--expansive,
+.ap-reminders-card--expansive {
   border-radius: 20px !important;
   background: #ffffff !important;
   border: 1px solid #f0eae1 !important;
@@ -3527,5 +3528,45 @@ html:not([data-theme="dark"]) select.ap-performance-select option {
 
 .admin-accounts-board-row:hover td {
   background: var(--surface-muted) !important;
+}
+
+/* Monitoring KPI Cards Compact Sizing Override */
+.admin-panel .ap-kpi-card {
+  min-height: 82px !important;
+  padding: 0.65rem 0.95rem !important;
+  border-radius: 12px !important;
+  gap: 0.75rem !important;
+}
+
+.admin-panel .ap-kpi-icon-wrap {
+  width: 2.2rem !important;
+  height: 2.2rem !important;
+  border-radius: 10px !important;
+  font-size: 0.95rem !important;
+  flex-shrink: 0 !important;
+}
+
+.admin-panel .ap-kpi-value {
+  font-size: 1.65rem !important;
+  line-height: 1.1 !important;
+}
+
+.admin-panel .ap-kpi-title {
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  color: #64748b !important;
+}
+
+.admin-panel .ap-kpi-wave {
+  height: 22px !important;
+  bottom: 0 !important;
+  opacity: 0.75 !important;
+}
+
+/* Side-by-Side Monitoring Responsive Fallback */
+@media (max-width: 1080px) {
+  .ap-monitoring-side-by-side {
+    grid-template-columns: 1fr !important;
+  }
 }
 
