@@ -26,10 +26,14 @@ for (let index = 0; index < rawArgs.length; index += 1) {
   }
 }
 
+const fs = require('node:fs');
+const realCwd = fs.realpathSync(process.cwd());
+
 const child = spawn(
   process.execPath,
   ['--max-old-space-size=8192', viteBin, ...forwardedArgs],
   {
+    cwd: realCwd,
     stdio: 'inherit',
     env: {
       ...process.env,

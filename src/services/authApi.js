@@ -29,6 +29,34 @@ export const authApi = {
     return apiClient.post('/auth/refresh')
   },
 
+  async rememberedLogin() {
+    return apiClient.post('/auth/remembered-login')
+  },
+
+  async sendHeartbeat(sessionId, activeSeconds = 60) {
+    return apiClient.post('/sessions/heartbeat', { sessionId, activeSeconds })
+  },
+
+  async continueSession(sessionId) {
+    return apiClient.post('/sessions/continue', { sessionId })
+  },
+
+  async sessionTimeout(sessionId) {
+    return apiClient.post('/sessions/timeout', { sessionId })
+  },
+
+  async logSessionEvent(sessionId, { event = 'popup_arrived', stage = '', details = '', userEmail = '', userName = '', role = '' } = {}) {
+    return apiClient.post('/sessions/log-event', {
+      sessionId: sessionId || 'active_user',
+      event,
+      stage,
+      details,
+      userEmail,
+      userName,
+      role,
+    }).catch(() => {})
+  },
+
   async logout() {
     return apiClient.post('/auth/logout')
   },

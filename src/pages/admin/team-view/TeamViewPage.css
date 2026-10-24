@@ -566,3 +566,60 @@
   color: #ffffff !important;
   fill: currentColor !important;
 }
+
+.ug-preview-popup-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 6px;
+  border: 1px solid #c60016;
+  background: #ffffff;
+  color: #c60016;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ug-preview-popup-btn:hover {
+  background: #c60016;
+  color: #ffffff;
+}
+
+.ug-simulate-btn {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.ug-simulate-btn:hover {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.ug-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ug-status-badge--active {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.ug-status-badge--idle {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.ug-status-badge--timeout {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+

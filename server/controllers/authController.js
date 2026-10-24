@@ -52,15 +52,98 @@ const getRequestMeta = (req) => ({
   browser: req.body?.browser,
 })
 
+const sessionService = require('../services/sessionService')
+
+const rememberedDeviceCookieOptions = (expiresAt) => ({
+  ...cookieOptions(),
+  maxAge: expiresAt ? Math.max(0, new Date(expiresAt).getTime() - Date.now()) : 30 * 24 * 60 * 60 * 1000,
+})
+
+const setRememberedDeviceCookie = (res, deviceResult = {}) => {
+  if (deviceResult?.rawToken) {
+    res.cookie('crm_device_token', deviceResult.rawToken, rememberedDeviceCookieOptions(deviceResult.expiresAt))
+  }
+}
+
 const login = async (req, res, next) => {
   try {
-    const result = await authService.login(req.body || {}, getRequestMeta(req))
+    const requestMeta = getRequestMeta(req)
+    const result = await authService.login(req.body || {}, requestMeta)
     setSessionCookies(res, result)
+
+    // Record session in user_sessions & issue 30-day remembered device
+    const sessionId = result.session?.id || `${Date.now()}`
+    await sessionService.recordLoginSession({
+      user: result.user,
+      sessionId,
+      deviceName: requestMeta.deviceName || 'Desktop',
+      ipAddress: requestMeta.ipAddress,
+      loginMode: 'password',
+    })
+
+    const deviceResult = await sessionService.issueRememberedDevice({
+      user: result.user,
+      deviceName: requestMeta.deviceName || 'Desktop',
+    })
+    setRememberedDeviceCookie(res, deviceResult)
+
     res.json({
       success: true,
       user: result.user,
-      session: result.session,
+      session: {
+        ...result.session,
+        id: sessionId,
+      },
+      sessionId,
       ...buildTokenPayload(req, result),
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+const rememberedLogin = async (req, res, next) => {
+  try {
+    const rawToken = req.cookies?.crm_device_token || req.body?.deviceToken
+    if (!rawToken) {
+      return res.status(401).json({ success: false, message: 'No remembered device token found.' })
+    }
+
+    const verifiedUser = await sessionService.verifyRememberedDevice(rawToken)
+    if (!verifiedUser) {
+      res.clearCookie('crm_device_token', { path: '/' })
+      return res.status(401).json({ success: false, message: 'Remembered device expired or user account not active.' })
+    }
+
+    const requestMeta = getRequestMeta(req)
+    // Issue brand new CRM session without password
+    const safeUser = await authService.getCurrentUser(verifiedUser.legacyId || verifiedUser._id)
+    const portalRole = safeUser.role
+    const session = await authService.issueSession(safeUser, verifiedUser, {
+      rememberMe: true,
+      requestMeta,
+    })
+
+    setSessionCookies(res, session)
+    const sessionId = session.session?.id || `${Date.now()}`
+
+    await sessionService.recordLoginSession({
+      user: safeUser,
+      sessionId,
+      deviceName: requestMeta.deviceName || 'Desktop',
+      ipAddress: requestMeta.ipAddress,
+      loginMode: 'remembered_device',
+    })
+
+    res.json({
+      success: true,
+      user: safeUser,
+      session: {
+        ...session.session,
+        id: sessionId,
+      },
+      sessionId,
+      ...buildTokenPayload(req, session),
     })
   } catch (error) {
     next(error)
@@ -281,6 +364,7 @@ const notImplemented = (featureName) => (_req, res) => {
 
 module.exports = {
   login,
+  rememberedLogin,
   microsoftLoginUrl,
   microsoftLoginRedirect,
   microsoftCallback,

@@ -7,6 +7,7 @@ const { auth } = require('../validation/schemas')
 const router = express.Router()
 
 router.post('/login', validate({ body: auth?.login }), authController.login)
+router.post('/remembered-login', authController.rememberedLogin)
 router.get('/microsoft/login', authController.microsoftLoginRedirect)
 router.get('/microsoft/url', authController.microsoftLoginUrl)
 router.get('/microsoft/callback', authController.microsoftCallback)

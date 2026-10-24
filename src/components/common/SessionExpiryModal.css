@@ -1,0 +1,152 @@
+/* Swati CRM Brand Themed Session Expiry Modal */
+.crm-session-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(17, 24, 39, 0.72);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
+  padding: 1.25rem;
+}
+
+.crm-session-modal-card {
+  background: #ffffff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 480px;
+  padding: 2.25rem 2rem;
+  text-align: center;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+  animation: crmModalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes crmModalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.crm-session-warning-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #c60016;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  padding: 0.4rem 1rem;
+  border-radius: 9999px;
+  margin-bottom: 1.25rem;
+  letter-spacing: 0.04em;
+}
+
+.crm-session-title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 0.65rem 0;
+}
+
+.crm-session-subtitle {
+  font-size: 0.9375rem;
+  color: #4b5563;
+  line-height: 1.5;
+  margin: 0 0 1.5rem 0;
+}
+
+.crm-session-timer-display {
+  font-size: 2.75rem;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  font-weight: 800;
+  color: #c60016;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.25rem 0;
+  line-height: 1.1;
+}
+
+.crm-session-timer-label {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+}
+
+.crm-session-prompt {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0 0 1.75rem 0;
+}
+
+.crm-session-actions-row {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.crm-session-btn-back {
+  flex: 1;
+  background: #ffffff;
+  border: 1.5px solid #d1d5db;
+  color: #374151;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.crm-session-btn-back:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+  color: #111827;
+}
+
+.crm-session-btn-continue {
+  flex: 1;
+  background: #c60016;
+  border: 1.5px solid #c60016;
+  color: #ffffff;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 4px rgba(198, 0, 22, 0.25);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.crm-session-btn-continue:hover {
+  background: #a80012;
+  border-color: #a80012;
+  box-shadow: 0 4px 6px rgba(198, 0, 22, 0.3);
+}
+
+@media (max-width: 480px) {
+  .crm-session-modal-card {
+    padding: 1.75rem 1.25rem;
+  }
+  .crm-session-actions-row {
+    flex-direction: column;
+  }
+  .crm-session-timer-display {
+    font-size: 2.25rem;
+  }
+}

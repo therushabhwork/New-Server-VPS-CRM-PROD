@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   FaCheckCircle,
   FaHistory,
@@ -22,6 +22,8 @@ import { authService } from '../../../services/authService'
 import { enrichUsersForTeamView, getAttendanceRows, getTeamViewGroups, getTeamViewTypes } from '../../../features/adminTeamView/teamViewData'
 import { exportExcelWorkbook } from '../../../utils/excelExport'
 import { userGroupApi } from '../../../services/userGroupApi'
+import apiClient from '../../../services/apiClient'
+import { useAuth } from '../../../context/AuthContext'
 import './TeamViewPage.css'
 
 const TOP_TABS = [
@@ -49,6 +51,10 @@ const isAdminTeamUser = (user = {}) => {
 }
 
 const TeamViewPage = ({ isAdminView = true }) => {
+  const auth = useAuth()
+  const previewExpiryModal = auth?.previewExpiryModal
+  const simulateMinimizeModal = auth?.simulateMinimizeModal
+
   const [activeTopTab, setActiveTopTab] = useState('team-view')
   const [activeTreeTab, setActiveTreeTab] = useState('group')
   const [expandedGroupIds, setExpandedGroupIds] = useState(() => new Set(['ahmedabad']))
@@ -59,6 +65,10 @@ const TeamViewPage = ({ isAdminView = true }) => {
   const [selectedType, setSelectedType] = useState('')
   const [selectedUser, setSelectedUser] = useState('')
   const [selectedUserAction, setSelectedUserAction] = useState('')
+  
+  const [ugSearchTerm, setUgSearchTerm] = useState('')
+  const [ugPerPage, setUgPerPage] = useState(10)
+  const [ugPage, setUgPage] = useState(1)
   
   const [apiUserGroups, setApiUserGroups] = useState([])
   const [apiUserTypes, setApiUserTypes] = useState([])
@@ -235,28 +245,148 @@ const TeamViewPage = ({ isAdminView = true }) => {
     }
   }, [selectedGroup, selectedGroupRecord])
 
-  const loggedInTodayUsers = useMemo(() => (
-    groupUsers.filter((u) => u.attendanceStatus === 'Present')
+  // Live session ledger from MongoDB user_sessions collection
+  const [liveSessions, setLiveSessions] = useState([])
+  const [liveAttendanceSummary, setLiveAttendanceSummary] = useState(null)
+  const [liveSessionsLoading, setLiveSessionsLoading] = useState(false)
+
+  const fetchLiveSessionData = useCallback(() => {
+    if (!isAdminView) return
+    setLiveSessionsLoading(true)
+    const groupParam = selectedGroupLabel || ''
+    Promise.all([
+      apiClient.get('/admin/team-view/sessions', {
+        params: {
+          group: groupParam && groupParam !== 'all' ? groupParam : undefined,
+          date: new Date().toISOString().split('T')[0],
+        },
+      }).catch(() => ({ data: [] })),
+      apiClient.get('/admin/team-view/attendance-summary', {
+        params: {
+          group: groupParam && groupParam !== 'all' ? groupParam : undefined,
+          date: new Date().toISOString().split('T')[0],
+        },
+      }).catch(() => ({ data: null })),
+    ]).then(([sessRes, attRes]) => {
+      setLiveSessions(Array.isArray(sessRes?.data) ? sessRes.data : sessRes?.data?.data || [])
+      setLiveAttendanceSummary(attRes?.data?.data || attRes?.data || null)
+    }).finally(() => {
+      setLiveSessionsLoading(false)
+    })
+  }, [isAdminView, selectedGroupLabel])
+
+  useEffect(() => {
+    fetchLiveSessionData()
+    const timer = setInterval(fetchLiveSessionData, 30000) // Poll live updates every 30s
+    return () => clearInterval(timer)
+  }, [fetchLiveSessionData])
+
+  const formatSec = (sec = 0) => {
+    if (!sec || sec < 60) return `${sec || 0}s`
+    const hrs = Math.floor(sec / 3600)
+    const mins = Math.floor((sec % 3600) / 60)
+    if (hrs > 0) return `${hrs}h ${mins}m`
+    return `${mins}m`
+  }
+
+  const loggedInTodayUsers = useMemo(() => {
+    if (liveSessions.length > 0) {
+      return liveSessions.map((s) => ({
+        id: s.sessionId || s.userId,
+        loginName: s.userName || s.userEmail,
+        userEmail: s.userEmail,
+        userGroup: s.userGroup || 'General',
+        userType: s.portalRole || 'User',
+        loginTime: s.loginAt ? new Date(s.loginAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-',
+        logoutTime: s.logoutAt ? new Date(s.logoutAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : (s.status === 'active' ? 'Active Now 🟢' : '-'),
+        activeWorkTime: formatSec(s.totalActiveSeconds),
+        idleTime: formatSec(s.totalIdleSeconds),
+        device: s.deviceName || 'Desktop',
+        status: s.status,
+        logoutReason: s.logoutReason,
+      }))
+    }
+
+    return groupUsers.filter((u) => u.attendanceStatus === 'Present')
       .map((u) => ({
+        id: u.id,
         loginName: u.name,
+        userEmail: u.email,
         userGroup: u.userGroup,
         userType: u.userType,
         loginTime: u.punchIn,
-        logoutTime: u.punchOut !== '-' ? u.punchOut : '',
+        logoutTime: u.punchOut !== '-' ? u.punchOut : 'Active Now 🟢',
+        activeWorkTime: '-',
+        idleTime: '-',
         device: 'Desktop',
+        status: 'active',
+        logoutReason: null,
       }))
-  ), [groupUsers])
+  }, [liveSessions, groupUsers])
 
-  const activeUsers = useMemo(() => (
-    groupUsers.filter((u) => u.attendanceStatus === 'Present' && u.punchOut === '-')
-  ), [groupUsers])
+  const displayedLoggedInUsers = useMemo(() => {
+    let list = loggedInTodayUsers
+    if (selectedGroup) {
+      const sel = String(selectedGroup).toLowerCase()
+      list = list.filter((u) => {
+        const g = String(u.userGroup || '').toLowerCase()
+        return g.includes(sel) || sel.includes(g)
+      })
+    }
+    if (ugSearchTerm.trim()) {
+      const q = ugSearchTerm.toLowerCase().trim()
+      list = list.filter((u) =>
+        String(u.loginName || '').toLowerCase().includes(q) ||
+        String(u.userEmail || '').toLowerCase().includes(q) ||
+        String(u.userGroup || '').toLowerCase().includes(q) ||
+        String(u.userType || '').toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [loggedInTodayUsers, selectedGroup, ugSearchTerm])
 
-  const idleUsers10 = useMemo(() => [], [])
-  const idleUsers30 = useMemo(() => [], [])
-  const idleUsers60 = useMemo(() => [], [])
-  const notLoggedInUsers = useMemo(() => (
-    groupUsers.filter((u) => u.attendanceStatus !== 'Present')
-  ), [groupUsers])
+  const activeUsers = useMemo(() => {
+    if (liveSessions.length > 0) {
+      const activeFromSessions = liveSessions.filter((s) => s.status === 'active')
+      if (activeFromSessions.length > 0) {
+        return activeFromSessions.map((s) => ({
+          id: s.userId || s.sessionId,
+          name: s.userName || s.userEmail,
+          email: s.userEmail,
+          userType: s.portalRole || 'User',
+          userGroup: s.userGroup || 'General',
+        }))
+      }
+    }
+    return groupUsers.filter((u) => u.attendanceStatus === 'Present' && u.punchOut === '-')
+  }, [liveSessions, groupUsers])
+
+  const idleUsers10 = useMemo(() => {
+    const now = Date.now()
+    return liveSessions.filter((s) => {
+      if (s.status !== 'active') return false
+      const lastActive = s.lastActivityAt ? new Date(s.lastActivityAt).getTime() : new Date(s.loginAt).getTime()
+      return (now - lastActive) >= 10 * 60 * 1000 && (now - lastActive) < 30 * 60 * 1000
+    })
+  }, [liveSessions])
+
+  const idleUsers30 = useMemo(() => {
+    const now = Date.now()
+    return liveSessions.filter((s) => {
+      if (s.status !== 'active') return false
+      const lastActive = s.lastActivityAt ? new Date(s.lastActivityAt).getTime() : new Date(s.loginAt).getTime()
+      return (now - lastActive) >= 30 * 60 * 1000 && (now - lastActive) < 60 * 60 * 1000
+    })
+  }, [liveSessions])
+
+  const idleUsers60 = useMemo(() => {
+    return liveSessions.filter((s) => s.status === 'idle_timeout' || s.logoutReason === 'inactivity_timeout')
+  }, [liveSessions])
+
+  const notLoggedInUsers = useMemo(() => {
+    const loggedInEmails = new Set(liveSessions.map((s) => String(s.userEmail || '').toLowerCase()))
+    return groupUsers.filter((u) => !loggedInEmails.has(String(u.email || '').toLowerCase()))
+  }, [liveSessions, groupUsers])
 
   const groupSummary = useMemo(() => {
     if (!selectedGroup) return null
@@ -609,59 +739,133 @@ const TeamViewPage = ({ isAdminView = true }) => {
               {ugActiveView === 'logged-in-today' ? (
                 <div className="ug-panel">
                   <div className="ug-panel-titlebar">
-                    <h3 className="ug-panel-title">Logged In Today</h3>
-                    <button type="button" className="ug-refresh-btn" title="Refresh"><FaSyncAlt /></button>
+                    <h3 className="ug-panel-title">
+                      Logged In Today {selectedGroup ? `(${selectedGroup})` : '(All Groups)'}
+                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <button
+                        type="button"
+                        className="ug-preview-popup-btn"
+                        onClick={() => previewExpiryModal && previewExpiryModal()}
+                        title="Preview the session warning popup on your screen"
+                      >
+                        ⚠️ Preview Expiry Popup (Test)
+                      </button>
+                      <button
+                        type="button"
+                        className="ug-preview-popup-btn ug-simulate-btn"
+                        onClick={() => simulateMinimizeModal && simulateMinimizeModal()}
+                        title="Simulate 5-minute minimize immediately, render popup & log to PowerShell"
+                      >
+                        ⏱️ Test 5-Min Minimize (Instant)
+                      </button>
+                      <button
+                        type="button"
+                        className="ug-refresh-btn"
+                        onClick={fetchLiveSessionData}
+                        title="Refresh"
+                      >
+                        <FaSyncAlt />
+                      </button>
+                    </div>
                   </div>
-                  {!selectedGroup ? (
-                    <p className="ug-info">Select a user group to view logins.</p>
-                  ) : (
-                    <>
-                      <div className="ug-table-controls">
-                        <label>
-                          <select className="ug-per-page-select" defaultValue="10">
-                            {[10, 25, 50].map((n) => <option key={n} value={n}>{n}</option>)}
-                          </select>
-                          {' '}records per page
-                        </label>
-                        <label className="ug-search-wrap">
-                          Search: <input type="text" className="ug-search-input" />
-                        </label>
-                      </div>
-                      <table className="ug-table">
-                        <thead>
-                          <tr>
-                            {['Login Name', 'User Group', 'User Type', 'Login Time', 'Logout Time', 'Device'].map((h) => (
-                              <th key={h}>⇅ {h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {loggedInTodayUsers.length === 0 ? (
-                            <tr><td colSpan={6} className="ug-table-empty">No users logged in today.</td></tr>
-                          ) : (
-                            loggedInTodayUsers.map((u, idx) => (
-                              <tr key={idx}>
-                                <td>{u.loginName}</td>
-                                <td>{u.userGroup}</td>
-                                <td>{u.userType}</td>
-                                <td>{u.loginTime}</td>
-                                <td>{u.logoutTime}</td>
-                                <td>{u.device}</td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                      <div className="ug-table-footer">
-                        <span>Showing 1 to {loggedInTodayUsers.length} of {loggedInTodayUsers.length} entries</span>
-                        <div className="ug-pagination">
-                          <button type="button" disabled>← Previous</button>
-                          <button type="button" className="ug-page-active">1</button>
-                          <button type="button" disabled>Next →</button>
-                        </div>
-                      </div>
-                    </>
-                  )}
+
+                  <div className="ug-table-controls">
+                    <label>
+                      <select
+                        className="ug-per-page-select"
+                        value={ugPerPage}
+                        onChange={(e) => {
+                          setUgPerPage(Number(e.target.value))
+                          setUgPage(1)
+                        }}
+                      >
+                        {[10, 25, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                      {' '}records per page
+                    </label>
+                    <label className="ug-search-wrap">
+                      Search:{' '}
+                      <input
+                        type="text"
+                        className="ug-search-input"
+                        placeholder="Search name, email, group..."
+                        value={ugSearchTerm}
+                        onChange={(e) => {
+                          setUgSearchTerm(e.target.value)
+                          setUgPage(1)
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="ug-table">
+                      <thead>
+                        <tr>
+                          <th>Login Name</th>
+                          <th>Email</th>
+                          <th>User Group</th>
+                          <th>User Type</th>
+                          <th>Login Time</th>
+                          <th>Logout Time</th>
+                          <th>Active Work Time</th>
+                          <th>Idle Time</th>
+                          <th>Status</th>
+                          <th>Exit Reason</th>
+                          <th>Device</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displayedLoggedInUsers.length === 0 ? (
+                          <tr><td colSpan={11} className="ug-table-empty">No users logged in today.</td></tr>
+                        ) : (
+                          displayedLoggedInUsers.slice((ugPage - 1) * ugPerPage, ugPage * ugPerPage).map((u, idx) => (
+                            <tr key={u.id || idx}>
+                              <td><strong>{u.loginName}</strong></td>
+                              <td>{u.userEmail || '-'}</td>
+                              <td>{u.userGroup}</td>
+                              <td>{u.userType}</td>
+                              <td>{u.loginTime}</td>
+                              <td>{u.logoutTime}</td>
+                              <td>{u.activeWorkTime || '-'}</td>
+                              <td>{u.idleTime || '-'}</td>
+                              <td>
+                                <span className={`ug-status-badge ug-status-badge--${u.status === 'active' ? 'active' : u.status === 'idle_timeout' ? 'timeout' : 'idle'}`}>
+                                  {u.status === 'active' ? 'Active 🟢' : u.status === 'idle_timeout' ? 'Idle Timeout ⏳' : u.status || 'Closed'}
+                                </span>
+                              </td>
+                              <td>{u.logoutReason || '-'}</td>
+                              <td>{u.device}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="ug-table-footer">
+                    <span>
+                      Showing {displayedLoggedInUsers.length === 0 ? 0 : (ugPage - 1) * ugPerPage + 1} to {Math.min(ugPage * ugPerPage, displayedLoggedInUsers.length)} of {displayedLoggedInUsers.length} entries
+                    </span>
+                    <div className="ug-pagination">
+                      <button
+                        type="button"
+                        disabled={ugPage <= 1}
+                        onClick={() => setUgPage((p) => Math.max(1, p - 1))}
+                      >
+                        ← Previous
+                      </button>
+                      <button type="button" className="ug-page-active">{ugPage}</button>
+                      <button
+                        type="button"
+                        disabled={ugPage * ugPerPage >= displayedLoggedInUsers.length}
+                        onClick={() => setUgPage((p) => p + 1)}
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ) : null}
 
@@ -714,14 +918,47 @@ const TeamViewPage = ({ isAdminView = true }) => {
                     ))}
                   </div>
                   <div className="ug-idle-body">
-                    {ugIdleTab === '10min' && idleUsers10.length === 0 && (
-                      <p className="ug-info-blue"><FaRegClock style={{ marginRight: '0.3rem' }} />No users found idle for 10+ mins.</p>
+                    {ugIdleTab === '10min' && (
+                      idleUsers10.length === 0 ? (
+                        <p className="ug-info-blue"><FaRegClock style={{ marginRight: '0.3rem' }} />No users found idle for 10+ mins.</p>
+                      ) : (
+                        <div className="ug-idle-user-list">
+                          {idleUsers10.map((s, idx) => (
+                            <div key={s.sessionId || idx} className="ug-idle-user-row">
+                              <span><FaUserClock className="ug-idle-user-icon" style={{ color: '#d97706' }} /> <strong>{s.userName || s.userEmail}</strong> ({s.userEmail})</span>
+                              <span className="ug-idle-user-meta">{s.userGroup || 'General'} • Idle 10+ Mins • Active Now</span>
+                            </div>
+                          ))}
+                        </div>
+                      )
                     )}
-                    {ugIdleTab === '30min' && idleUsers30.length === 0 && (
-                      <p className="ug-info-blue"><FaRegClock style={{ marginRight: '0.3rem' }} />No users found idle for 30+ mins.</p>
+                    {ugIdleTab === '30min' && (
+                      idleUsers30.length === 0 ? (
+                        <p className="ug-info-blue"><FaRegClock style={{ marginRight: '0.3rem' }} />No users found idle for 30+ mins.</p>
+                      ) : (
+                        <div className="ug-idle-user-list">
+                          {idleUsers30.map((s, idx) => (
+                            <div key={s.sessionId || idx} className="ug-idle-user-row">
+                              <span><FaUserClock className="ug-idle-user-icon" style={{ color: '#ea580c' }} /> <strong>{s.userName || s.userEmail}</strong> ({s.userEmail})</span>
+                              <span className="ug-idle-user-meta">{s.userGroup || 'General'} • Idle 30+ Mins • Active Now</span>
+                            </div>
+                          ))}
+                        </div>
+                      )
                     )}
-                    {ugIdleTab === '1hr' && idleUsers60.length === 0 && (
-                      <p className="ug-info-blue"><FaRegClock style={{ marginRight: '0.3rem' }} />No users found idle for 1+ hour.</p>
+                    {ugIdleTab === '1hr' && (
+                      idleUsers60.length === 0 ? (
+                        <p className="ug-info-blue"><FaRegClock style={{ marginRight: '0.3rem' }} />No users found idle for 1+ hour.</p>
+                      ) : (
+                        <div className="ug-idle-user-list">
+                          {idleUsers60.map((s, idx) => (
+                            <div key={s.sessionId || idx} className="ug-idle-user-row">
+                              <span><FaUserTimes className="ug-idle-user-icon" style={{ color: '#dc2626' }} /> <strong>{s.userName || s.userEmail}</strong> ({s.userEmail})</span>
+                              <span className="ug-idle-user-meta">{s.userGroup || 'General'} • Auto Logged Out (1h+) • Reason: {s.logoutReason || 'inactivity_timeout'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )
                     )}
                     {ugIdleTab === 'notlogged' && (
                       notLoggedInUsers.length === 0

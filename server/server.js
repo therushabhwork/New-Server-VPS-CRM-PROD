@@ -57,6 +57,8 @@ const chartRoutes = require('./routes/chartRoutes')
 const accountProjectRoutes = require('./routes/accountProjectRoutes')
 const chartController = require('./controllers/chartController')
 const scheduledReportRoutes = require('./routes/scheduledReportRoutes')
+const sessionRoutes = require('./routes/sessionRoutes')
+const teamViewRoutes = require('./routes/teamViewRoutes')
 const reportScheduler = require('./jobs/reportScheduler')
 
 const tryRequire = (moduleName) => {
@@ -283,6 +285,8 @@ app.use('/api/admin/password-reset-requests', requireBackendReady, passwordReset
 app.use('/api/ovrc', requireBackendReady, requireAuth, ovrcRoutes)
 app.use('/api/database', requireBackendReady, databaseRoutes)
 app.use('/api/devices', requireBackendReady, userDeviceRoutes)
+app.use('/api/sessions', requireBackendReady, sessionRoutes)
+app.use('/api/admin/team-view', requireBackendReady, teamViewRoutes)
 app.use('/api', requireBackendReady, remarkRoutes)
 app.use('/api/reports', requireBackendReady, reportRoutes)
 app.use('/api/scheduled-reports', requireBackendReady, scheduledReportRoutes)
