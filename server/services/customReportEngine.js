@@ -1,3 +1,11 @@
+const {
+  canonicalizeKey,
+  parseUniversalDate,
+  formatDateDisplay,
+  formatNumberOrCurrency,
+  findDeepFieldValue,
+  resolveDocumentField,
+} = require('../utils/universalFieldResolver');
 const mongoose = require('mongoose');
 const XLSX = require('xlsx');
 
@@ -546,7 +554,266 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
   };
 }
 
+
+async function getUsersLookupMap() {
+  const map = {};
+  try {
+    const col = mongoose.connection.db.collection('users');
+    const users = await col.find({}, {
+      projection: { name: 1, username: 1, ownerCode: 1, owner_code: 1, email: 1, employeeId: 1, legacyId: 1 }
+    }).toArray();
+    users.forEach(u => {
+      const displayName = u.name || u.username || u.email;
+      if (!displayName) return;
+      if (u._id) map[String(u._id).toLowerCase()] = displayName;
+      if (u.legacyId) map[String(u.legacyId).toLowerCase()] = displayName;
+      if (u.username) map[String(u.username).toLowerCase()] = displayName;
+      if (u.name) map[String(u.name).toLowerCase()] = displayName;
+      if (u.email) map[String(u.email).toLowerCase()] = displayName;
+      if (u.ownerCode) map[String(u.ownerCode).toLowerCase()] = displayName;
+      if (u.owner_code) map[String(u.owner_code).toLowerCase()] = displayName;
+      if (u.employeeId) map[String(u.employeeId).toLowerCase()] = displayName;
+    });
+  } catch (_) {}
+  return map;
+}
+
+async function executeTemplateReport({ template, templateId, filters = [], companyId }) {
+  let tpl = template;
+  if (!tpl && templateId) {
+    try {
+      const templateCol = mongoose.connection.db.collection('reporttemplates');
+      tpl = await templateCol.findOne({
+        $or: [
+          ...(mongoose.Types.ObjectId.isValid(templateId) ? [{ _id: new mongoose.Types.ObjectId(String(templateId)) }] : []),
+          { id: String(templateId) },
+        ],
+      }).catch(() => null);
+
+      if (!tpl) {
+        const reportsCol = mongoose.connection.db.collection('reports');
+        tpl = await reportsCol.findOne({
+          $or: [
+            ...(mongoose.Types.ObjectId.isValid(templateId) ? [{ _id: new mongoose.Types.ObjectId(String(templateId)) }] : []),
+            { id: String(templateId) },
+          ],
+        }).catch(() => null);
+      }
+    } catch (_) {}
+  }
+
+  let rawEntity = String(
+    tpl?.entityType ||
+    tpl?.categoryKey ||
+    tpl?.reportContext ||
+    'account'
+  ).toLowerCase().trim();
+
+  if (rawEntity === 'accounts' || rawEntity === 'lead' || rawEntity === 'leads') rawEntity = 'account';
+  if (rawEntity === 'deals') rawEntity = 'deal';
+  if (rawEntity === 'customers') rawEntity = 'customer';
+  if (rawEntity === 'quotations') rawEntity = 'quotation';
+  if (rawEntity === 'users') rawEntity = 'user';
+
+  const entityType = rawEntity;
+  const collectionName = COLLECTION_MAP[entityType] || 'leads';
+
+  let fields = [];
+  if (Array.isArray(tpl?.selectedFields) && tpl.selectedFields.length > 0) {
+    fields = tpl.selectedFields;
+  } else if (Array.isArray(tpl?.displayFields) && tpl.displayFields.length > 0) {
+    fields = tpl.displayFields;
+  } else {
+    fields = DEFAULT_FIELDS[entityType] || DEFAULT_FIELDS.account;
+  }
+
+  const usersMap = await getUsersLookupMap();
+  const col = mongoose.connection.db.collection(collectionName);
+  const query = {};
+  if (companyId) {
+    query.companyId = companyId;
+  }
+  const rawDocs = await col.find(query).sort({ createdAt: -1 }).toArray();
+
+  const templateFilters = Array.isArray(tpl?.filters) ? tpl.filters : (Array.isArray(filters) ? filters : []);
+  let filteredDocs = rawDocs;
+
+  if (templateFilters.length > 0) {
+    filteredDocs = filteredDocs.filter(doc => {
+      return templateFilters.every(flt => {
+        if (!flt.field) return true;
+        const docVal = resolveDocumentField(doc, flt.field, usersMap);
+        const op = flt.operator || 'equals';
+        const targetVal = String(flt.value || '').trim().toLowerCase();
+        const testStr = String(docVal || '').trim().toLowerCase();
+
+        if (op === 'equals' || op === 'equal') return testStr === targetVal;
+        if (op === 'not_equals' || op === 'not_equal') return testStr !== targetVal;
+        if (op === 'contains') return testStr.includes(targetVal);
+        if (op === 'not_contains') return !testStr.includes(targetVal);
+        if (op === 'starts_with') return testStr.startsWith(targetVal);
+        if (op === 'ends_with') return testStr.endsWith(targetVal);
+        if (op === 'is_empty') return docVal === '-' || docVal === '' || docVal === null || docVal === undefined;
+        if (op === 'is_not_empty') return docVal !== '-' && docVal !== '' && docVal !== null && docVal !== undefined;
+        return true;
+      });
+    });
+  }
+
+  // Universal Date Range Filtering (Dual Mode: string YYYY-MM-DD + ISO UTC Date bounds)
+  const rawFrom = tpl?.recordDateFrom || tpl?.dateRange?.fromDate || tpl?.fromDate || '';
+  const rawTo = tpl?.recordDateTo || tpl?.dateRange?.toDate || tpl?.toDate || '';
+  if (rawFrom || rawTo) {
+    const fromStr = rawFrom ? String(rawFrom).slice(0, 10) : '';
+    const toStr = rawTo ? String(rawTo).slice(0, 10) : '';
+    let fromDate = null;
+    let toDate = null;
+    if (fromStr) {
+      fromDate = new Date(fromStr);
+      fromDate.setUTCHours(0, 0, 0, 0);
+    }
+    if (toStr) {
+      toDate = new Date(toStr);
+      toDate.setUTCHours(23, 59, 59, 999);
+    }
+
+    filteredDocs = filteredDocs.filter((doc) => {
+      let rawDateVal = null;
+      if (entityType === 'account') {
+        rawDateVal = doc.accountDate || doc.formData?.accountDate || doc.date || doc.createdAt;
+      } else if (entityType === 'deal') {
+        rawDateVal = doc.dealDate || doc.data?.dealDate || doc.quotationDate || doc.createdAt;
+      } else if (entityType === 'customer') {
+        rawDateVal = doc.createdAt || doc.addedDate;
+      } else if (entityType === 'quotation') {
+        rawDateVal = doc.quotationDate || doc.data?.quotationDate || doc.date || doc.createdAt;
+      } else {
+        rawDateVal = doc.date || doc.createdAt;
+      }
+
+      if (!rawDateVal) return false;
+      const strVal = String(rawDateVal).slice(0, 10);
+      const dateObj = new Date(rawDateVal);
+      const hasValidDate = !Number.isNaN(dateObj.getTime());
+
+      if (fromStr && toStr) {
+        const inStrRange = strVal >= fromStr && strVal <= toStr;
+        const inDateRange = hasValidDate && dateObj >= fromDate && dateObj <= toDate;
+        return inStrRange || inDateRange;
+      } else if (fromStr) {
+        const afterStr = strVal >= fromStr;
+        const afterDate = hasValidDate && dateObj >= fromDate;
+        return afterStr || afterDate;
+      } else if (toStr) {
+        const beforeStr = strVal <= toStr;
+        const beforeDate = hasValidDate && dateObj <= toDate;
+        return beforeStr || beforeDate;
+      }
+      return true;
+    });
+  }
+
+  // Universal Owner Filter
+  const ownerFilter = String(tpl?.accountOwner || tpl?.owner || 'all').trim().toLowerCase();
+  if (ownerFilter && ownerFilter !== 'all') {
+    filteredDocs = filteredDocs.filter((doc) => {
+      const ownerVal = resolveDocumentField(doc, 'owner', usersMap);
+      const docOwners = [
+        ownerVal,
+        doc.accountOwnerName,
+        doc.accountOwner,
+        doc.ownerName,
+        doc.owner,
+        doc.formData?.accountOwner,
+        doc.formData?.owner,
+        doc.formData?.accountOwnerName,
+        doc.dealOwnerName,
+        doc.dealOwner,
+        doc.assignedToName,
+        doc.assignedTo,
+        doc.customerOwner,
+        doc.quotationOwner,
+        doc.ownerCode,
+        doc.formData?.ownerCode,
+      ].filter(Boolean).map((o) => String(o).trim().toLowerCase());
+
+      return docOwners.some((o) => o === ownerFilter || o.includes(ownerFilter) || ownerFilter.includes(o));
+    });
+  }
+
+  // Field Labels Mapping
+  let labelDict = ACCOUNT_FIELD_LABELS;
+  if (entityType === 'deal') labelDict = DEAL_FIELD_LABELS;
+  else if (entityType === 'customer') labelDict = CUSTOMER_FIELD_LABELS;
+  else if (entityType === 'quotation') labelDict = QUOTATION_FIELD_LABELS;
+
+  const fieldLabels = fields.map((f, idx) => {
+    if (typeof f === 'object' && (f.label || f.key)) return f.label || f.key;
+    const strKey = String(f);
+    if (Array.isArray(tpl?.layoutOrder) && tpl.layoutOrder[idx]) {
+      return tpl.layoutOrder[idx];
+    }
+    return labelDict[strKey] || strKey;
+  });
+
+  const rows = filteredDocs.map((doc) => {
+    const rowObj = {};
+    fields.forEach((fieldIdentifier, idx) => {
+      const rawKey = typeof fieldIdentifier === 'object' ? (fieldIdentifier.key || fieldIdentifier.label) : String(fieldIdentifier);
+      const displayLabel = fieldLabels[idx] || rawKey;
+      const resolvedVal = resolveDocumentField(doc, fieldIdentifier, usersMap);
+      const finalVal = resolvedVal !== undefined && resolvedVal !== null ? resolvedVal : '-';
+      
+      // Set both the human label and the raw key so whatever key is requested, it matches!
+      rowObj[displayLabel] = finalVal;
+      rowObj[rawKey] = finalVal;
+    });
+    return rowObj;
+  });
+
+  const reportTitle = tpl?.reportName || tpl?.title || tpl?.name || 'Report';
+
+  return {
+    template: tpl,
+    entityType,
+    collectionName,
+    selectedFields: fields,
+    fieldLabels,
+    rows,
+    totalRecords: rows.length,
+    reportTitle,
+  };
+}
+
+function generateTemplateExcelBuffer({ reportTitle, fieldLabels, rows }) {
+  const workbook = XLSX.utils.book_new();
+  const rowsForSheet = rows.length > 0 ? rows : [{ 'Report Status': 'No records found matching report criteria' }];
+  const worksheet = XLSX.utils.json_to_sheet(rowsForSheet);
+
+  const keys = fieldLabels && fieldLabels.length > 0 ? fieldLabels : Object.keys(rowsForSheet[0] || {});
+  worksheet['!cols'] = keys.map(key => {
+    let maxLen = key.length;
+    rowsForSheet.slice(0, 100).forEach(r => {
+      const v = String(r[key] ?? '');
+      if (v.length > maxLen) maxLen = v.length;
+    });
+    return { wch: Math.min(Math.max(maxLen + 3, 14), 50) };
+  });
+
+  const cleanSheetName = String(reportTitle).substring(0, 31).replace(/[:\\/?*[\]]/g, '_');
+  XLSX.utils.book_append_sheet(workbook, worksheet, cleanSheetName);
+
+  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  const fileName = String(reportTitle).replace(/[^a-zA-Z0-9_-]/g, '_') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+
+  return { buffer, fileName, recordCount: rows.length };
+}
+
 module.exports = {
+  executeTemplateReport,
+  generateTemplateExcelBuffer,
+  getUsersLookupMap,
+
   generateCustomReportExcelBuffer,
   ACCOUNT_FIELD_LABELS,
   DEAL_FIELD_LABELS,

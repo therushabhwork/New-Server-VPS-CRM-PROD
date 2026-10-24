@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const ReportTemplate = require('../models/ReportTemplate');
 const Report = require('../models/Report');
+const { executeTemplateReport, generateTemplateExcelBuffer } = require('../services/customReportEngine');
 const { executeReportPayload, sendOwnerWiseReportEmails } = require('../services/reportEngine');
 const salesPerformanceReportService = require('../services/salesPerformanceReportService');
 const { requireAuth } = require('../middleware/authMiddleware');
@@ -45,6 +46,72 @@ router.get('/fields', requireAuth, (req, res) => {
   res.json(reportFieldDefinitions);
 });
 
+
+// Template Report Live Preview Endpoint (Returns actual rows and dynamic column headers from MongoDB)
+router.post('/templates/preview', requireAuth, async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const result = await executeTemplateReport({
+      template: payload.template || payload,
+      templateId: payload.templateId || payload.id,
+      filters: payload.filters || [],
+      companyId: req.user?.companyId,
+    });
+    res.json(result);
+  } catch (error) {
+    console.error('[ReportRoutes] /templates/preview error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Template Report Live Excel Download Endpoint (Streams real .xlsx buffer from MongoDB)
+router.post('/templates/export-excel', requireAuth, async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const result = await executeTemplateReport({
+      template: payload.template || payload,
+      templateId: payload.templateId || payload.id,
+      filters: payload.filters || [],
+      companyId: req.user?.companyId,
+    });
+
+    const { buffer, fileName } = generateTemplateExcelBuffer({
+      reportTitle: result.reportTitle,
+      fieldLabels: result.fieldLabels,
+      rows: result.rows,
+    });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + fileName + '"');
+    res.send(buffer);
+  } catch (error) {
+    console.error('[ReportRoutes] /templates/export-excel error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/templates/:id/export-excel', requireAuth, async (req, res) => {
+  try {
+    const result = await executeTemplateReport({
+      templateId: req.params.id,
+      companyId: req.user?.companyId,
+    });
+
+    const { buffer, fileName } = generateTemplateExcelBuffer({
+      reportTitle: result.reportTitle,
+      fieldLabels: result.fieldLabels,
+      rows: result.rows,
+    });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + fileName + '"');
+    res.send(buffer);
+  } catch (error) {
+    console.error('[ReportRoutes] /templates/:id/export-excel error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Live Preview Endpoint for Report Builder
 router.post('/preview', requireAuth, async (req, res) => {
   try {
@@ -60,10 +127,6 @@ router.post('/preview', requireAuth, async (req, res) => {
       period: payload.period || (fromDate || toDate ? 'custom' : 'all'),
       dateRange: { fromDate, toDate },
       ownerFilter: payload.ownerFilter || 'all',
-      quotesGeneratedRange: payload.quotesGeneratedRange || {
-        generatedFrom: payload.generatedFrom || '',
-        generatedTo: payload.generatedTo || '',
-      },
       filters: Array.isArray(payload.filters) ? payload.filters : [],
       page: Number(payload.page || 1),
       limit: payload.limit !== undefined ? Number(payload.limit) : 50,
@@ -71,7 +134,7 @@ router.post('/preview', requireAuth, async (req, res) => {
     });
     res.json(result);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(error.statusCode || 500).json({ error: error.message, code: error.code });
   }
 });
 
@@ -91,17 +154,13 @@ router.post('/export-excel', requireAuth, async (req, res) => {
       period: payload.period || (fromDate || toDate ? 'custom' : 'all'),
       dateRange: { fromDate, toDate },
       ownerFilter: payload.ownerFilter || 'all',
-      quotesGeneratedRange: payload.quotesGeneratedRange || {
-        generatedFrom: payload.generatedFrom || '',
-        generatedTo: payload.generatedTo || '',
-      },
       filters: Array.isArray(payload.filters) ? payload.filters : [],
       limit: 0,
       companyId: req.user?.companyId,
     });
     res.json(result);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(error.statusCode || 500).json({ error: error.message, code: error.code });
   }
 });
 

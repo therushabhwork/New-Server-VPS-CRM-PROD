@@ -22,11 +22,12 @@ import {
 import { useAuth } from '../../../context/AuthContext'
 import { useData } from '../../../context/DataContext'
 import { exportExcelWorkbook, exportCsvWorkbook } from '../../../utils/excelExport'
+import { slugify } from '../../../utils/helpers'
 import apiClient from '../../../services/apiClient'
 import reportApi from '../../../services/reportApi'
 import { customerService } from '../../../services/customerService'
 import { jsPDF } from 'jspdf'
-import 'jspdf-autotable'
+import { autoTable } from 'jspdf-autotable'
 import {
   CUSTOM_REPORT_CONTEXTS,
   getCustomReportContext,
@@ -672,6 +673,13 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           userGroupMembers: Array.isArray(tpl.userGroupMembers) ? tpl.userGroupMembers : [],
           accountOwner: tpl.accountOwner || tpl.owner || '',
           accountOwnerEmail: tpl.accountOwnerEmail || '',
+          recordDateFrom: tpl.recordDateFrom || tpl.dateRange?.fromDate || '',
+          recordDateTo: tpl.recordDateTo || tpl.dateRange?.toDate || '',
+          dateFilterField: tpl.dateFilterField || tpl.dateRange?.dateFilterField || 'accountDate',
+          dateRange: tpl.dateRange || {
+            fromDate: tpl.recordDateFrom || '',
+            toDate: tpl.recordDateTo || '',
+          },
           generatedFrom: tpl.generatedFrom || '',
           generatedTo: tpl.generatedTo || '',
           createdBy: tpl.creatorName || tpl.createdBy || '-',
@@ -709,6 +717,13 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           userGroupMembers: Array.isArray(rpt.userGroupMembers) ? rpt.userGroupMembers : [],
           accountOwner: rpt.accountOwner || rpt.owner || '',
           accountOwnerEmail: rpt.accountOwnerEmail || '',
+          recordDateFrom: rpt.recordDateFrom || rpt.dateRange?.fromDate || '',
+          recordDateTo: rpt.recordDateTo || rpt.dateRange?.toDate || '',
+          dateFilterField: rpt.dateFilterField || rpt.dateRange?.dateFilterField || 'accountDate',
+          dateRange: rpt.dateRange || {
+            fromDate: rpt.recordDateFrom || '',
+            toDate: rpt.recordDateTo || '',
+          },
           generatedFrom: rpt.generatedFrom || '',
           generatedTo: rpt.generatedTo || '',
           createdBy: rpt.creatorName || rpt.createdBy || '-',
@@ -1606,23 +1621,12 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
             fromDate: report.recordDateFrom || report.dateRange?.fromDate || '',
             toDate: report.recordDateTo || report.dateRange?.toDate || '',
           },
-          quotesGeneratedRange: {
-            generatedFrom: report.generatedFrom || report.quotesGeneratedRange?.generatedFrom || '',
-            generatedTo: report.generatedTo || report.quotesGeneratedRange?.generatedTo || '',
-          },
-          generatedFrom: report.generatedFrom || report.quotesGeneratedRange?.generatedFrom || '',
-          generatedTo: report.generatedTo || report.quotesGeneratedRange?.generatedTo || '',
           filters: Array.isArray(report.filters) ? report.filters : [],
           limit: 0,
         }
 
         const res = await apiClient.post('/reports/export-excel', payload)
-        const exportRows = res.data?.rows || []
-
-        if (exportRows.length === 0) {
-          alert('No matching records found for this report for the specified date range.')
-          return
-        }
+        const exportRows = res.data?.rows || res.data?.data || res.data?.records || []
 
         const fieldLabels = res.data?.fieldLabels || selectedFieldKeys
         const columns = fieldLabels.map((lbl) => ({
@@ -1654,7 +1658,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           const tableHead = [columns.map((c) => c.label)]
           const tableBody = dedupedDataSets.map((row) => columns.map((c) => String(row[c.key] ?? '-')))
 
-          doc.autoTable({
+          autoTable(doc, {
             head: tableHead,
             body: tableBody,
             startY: 26,
@@ -2189,7 +2193,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
       const tableHead = [columns.map((c) => c.label)]
       const tableBody = dedupedDataSets.map((row) => columns.map((c) => String(row[c.key] ?? '-')))
 
-      doc.autoTable({
+      autoTable(doc, {
         head: tableHead,
         body: tableBody,
         startY: 26,

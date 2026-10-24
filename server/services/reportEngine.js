@@ -26,6 +26,106 @@ const getMongoModel = (entityType) => {
   return getDbModel(colName);
 };
 
+const resolveReportOwnerValues = async (ownerFilter, companyId) => {
+  const requested = String(ownerFilter || '').trim();
+  if (!requested || requested.toLowerCase() === 'all') return [];
+
+  const values = new Set([requested]);
+  const usersCollection = mongoose.connection?.db?.collection('users');
+  if (!usersCollection) return Array.from(values);
+
+  const safeUsers = await usersCollection.find({}, {
+    projection: {
+      _id: 1, legacyId: 1, username: 1, name: 1, email: 1,
+      ownerCode: 1, owner_code: 1, employeeId: 1, companyId: 1,
+      status: 1, isApproved: 1,
+    },
+  }).toArray();
+
+  const normalized = requested.toLowerCase();
+  safeUsers.forEach((user) => {
+    if (companyId !== undefined && companyId !== null && user.companyId !== undefined
+      && String(user.companyId) !== String(companyId)) return;
+    if (user.status && String(user.status).toLowerCase() !== 'approved') return;
+    if (user.isApproved === false) return;
+
+    const identityValues = [
+      user.name, user.username, user.email, user.ownerCode,
+      user.owner_code, user.employeeId, user.legacyId, user._id,
+    ].filter((value) => value !== undefined && value !== null).map(String);
+    if (!identityValues.some((value) => value.toLowerCase() === normalized)) return;
+
+    identityValues.forEach((value) => values.add(value));
+  });
+
+  return Array.from(values);
+};
+
+const normalizeRequestedFields = (entityDefs, selectedFields) => {
+  if (!Array.isArray(selectedFields) || selectedFields.length === 0) {
+    return Object.keys(entityDefs);
+  }
+
+  const definitions = Object.entries(entityDefs);
+  const aliases = {
+    'account record date range': 'accountDate',
+    'account record date': 'accountDate',
+    'record date range': 'accountDate',
+    'account date': 'accountDate',
+    'name': 'name',
+    'account name': 'accountName',
+    'account owner': 'accountOwner',
+    'owner code': 'ownerCode',
+  };
+  const normalized = selectedFields.map((field) => {
+    const value = typeof field === 'object'
+      ? String(field.key || field.field || field.label || '').trim()
+      : String(field || '').trim();
+    if (!value) return null;
+    if (entityDefs[value]) return value;
+
+    const alias = aliases[value.toLowerCase()];
+    if (alias && entityDefs[alias]) return alias;
+
+    const match = definitions.find(([, definition]) => (
+      String(definition.label || '').trim().toLowerCase() === value.toLowerCase()
+    ));
+    return match ? match[0] : null;
+  }).filter(Boolean);
+
+  return normalized.length > 0 ? [...new Set(normalized)] : Object.keys(entityDefs);
+};
+
+const normalizeFieldToken = (value) => String(value || '')
+  .replace(/([a-z])([A-Z])/g, '$1 $2')
+  .replace(/[^a-zA-Z0-9]+/g, '')
+  .toLowerCase();
+
+const findCaseInsensitiveValue = (doc, keys) => {
+  if (!doc || typeof doc !== 'object') return undefined;
+  const wanted = new Set(keys.filter(Boolean).map(normalizeFieldToken));
+  const containers = [doc, doc.formData, doc.data].filter((value) => value && typeof value === 'object');
+  for (const container of containers) {
+    for (const [key, value] of Object.entries(container)) {
+      if (wanted.has(normalizeFieldToken(key)) && value !== undefined && value !== null && value !== '') {
+        return value;
+      }
+    }
+  }
+  return undefined;
+};
+
+const getFieldAliases = (key, definition) => ({
+  accountDate: ['accountDate', 'Account Date', 'account_date', 'Account Record Date Range'],
+  accountName: ['accountName', 'Account Name', 'name', 'companyName', 'company', 'title'],
+  name: ['name', 'Name', 'accountName', 'Account Name', 'companyName', 'company', 'title'],
+  accountOwner: ['accountOwner', 'Account Owner', 'ownerName', 'Owner Name'],
+  dealDate: ['dealDate', 'Deal Date', 'deal_date'],
+  quotationDate: ['quotationDate', 'Quotation Date', 'quoteDate', 'quotation_date'],
+  ...((definition && definition.dbField) ? { [definition.dbField]: [definition.dbField] } : {}),
+  [key]: [key],
+}[key] || [key, definition?.dbField]);
+
 const formatDateDisplay = (dateInput, includeTime = false) => {
   if (!dateInput) return '-';
   if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput.trim())) {
@@ -90,6 +190,18 @@ const getDateRangeBounds = (period, dateRange = {}) => {
   if (dateRange && (dateRange.fromDate || dateRange.toDate)) {
     const fromDate = parseUniversalDate(dateRange.fromDate, false);
     const toDate = parseUniversalDate(dateRange.toDate, true);
+    if ((dateRange.fromDate && !fromDate) || (dateRange.toDate && !toDate)) {
+      const error = new Error('Invalid report date range. Use YYYY-MM-DD or DD-MM-YYYY.');
+      error.code = 'INVALID_DATE_RANGE';
+      error.statusCode = 400;
+      throw error;
+    }
+    if (fromDate && toDate && fromDate > toDate) {
+      const error = new Error('Report start date must be before or equal to the end date.');
+      error.code = 'INVALID_DATE_RANGE';
+      error.statusCode = 400;
+      throw error;
+    }
     return { fromDate, toDate };
   }
 
@@ -153,13 +265,18 @@ const executeReportPayload = async ({
         dateBranches.push(
           { accountDate: { $gte: fromStr, $lte: toStr } },
           { 'formData.accountDate': { $gte: fromStr, $lte: toStr } },
+          { 'data.accountDate': { $gte: fromStr, $lte: toStr } },
+          { accountDate: { $gte: fromIso, $lte: toIso } },
+          { 'formData.accountDate': { $gte: fromIso, $lte: toIso } },
+          { 'data.accountDate': { $gte: fromIso, $lte: toIso } },
           { accountDate: { $gte: fromDate, $lte: toDate } },
           { 'formData.accountDate': { $gte: fromDate, $lte: toDate } },
+          { 'data.accountDate': { $gte: fromDate, $lte: toDate } },
           {
             $and: [
               { accountDate: { $in: [null, undefined, ''] } },
               { 'formData.accountDate': { $in: [null, undefined, ''] } },
-              { createdAt: { $gte: fromDate, $lte: toDate } }
+              { $or: [{ createdAt: { $gte: fromDate, $lte: toDate } }, { 'formData.createdAt': { $gte: fromDate, $lte: toDate } }] }
             ]
           }
         );
@@ -167,13 +284,18 @@ const executeReportPayload = async ({
         dateBranches.push(
           { accountDate: { $gte: fromStr } },
           { 'formData.accountDate': { $gte: fromStr } },
+          { 'data.accountDate': { $gte: fromStr } },
+          { accountDate: { $gte: fromIso } },
+          { 'formData.accountDate': { $gte: fromIso } },
+          { 'data.accountDate': { $gte: fromIso } },
           { accountDate: { $gte: fromDate } },
           { 'formData.accountDate': { $gte: fromDate } },
+          { 'data.accountDate': { $gte: fromDate } },
           {
             $and: [
               { accountDate: { $in: [null, undefined, ''] } },
               { 'formData.accountDate': { $in: [null, undefined, ''] } },
-              { createdAt: { $gte: fromDate } }
+              { $or: [{ createdAt: { $gte: fromDate } }, { 'formData.createdAt': { $gte: fromDate } }] }
             ]
           }
         );
@@ -181,13 +303,18 @@ const executeReportPayload = async ({
         dateBranches.push(
           { accountDate: { $lte: toStr } },
           { 'formData.accountDate': { $lte: toStr } },
+          { 'data.accountDate': { $lte: toStr } },
+          { accountDate: { $lte: toIso } },
+          { 'formData.accountDate': { $lte: toIso } },
+          { 'data.accountDate': { $lte: toIso } },
           { accountDate: { $lte: toDate } },
           { 'formData.accountDate': { $lte: toDate } },
+          { 'data.accountDate': { $lte: toDate } },
           {
             $and: [
               { accountDate: { $in: [null, undefined, ''] } },
               { 'formData.accountDate': { $in: [null, undefined, ''] } },
-              { createdAt: { $lte: toDate } }
+              { $or: [{ createdAt: { $lte: toDate } }, { 'formData.createdAt': { $lte: toDate } }] }
             ]
           }
         );
@@ -459,20 +586,20 @@ const executeReportPayload = async ({
 
   // Owner Filtering strictly by owner name / code
   if (ownerFilter && ownerFilter !== 'all') {
-    const ownerCodeStr = String(ownerFilter).trim();
+    const ownerValues = await resolveReportOwnerValues(ownerFilter, companyId);
+    const ownerPatterns = ownerValues.map((value) => new RegExp(`^${String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
     andClauses.push({
       $or: [
-        { ownerCode: ownerCodeStr },
-        { accountOwnerCode: ownerCodeStr },
-        { dealOwnerCode: ownerCodeStr },
-        { customerOwnerCode: ownerCodeStr },
-        { quotationOwnerCode: ownerCodeStr },
-        { accountOwner: new RegExp(ownerCodeStr, 'i') },
-        { dealOwner: new RegExp(ownerCodeStr, 'i') },
-        { customerOwner: new RegExp(ownerCodeStr, 'i') },
-        { quotationOwner: new RegExp(ownerCodeStr, 'i') },
-        { 'formData.accountOwner': new RegExp(ownerCodeStr, 'i') },
-        { 'formData.ownerName': new RegExp(ownerCodeStr, 'i') },
+        ...['ownerCode', 'accountOwnerCode', 'dealOwnerCode', 'customerOwnerCode', 'quotationOwnerCode',
+          'accountOwner', 'accountOwnerName', 'dealOwner', 'dealOwnerName', 'customerOwner',
+          'customerOwnerName', 'quotationOwner', 'quotationOwnerName', 'assignedTo', 'ownerUserId',
+          'ownerId', 'createdBy', 'ownerEmail'].flatMap((field) => ownerPatterns.map((pattern) => ({ [field]: pattern }))),
+        ...['accountOwner', 'accountOwnerName', 'ownerName', 'dealOwner', 'dealOwnerName', 'customerOwner',
+          'customerOwnerName', 'quotationOwner', 'quotationOwnerName', 'assignedTo', 'ownerUserId',
+          'ownerId', 'createdBy', 'ownerEmail'].flatMap((field) => ownerPatterns.map((pattern) => ({ [`formData.${field}`]: pattern }))),
+        ...['accountOwner', 'accountOwnerName', 'ownerName', 'dealOwner', 'dealOwnerName', 'customerOwner',
+          'customerOwnerName', 'quotationOwner', 'quotationOwnerName', 'selectedAccountOwner', 'assignedTo',
+          'ownerUserId', 'ownerId', 'createdBy', 'ownerEmail'].flatMap((field) => ownerPatterns.map((pattern) => ({ [`data.${field}`]: pattern }))),
       ],
     });
   }
@@ -481,7 +608,7 @@ const executeReportPayload = async ({
 
   // Build MongoDB projection object
   const projection = { createdAt: 1, _id: 1 };
-  const requestedKeys = selectedFields.length > 0 ? selectedFields : Object.keys(entityDefs);
+  const requestedKeys = normalizeRequestedFields(entityDefs, selectedFields);
 
   requestedKeys.forEach((key) => {
     const def = entityDefs[key];
@@ -506,17 +633,36 @@ const executeReportPayload = async ({
   projection.customerOwnerCode = 1;
   projection.quotationOwnerCode = 1;
   projection.accountOwner = 1;
+  projection.accountOwnerName = 1;
   projection.dealOwner = 1;
+  projection.dealOwnerName = 1;
   projection.customerOwner = 1;
+  projection.customerOwnerName = 1;
   projection.quotationOwner = 1;
+  projection.quotationOwnerName = 1;
   projection.accountNumber = 1;
   projection.accountNo = 1;
   projection.accountDate = 1;
+  projection.dealDate = 1;
+  projection.quoteDate = 1;
+  projection.quotationDate = 1;
+  projection.amount = 1;
+  projection.dealValue = 1;
+  projection.totalAmount = 1;
+  projection.title = 1;
+  projection.projectName = 1;
+  projection.contactPerson = 1;
+  projection.contactMobile = 1;
+  projection.contactEmail = 1;
+  projection.dealSource = 1;
+  projection.source = 1;
   projection.updatedAt = 1;
   projection.dealNumber = 1;
   projection.customerNumber = 1;
   projection.quotationNumber = 1;
 
+  const collectionCount = await Model.countDocuments({});
+  const companyScopeCount = companyId ? await Model.countDocuments({ companyId }) : collectionCount;
   const totalCount = await Model.countDocuments(matchQuery);
   const pageNum = Math.max(1, Number(page) || 1);
   const pageSize = limit !== undefined && limit !== null ? Number(limit) : 50;
@@ -534,13 +680,13 @@ const executeReportPayload = async ({
   rawDocs.forEach((doc) => {
     let uniqueKey = '';
     if (dataSource === 'account') {
-      uniqueKey = String(doc._id || doc.accountNumber || doc.accountNo || '').trim();
+      uniqueKey = String(doc.accountNumber || doc.accountNo || doc.formData?.accountNumber || doc.formData?.accountNo || doc._id || '').trim();
     } else if (dataSource === 'deal') {
-      uniqueKey = String(doc._id || doc.dealNumber || doc.data?.dealNumber || '').trim();
+      uniqueKey = String(doc.dealNumber || doc.data?.dealNumber || doc._id || '').trim();
     } else if (dataSource === 'customer') {
-      uniqueKey = String(doc._id || doc.customerNumber || doc.customerNo || '').trim();
+      uniqueKey = String(doc.customerNumber || doc.customerNo || doc.formData?.customerNumber || doc._id || '').trim();
     } else if (dataSource === 'quotation') {
-      uniqueKey = String(doc._id || doc.quotationNumber || doc.quoteNumber || '').trim();
+      uniqueKey = String(doc.quotationNumber || doc.quoteNumber || doc.data?.quotationNumber || doc._id || '').trim();
     } else {
       uniqueKey = String(doc._id || '').trim();
     }
@@ -571,11 +717,15 @@ const executeReportPayload = async ({
         }
       }
 
+      if (rawVal === undefined || rawVal === null || rawVal === '') {
+        rawVal = findCaseInsensitiveValue(doc, getFieldAliases(key, def));
+      }
+
       // Context-aware deep fallbacks with exact 1st Priority vs Fallback logic
       if (key === 'name' || key === 'accountName') {
         rawVal = rawVal || doc.formData?.accountName || doc.customerName || doc.company || doc.name || doc.companyName || doc.title;
       } else if (key === 'accountDate') {
-        rawVal = rawVal || doc.formData?.accountDate || doc.accountDate || doc.createdAt;
+        rawVal = rawVal || doc.formData?.accountDate || doc.accountDate || doc.data?.accountDate || doc.createdAt;
       } else if (key === 'updatedAt') {
         rawVal = rawVal || doc.updatedAt || doc.createdAt;
       } else if (key === 'accountNo' || key === 'accountNumber') {
@@ -638,10 +788,13 @@ const executeReportPayload = async ({
 
     // Attach metadata for isolation processing
     row._ownerCode = String(
-      doc.ownerCode || doc.accountOwnerCode || doc.dealOwnerCode || doc.customerOwnerCode || doc.quotationOwnerCode || ''
+      doc.ownerCode || doc.accountOwnerCode || doc.dealOwnerCode || doc.customerOwnerCode || doc.quotationOwnerCode || doc.data?.ownerCode || doc.data?.accountOwnerCode || doc.data?.dealOwnerCode || doc.data?.quotationOwnerCode || ''
+    ).trim();
+    row._ownerUserId = String(
+      doc.ownerUserId || doc.assignedTo || doc.ownerId || doc.createdBy || doc.data?.ownerUserId || doc.data?.assignedTo || doc.data?.ownerId || doc.data?.createdBy || ''
     ).trim();
     row._ownerName = String(
-      doc.accountOwner || doc.formData?.accountOwner || doc.formData?.ownerName || doc.ownerName || doc.dealOwner || doc.customerOwner || doc.quotationOwner || doc._ownerCode || 'Unassigned'
+      doc.accountOwner || doc.accountOwnerName || doc.formData?.accountOwner || doc.formData?.accountOwnerName || doc.formData?.ownerName || doc.ownerName || doc.dealOwner || doc.dealOwnerName || doc.customerOwner || doc.customerOwnerName || doc.quotationOwner || doc.quotationOwnerName || doc._ownerCode || 'Unassigned'
     ).trim();
     row._id = doc._id ? String(doc._id) : undefined;
 
@@ -659,6 +812,31 @@ const executeReportPayload = async ({
     totalPages: pageSize > 0 ? Math.ceil(totalCount / pageSize) : 1,
     period,
     dateBounds: { fromDate, toDate },
+    diagnostics: {
+      entity: dataSource,
+      collection: COLLECTION_NAME_MAP[dataSource] || 'leads',
+      ownerFilter: ownerFilter || 'all',
+      dateRange: {
+        from: fromDate ? fromDate.toISOString() : null,
+        to: toDate ? toDate.toISOString() : null,
+      },
+      totalMatched: totalCount,
+      collectionRecords: collectionCount,
+      companyScopeRecords: companyScopeCount,
+      fetchedRows: rawDocs.length,
+      returnedRows: formattedRows.length,
+      reason: formattedRows.length > 0
+        ? null
+        : totalCount > 0
+          ? 'ALL_ROWS_REMOVED_BY_DEDUPLICATION'
+          : companyId && companyScopeCount === 0
+            ? 'COMPANY_SCOPE_MATCHED_ZERO'
+            : ownerFilter && ownerFilter !== 'all'
+              ? 'OWNER_OR_SCOPE_MATCHED_ZERO'
+              : (fromDate || toDate)
+                ? 'NO_DATE_MATCH'
+                : 'NO_RECORDS_IN_COLLECTION',
+    },
   };
 };
 
@@ -725,15 +903,35 @@ const sendOwnerWiseReportEmails = async ({
   });
 
   const dispatchMatrix = [];
-  const dbUsers = await mongoose.connection.db.collection('users').find({}).toArray();
+  const dbUsers = await mongoose.connection.db.collection('users').find({}, {
+    projection: {
+      _id: 1,
+      username: 1,
+      name: 1,
+      email: 1,
+      ownerCode: 1,
+      owner_code: 1,
+      employeeId: 1,
+      legacyId: 1,
+      companyId: 1,
+      status: 1,
+      isApproved: 1,
+    },
+  }).toArray();
 
-  const findUserByOwnerCode = (code, name) => {
+  const findUserByOwnerCode = (code, name, userId) => {
     const codeStr = String(code || '').trim();
     const nameStr = String(name || '').trim().toLowerCase();
+    const userIdStr = String(userId || '').trim();
 
     return dbUsers.find((u) => {
+      if (companyId && String(u.companyId ?? '').trim() !== String(companyId).trim()) return false;
+      if (u.status && String(u.status).toLowerCase() !== 'approved') return false;
+      if (u.isApproved === false) return false;
       const uCode = String(u.ownerCode || u.owner_code || u.employeeId || '').trim();
       const uName = String(u.name || u.username || '').trim().toLowerCase();
+      const uId = String(u.legacyId || u.id || u.userId || u._id || '').trim();
+      if (userIdStr && uId === userIdStr) return true;
       if (codeStr && uCode === codeStr) return true;
       if (nameStr && uName === nameStr) return true;
       return false;
@@ -743,7 +941,7 @@ const sendOwnerWiseReportEmails = async ({
   // Dispatch Owner-Isolated Emails
   for (const groupKey of Object.keys(ownerGroups)) {
     const group = ownerGroups[groupKey];
-    const userMatch = findUserByOwnerCode(group.ownerCode, group.ownerName);
+    const userMatch = findUserByOwnerCode(group.ownerCode, group.ownerName, group.rows[0]?._ownerUserId);
     const targetEmail = userMatch?.email || '';
 
     if (!targetEmail) {

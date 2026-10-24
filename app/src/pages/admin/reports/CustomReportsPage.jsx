@@ -312,10 +312,43 @@ const ReportCard = ({ report, onViewWeb, onExport, isKevalOrAdmin }) => {
   )
 }
 
-const WebReportModal = ({ report, onClose }) => {
+const WebReportModal = ({ report, onClose, onExport }) => {
   if (!report) return null
 
-  const fields = getReportFields(report).split(',').map(f => f.trim())
+  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState({ rows: [], fieldLabels: [], totalRecords: 0 })
+
+  useEffect(() => {
+    let isMounted = true
+    const fetchPreview = async () => {
+      try {
+        setLoading(true)
+        const token = localStorage.getItem('token')
+        const res = await fetch('/api/reports/templates/preview', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify(report)
+        })
+        const result = await res.json()
+        if (isMounted && result) {
+          setData(result)
+        }
+      } catch (err) {
+        console.error('Failed to fetch report preview:', err)
+      } finally {
+        if (isMounted) setLoading(false)
+      }
+    }
+    fetchPreview()
+    return () => { isMounted = false }
+  }, [report])
+
+  const fields = data.fieldLabels && data.fieldLabels.length > 0 
+    ? data.fieldLabels 
+    : getReportFields(report).split(',').map(f => f.trim())
 
   return (
     <div className="cr-web-modal-overlay" style={{
@@ -332,15 +365,47 @@ const WebReportModal = ({ report, onClose }) => {
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           padding: '0.75rem 1.25rem', borderBottom: '1px solid #ddd'
         }}>
-          <h2 style={{ fontSize: '1rem', margin: 0, color: '#333' }}>Web Report (Total Records - 0)</h2>
-          <button type="button" onClick={onClose} style={{
-            background: 'transparent', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#555'
-          }}>&#10006;</button>
+          <h2 style={{ fontSize: '1rem', margin: 0, color: '#333' }}>
+            Web Report (Total Records - {loading ? '...' : (data.totalRecords ?? 0)})
+          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {onExport && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onExport(report, 'excel')}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    padding: '4px 10px', fontSize: '0.8rem', fontWeight: 600,
+                    background: '#1e3f66', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer'
+                  }}
+                >
+                  <FaFileExcel /> Excel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onExport(report, 'pdf')}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    padding: '4px 10px', fontSize: '0.8rem', fontWeight: 600,
+                    background: '#c0392b', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer'
+                  }}
+                >
+                  <FaFilePdf /> PDF
+                </button>
+              </>
+            )}
+            <button type="button" onClick={onClose} style={{
+              background: 'transparent', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#555'
+            }}>&#10006;</button>
+          </div>
         </header>
         <div className="cr-web-modal-subhead" style={{
           background: '#f9f9f9', padding: '0.75rem 1.25rem', borderBottom: '1px solid #eee'
         }}>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#333' }}>{report.title || report.reportName}</h3>
+          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#333' }}>
+            {report.title || report.reportName}
+          </h3>
         </div>
         <div className="cr-web-modal-body" style={{ flex: 1, overflow: 'auto', padding: '1rem' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #ddd' }}>
@@ -355,7 +420,29 @@ const WebReportModal = ({ report, onClose }) => {
               </tr>
             </thead>
             <tbody>
-              {/* Empty state for records */}
+              {loading ? (
+                <tr>
+                  <td colSpan={fields.length} style={{ textAlign: 'center', padding: '2rem', color: '#666', fontSize: '0.9rem' }}>
+                    Loading live records from database...
+                  </td>
+                </tr>
+              ) : data.rows && data.rows.length > 0 ? (
+                data.rows.map((row, rIdx) => (
+                  <tr key={rIdx} style={{ background: rIdx % 2 === 0 ? '#fff' : '#f9fbfd', borderBottom: '1px solid #eee' }}>
+                    {fields.map((col, cIdx) => (
+                      <td key={cIdx} style={{ padding: '0.5rem', fontSize: '0.8rem', borderRight: '1px solid #eee', color: '#333' }}>
+                        {row[col] !== undefined && row[col] !== null ? String(row[col]) : '-'}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={fields.length} style={{ textAlign: 'center', padding: '2rem', color: '#888', fontSize: '0.9rem' }}>
+                    No records found matching report criteria.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -511,118 +598,117 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     setTemplates(getAdminReportTemplates())
   }
 
-  const handleExport = (report, format = 'excel') => {
-    const reportName = report.reportName || report.title || 'Custom Report'
-    const groupName = getReportGroupName(report)
-    const isDailyStatus = groupName === 'Daily Status' || String(reportName).includes('Daily Status')
-    
-    const isToday = (dateString) => {
-      if (!dateString) return false
-      const date = new Date(dateString)
-      if (isNaN(date)) return false
-      const today = new Date()
-      return date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear()
-    }
-    
-    const filterByDate = (arr, dateField) => isDailyStatus ? arr.filter(item => isToday(item[dateField] || item.createdAt)) : arr
+  const handleExport = async (report, format = 'excel') => {
+    const reportTitle = report.reportName || report.title || 'Custom Report'
+    const fileNameBase = reportTitle.replace(/[^a-zA-Z0-9_-]/g, '_') + '_' + new Date().toISOString().slice(0, 10)
+    const token = localStorage.getItem('token')
 
-    const allDeals = [...deals, ...convertedDeals]
+    if (format === 'excel') {
+      try {
+        const res = await fetch('/api/reports/templates/export-excel', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify(report)
+        })
 
-    let dataSets = []
-    const mapAccount = (item) => ({
-      'Account No.': item.accountNumber || '-',
-      'Account Date': item.accountDate ? new Date(item.accountDate).toLocaleDateString('en-GB') : '-',
-      'Account Name': item.name || '-',
-      'Account Owner': item.accountOwnerName || item.accountOwner || item.raw?.accountOwner || '-',
-      'Account Status': item.status || '-',
-      'Account State': item.accountState || '-',
-      'Account Source': item.accountSource || '-',
-      'Contact Person': item.contactPerson || '-',
-      'Phone': item.phone || '-',
-      'Email': item.email || '-',
-      'Latest Remark': item.latestRemark || '-',
-      'PO Value': item.poValue || '-',
-      'Job No': item.jobNo || '-',
-      'Created At': item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-GB') : '-',
-    })
+        if (!res.ok) {
+          throw new Error('Export request failed')
+        }
 
-    const mapDeal = (item) => ({
-      'Deal Name': item.dealName || item.name || '-',
-      'Account Name': item.accountName || '-',
-      'Deal Owner': item.ownerName || item.owner || '-',
-      'Stage': item.stage || '-',
-      'Status': item.status || '-',
-      'Deal Value': item.dealValue || '-',
-      'Expected Close Date': item.expectedCloseDate ? new Date(item.expectedCloseDate).toLocaleDateString('en-GB') : '-',
-      'Added On': item.addedOn ? new Date(item.addedOn).toLocaleDateString('en-GB') : '-',
-      'Created At': item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-GB') : '-',
-    })
-
-    const mapCustomer = (item) => ({
-      'Customer Name': item.name || item.customerName || '-',
-      'Customer Code': item.customerCode || '-',
-      'Owner': item.ownerName || item.owner || '-',
-      'Status': item.status || '-',
-      'Mobile': item.mobile || item.phone || '-',
-      'Email': item.email || '-',
-      'City': item.city || '-',
-      'Created At': item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-GB') : '-',
-    })
-    
-    const mapQuotation = (item) => ({
-      'Quotation No': item.quotationNo || '-',
-      'Date': item.date ? new Date(item.date).toLocaleDateString('en-GB') : '-',
-      'Account': item.accountName || '-',
-      'Deal': item.dealName || '-',
-      'Grand Total': item.grandTotal || '-',
-      'Status': item.status || '-',
-    })
-
-    if (activeFilter === 'all') {
-      dataSets = [
-        ...filterByDate(allDeals, 'addedOn').map(item => ({ 'Data Type': 'Deal', ...mapDeal(item) })),
-        ...filterByDate(accounts, 'accountDate').map(item => ({ 'Data Type': 'Account', ...mapAccount(item) })),
-        ...filterByDate(customers, 'createdAt').map(item => ({ 'Data Type': 'Customer', ...mapCustomer(item) })),
-        ...filterByDate(quotations, 'date').map(item => ({ 'Data Type': 'Quotation', ...mapQuotation(item) })),
-      ]
-    } else if (activeFilter === 'account') {
-      dataSets = filterByDate(accounts, 'accountDate').map(mapAccount)
-    } else if (activeFilter === 'deal') {
-      dataSets = filterByDate(allDeals, 'addedOn').map(mapDeal)
-    } else if (activeFilter === 'customer') {
-      dataSets = filterByDate(customers, 'createdAt').map(mapCustomer)
+        const blob = await res.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${fileNameBase}.xlsx`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(url)
+        return
+      } catch (err) {
+        console.error('Excel Export failed:', err)
+        alert('Failed to export Excel report. Please try again.')
+        return
+      }
     }
 
-    const allKeys = new Set()
-    dataSets.forEach(row => Object.keys(row).forEach(k => allKeys.add(k)))
-    
-    let columns = Array.from(allKeys).map(k => ({ 
-      key: k, 
-      label: k, 
-      width: 25 
-    }))
+    if (format === 'pdf') {
+      try {
+        const res = await fetch('/api/reports/templates/preview', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify(report)
+        })
 
-    if (columns.length === 0) {
-      columns = [{ key: 'Status', label: 'Status', width: 25 }]
-      dataSets = [{ Status: 'No records found' }]
+        if (!res.ok) {
+          throw new Error('Preview request failed')
+        }
+
+        const data = await res.json()
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
+
+        // Report Title & Meta
+        doc.setFontSize(14)
+        doc.setTextColor(30, 41, 59)
+        doc.text(reportTitle, 40, 40)
+
+        doc.setFontSize(9)
+        doc.setTextColor(100, 116, 139)
+        const dateStr = new Date().toLocaleDateString('en-GB')
+        doc.text(`Generated on: ${dateStr}  |  Total Matching Records: ${data.totalRecords ?? 0}`, 40, 56)
+
+        const headers = [data.fieldLabels || []]
+        const rows = (data.rows || []).map(r => (data.fieldLabels || []).map(col => r[col] !== undefined && r[col] !== null ? String(r[col]) : '-'))
+
+        if (doc.autoTable) {
+          doc.autoTable({
+            head: headers,
+            body: rows,
+            startY: 70,
+            styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
+            headStyles: { fillColor: [30, 63, 102], textColor: 255, fontStyle: 'bold' },
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+          })
+        }
+
+        doc.save(`${fileNameBase}.pdf`)
+        return
+      } catch (err) {
+        console.error('PDF Export failed:', err)
+        alert('Failed to export PDF report. Please try again.')
+        return
+      }
     }
 
     if (format === 'csv') {
-      exportCsvWorkbook({
-        filename: `${reportName}-${activeFilter}-${new Date().toISOString().slice(0, 10)}.csv`,
-        title: `${reportName} - ${activeFilter.toUpperCase()}`,
-        sheetName: 'Custom Report',
-        columns,
-        rows: dataSets,
-      })
-    } else {
-      exportExcelWorkbook({
-        filename: `${reportName}-${activeFilter}-${new Date().toISOString().slice(0, 10)}.xlsx`,
-        title: `${reportName} - ${activeFilter.toUpperCase()}`,
-        sheetName: 'Custom Report',
-        columns,
-        rows: dataSets,
-      })
+      try {
+        const res = await fetch('/api/reports/templates/preview', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify(report)
+        })
+        const data = await res.json()
+        const columns = (data.fieldLabels || []).map(k => ({ key: k, label: k, width: 25 }))
+        exportCsvWorkbook({
+          filename: `${fileNameBase}.csv`,
+          title: reportTitle,
+          sheetName: 'Custom Report',
+          columns,
+          rows: data.rows || [],
+        })
+        return
+      } catch (err) {
+        console.error('CSV Export failed:', err)
+      }
     }
   }
 

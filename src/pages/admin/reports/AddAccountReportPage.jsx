@@ -67,8 +67,6 @@ const initialFormState = {
   dateFilterField: 'accountDate',
   recordDateFrom: '',
   recordDateTo: '',
-  generatedFrom: '',
-  generatedTo: '',
 }
 
 const AddAccountReportPage = () => {
@@ -94,8 +92,6 @@ const AddAccountReportPage = () => {
 
   // Drag and Drop & Field Builder State
   const [fieldSearchQuery, setFieldSearchQuery] = useState('')
-  const [draggedFieldIndex, setDraggedFieldIndex] = useState(null)
-  const [dragOverIndex, setDragOverIndex] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
 
@@ -236,8 +232,6 @@ const AddAccountReportPage = () => {
           aggregate: data.aggregate || '',
           accountOwner: data.accountOwner || data.owner || '',
           dateFilterField: data.dateFilterField || 'accountDate',
-          generatedFrom: data.generatedFrom || '',
-          generatedTo: data.generatedTo || '',
           recordDateFrom: data.recordDateFrom || '',
           recordDateTo: data.recordDateTo || '',
           selectedFields: Array.isArray(data.selectedFields) && data.selectedFields.length > 0
@@ -346,64 +340,6 @@ const AddAccountReportPage = () => {
     }))
   }
 
-  // Move selected field position up or down
-  const handleMoveField = (index, delta) => {
-    const newIndex = index + delta
-    if (newIndex < 0 || newIndex >= formState.selectedFields.length) return
-
-    setFormState((prev) => {
-      const updated = [...prev.selectedFields]
-      const [moved] = updated.splice(index, 1)
-      updated.splice(newIndex, 0, moved)
-      return { ...prev, selectedFields: updated }
-    })
-  }
-
-  // HTML5 Drag-and-Drop Handlers for Selected Fields Reordering
-  const handleDragStart = (e, index) => {
-    setDraggedFieldIndex(index)
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'reorder', fromIndex: index }))
-  }
-
-  const handleDragOver = (e, index) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    if (dragOverIndex !== index) {
-      setDragOverIndex(index)
-    }
-  }
-
-  const handleDragLeave = () => {
-    setDragOverIndex(null)
-  }
-
-  const handleDrop = (e, targetIndex) => {
-    e.preventDefault()
-    setDragOverIndex(null)
-
-    try {
-      const raw = e.dataTransfer.getData('text/plain')
-      if (!raw) return
-      const data = JSON.parse(raw)
-
-      if (data.type === 'reorder' && data.fromIndex !== undefined) {
-        const fromIdx = Number(data.fromIndex)
-        if (fromIdx === targetIndex || fromIdx < 0 || targetIndex < 0) return
-
-        setFormState((prev) => {
-          const updated = [...prev.selectedFields]
-          const [moved] = updated.splice(fromIdx, 1)
-          updated.splice(targetIndex, 0, moved)
-          return { ...prev, selectedFields: updated }
-        })
-      } else if (data.type === 'add' && data.field) {
-        handleAddField(data.field)
-      }
-    } catch (_err) {}
-    setDraggedFieldIndex(null)
-  }
-
   // User Group Toggle
   const handleToggleUserGroup = (groupIdOrName) => {
     setSelectedUserGroups((prev) => {
@@ -430,8 +366,6 @@ const AddAccountReportPage = () => {
       dateFilterField: 'accountDate',
       recordDateFrom: '',
       recordDateTo: '',
-      generatedFrom: '',
-      generatedTo: '',
       filters: [buildFilterRow()],
     }))
     setSelectedUserGroups([])
@@ -578,8 +512,6 @@ const AddAccountReportPage = () => {
       dateFilterField: formState.dateFilterField || 'accountDate',
       recordDateFrom: formState.recordDateFrom,
       recordDateTo: formState.recordDateTo,
-      generatedFrom: formState.generatedFrom,
-      generatedTo: formState.generatedTo,
       filters: cleanedFilters,
       displayFields: displayFieldKeys,
       selectedFields: displayFieldKeys,
@@ -800,7 +732,7 @@ const AddAccountReportPage = () => {
             </div>
 
             <div className="account-report-builder-field">
-              <label>{formState.entityType} Record Date Range</label>
+              <label>Account Record Date Range</label>
               <div className="account-report-builder-date-range">
                 <input
                   type="date"
