@@ -265,40 +265,52 @@ const AdminPanel = () => {
   const notifyGroupPerformance = useCallback((tabName, perfList, isRealtime = false) => {
     if (!perfList || !Array.isArray(perfList) || perfList.length === 0) return
 
-    const toastKey = `${tabName}_${perfList.length}`
-    if (!isRealtime && lastToastKeyRef.current === toastKey) {
-      return
-    }
-    lastToastKeyRef.current = toastKey
-
+    // Priority 1: Extract deduplicated MongoDB collection team summary
+    const summary = perfList[0]?.teamSummary || perfList.teamSummary
     let totalAccounts = 0
     let totalWon = 0
     let totalLost = 0
     let totalQuotations = 0
 
-    perfList.forEach((u) => {
-      const monthly = u.monthly || []
-      monthly.forEach((m) => {
-        totalAccounts += Number(m.accounts || 0)
-        totalWon += Number(m.closedWon || 0)
-        totalLost += Number(m.closedLost || 0)
-        totalQuotations += Number(m.quotations || 0)
+    if (summary) {
+      totalAccounts = Number(summary.totalAccounts ?? 0)
+      totalWon = Number(summary.totalWon ?? 0)
+      totalLost = Number(summary.totalLost ?? 0)
+      totalQuotations = Number(summary.totalQuotations ?? 0)
+    } else {
+      perfList.forEach((u) => {
+        if (u.totalAccounts != null) {
+          totalAccounts += Number(u.totalAccounts || 0)
+          totalWon += Number(u.totalWon || 0)
+          totalLost += Number(u.totalLost || 0)
+          totalQuotations += Number(u.totalQuotations || 0)
+        } else {
+          const monthly = u.monthly || []
+          monthly.forEach((m) => {
+            totalAccounts += Number(m.accounts || 0)
+            totalWon += Number(m.closedWon || 0)
+            totalLost += Number(m.closedLost || 0)
+            totalQuotations += Number(m.quotations || 0)
+          })
+        }
       })
-    })
+    }
 
     const memberNames = perfList.map((p) => p.ownerName).filter(Boolean)
     const displayNames = memberNames.slice(0, 4).join(', ') + (memberNames.length > 4 ? ` +${memberNames.length - 4} more` : '')
 
+    // Show toast with forceToast: true and duration: 7000ms (no win rate, exact counts)
     addNotification(
       'info',
       `${tabName} — ${isRealtime ? 'Real-Time Live Update' : 'Real-Time Performance'}`,
-      `Members: ${displayNames} | Accounts: ${totalAccounts} | Closed Won: ${totalWon} | Closed Lost: ${totalLost} | Quotations: ${totalQuotations}`
+      `Members: ${displayNames} | Accounts: ${totalAccounts} | Closed Won: ${totalWon} | Closed Lost: ${totalLost} | Quotations: ${totalQuotations}`,
+      { forceToast: true, duration: 7000 }
     )
   }, [addNotification])
 
-  const fetchUserPerformance = useCallback(async (viewKey, isRealtime = false) => {
+  const fetchUserPerformance = useCallback(async (viewKey, isRealtime = false, dateRange = null) => {
     if (!viewKey) return
-    if (!isRealtime && isFetchingPerfRef.current && lastFetchedKeyRef.current === viewKey) {
+    if (!isRealtime && isFetchingPerfRef.current) {
       return
     }
 
@@ -306,7 +318,12 @@ const AdminPanel = () => {
       isFetchingPerfRef.current = true
       lastFetchedKeyRef.current = viewKey
       setLoadingUserPerformance(true)
-      const data = await analyticsApi.getUserDealPerformance({ group: viewKey })
+      const params = { group: viewKey }
+      if (dateRange?.startDate && dateRange?.endDate) {
+        params.startDate = dateRange.startDate
+        params.endDate = dateRange.endDate
+      }
+      const data = await analyticsApi.getUserDealPerformance(params)
       if (Array.isArray(data)) {
         setUserPerformanceList(data)
         const currentTab = dashboardTabs.find((tab) => tab.id === activeSection || tab.viewKey === viewKey)
@@ -320,6 +337,16 @@ const AdminPanel = () => {
       setLoadingUserPerformance(false)
     }
   }, [activeSection, dashboardTabs, notifyGroupPerformance])
+
+  const handleCustomDateFilter = useCallback((startDate, endDate) => {
+    const currentTab = dashboardTabs.find((tab) => tab.id === activeSection)
+    const vk = currentTab?.viewKey || 'salesSwati'
+    if (startDate && endDate) {
+      fetchUserPerformance(vk, true, { startDate, endDate })
+    } else {
+      fetchUserPerformance(vk, true)
+    }
+  }, [activeSection, dashboardTabs, fetchUserPerformance])
 
   useEffect(() => {
     fetchAnalytics()
@@ -450,6 +477,7 @@ const AdminPanel = () => {
     if (location.search) {
       navigate('/admin/monitoring', { replace: true })
     }
+    lastToastKeyRef.current = ''
     setActiveSection(tabId)
     setOpenMenuState(null)
   }
@@ -1060,49 +1088,49 @@ const AdminPanel = () => {
                     </div>
                     <p className="ap-todo-subtitle" style={{ fontSize: '0.75rem' }}>Prioritized pending tasks and support replies</p>
                   </div>
-                </div>
-
-                <div className="ap-todo-filter-tabs">
-                  <button
-                    type="button"
-                    className={`ap-todo-tab ${todoFilter === 'all' ? 'active' : ''}`}
-                    onClick={() => {
-                      setTodoFilter('all')
-                      setTodoPage(1)
-                    }}
-                  >
-                    All ({todoCounts.all})
-                  </button>
-                  <button
-                    type="button"
-                    className={`ap-todo-tab ${todoFilter === 'task' ? 'active' : ''}`}
-                    onClick={() => {
-                      setTodoFilter('task')
-                      setTodoPage(1)
-                    }}
-                  >
-                    Tasks ({todoCounts.task})
-                  </button>
-                  <button
-                    type="button"
-                    className={`ap-todo-tab ${todoFilter === 'reply' ? 'active' : ''}`}
-                    onClick={() => {
-                      setTodoFilter('reply')
-                      setTodoPage(1)
-                    }}
-                  >
-                    Replies ({todoCounts.reply})
-                  </button>
-                </div>
-
-                <div className="ap-todo-header-right">
                   <button
                     type="button"
                     className="ap-btn-red"
                     onClick={() => navigate('/admin/tasks')}
+                    style={{ marginLeft: '0.5rem', whiteSpace: 'nowrap' }}
                   >
                     + Add Task
                   </button>
+                </div>
+
+                <div className="ap-todo-header-right">
+                  <div className="ap-todo-filter-tabs">
+                    <button
+                      type="button"
+                      className={`ap-todo-tab ${todoFilter === 'all' ? 'active' : ''}`}
+                      onClick={() => {
+                        setTodoFilter('all')
+                        setTodoPage(1)
+                      }}
+                    >
+                      All ({todoCounts.all})
+                    </button>
+                    <button
+                      type="button"
+                      className={`ap-todo-tab ${todoFilter === 'task' ? 'active' : ''}`}
+                      onClick={() => {
+                        setTodoFilter('task')
+                        setTodoPage(1)
+                      }}
+                    >
+                      Tasks ({todoCounts.task})
+                    </button>
+                    <button
+                      type="button"
+                      className={`ap-todo-tab ${todoFilter === 'reply' ? 'active' : ''}`}
+                      onClick={() => {
+                        setTodoFilter('reply')
+                        setTodoPage(1)
+                      }}
+                    >
+                      Replies ({todoCounts.reply})
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1318,45 +1346,88 @@ const AdminPanel = () => {
 
               <div className="ap-reminders-list--expansive" style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '0.85rem 1rem', background: '#fdfcfb', maxHeight: '280px', overflowY: 'auto' }}>
                 {paginatedReminderItems.length > 0 ? (
-                  paginatedReminderItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className={`ap-todo-row ap-todo-row--${item.type.toLowerCase().replace(/[^a-z]/g, '')}`}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '0.75rem',
-                        padding: '10px 14px',
-                        borderRadius: '10px',
-                        background: '#fffbeb',
-                        border: '1px solid #fde68a',
-                        minHeight: '44px',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-                        transition: 'all 0.18s ease',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
-                        <FaBell style={{ color: '#dc2626', fontSize: '1.15rem', flexShrink: 0 }} />
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', minWidth: 0, flex: 1 }}>
-                          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {item.reminder?.accountName || item.reminder?.dealName ? `${item.reminder.accountName || item.reminder.dealName} | ` : ''}{item.meta || 'Follow up'} {item.reminder?.ownerName ? `| ${item.reminder.ownerName}` : ''}
-                          </span>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title || item.message}>
-                            {item.title || item.message}
-                          </span>
+                  paginatedReminderItems.map((item) => {
+                    const isActivated = isReminderItemActivated(item.reminder)
+                    return (
+                      <div
+                        key={item.id}
+                        className={`ap-todo-row ap-todo-row--${item.type.toLowerCase().replace(/[^a-z]/g, '')}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '0.75rem',
+                          padding: '10px 14px',
+                          borderRadius: '10px',
+                          background: isActivated ? '#f0fdf4' : '#fffbeb',
+                          border: isActivated ? '1px solid #bbf7d0' : '1px solid #fde68a',
+                          minHeight: '44px',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                          transition: 'all 0.18s ease',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+                          <FaBell style={{ color: isActivated ? '#16a34a' : '#dc2626', fontSize: '1.15rem', flexShrink: 0 }} />
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', minWidth: 0, flex: 1 }}>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: isActivated ? '#15803d' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {item.reminder?.accountName || item.reminder?.dealName ? `${item.reminder.accountName || item.reminder.dealName} | ` : ''}{item.meta || 'Follow up'} {item.reminder?.ownerName ? `| ${item.reminder.ownerName}` : ''}
+                            </span>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title || item.message}>
+                              {item.title || item.message}
+                            </span>
+                          </div>
                         </div>
-                      </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                        {!isReminderItemActivated(item.reminder) && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                          {isActivated ? (
+                            <span
+                              title="Reminder Activated"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                background: '#16a34a',
+                                color: '#ffffff',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                              }}
+                            >
+                              <FaCheck style={{ fontSize: '0.65rem' }} /> Activated
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                if (item.reminder) handleOpenReminderModal(item.reminder, e)
+                                else item.onClick?.(e)
+                              }}
+                              title="Activate Reminder"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '6px',
+                                border: '1.5px solid #ef4444',
+                                background: '#ffffff',
+                                color: '#dc2626',
+                                fontSize: '0.78rem',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <FaCheck />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => {
                               if (item.reminder) handleOpenReminderModal(item.reminder, e)
-                              else item.onClick?.(e)
+                              else navigate('/admin/tasks')
                             }}
-                            title="Activate Reminder"
+                            title="Create Task / Reschedule"
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
@@ -1364,65 +1435,42 @@ const AdminPanel = () => {
                               width: '28px',
                               height: '28px',
                               borderRadius: '6px',
-                              border: '1.5px solid #ef4444',
+                              border: isActivated ? '1.5px solid #16a34a' : '1.5px solid #ef4444',
                               background: '#ffffff',
-                              color: '#dc2626',
+                              color: isActivated ? '#16a34a' : '#dc2626',
                               fontSize: '0.78rem',
                               cursor: 'pointer',
                             }}
                           >
-                            <FaCheck />
+                            <FaPlus />
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            if (item.reminder) handleOpenReminderModal(item.reminder, e)
-                            else navigate('/admin/tasks')
-                          }}
-                          title="Create Task / Reschedule"
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '28px',
-                            height: '28px',
-                            borderRadius: '6px',
-                            border: '1.5px solid #ef4444',
-                            background: '#ffffff',
-                            color: '#dc2626',
-                            fontSize: '0.78rem',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <FaPlus />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            if (item.reminder) handleTodoReminderClose(item.reminder, e)
-                            else if (typeof refreshData === 'function') refreshData()
-                          }}
-                          title="Close Reminder"
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '28px',
-                            height: '28px',
-                            borderRadius: '6px',
-                            border: '1.5px solid #ef4444',
-                            background: '#ffffff',
-                            color: '#dc2626',
-                            fontSize: '0.78rem',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <FaTimes />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              if (item.reminder) handleTodoReminderClose(item.reminder, e)
+                              else if (typeof refreshData === 'function') refreshData()
+                            }}
+                            title="Close Reminder"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '6px',
+                              border: isActivated ? '1.5px solid #16a34a' : '1.5px solid #ef4444',
+                              background: '#ffffff',
+                              color: isActivated ? '#16a34a' : '#dc2626',
+                              fontSize: '0.78rem',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <FaTimes />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
                 ) : (
                   <div className="ap-todo-empty-state">
                     <FaBell className="ap-todo-empty-icon" style={{ color: '#dc2626' }} />
@@ -2015,21 +2063,51 @@ const AdminPanel = () => {
           <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700, color: '#0f172a' }}>
             {activeTab.name} — Real-Time Accounts, Deals & Quotations Performance
           </h2>
+          <span style={{ fontSize: '0.82rem', color: '#64748b' }}>
+            Sourced directly from MongoDB leads, deals, and quotations collections
+          </span>
         </div>
       </div>
 
       {loadingUserPerformance ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-          Loading real-time user-wise performance graphs...
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '3.5rem 2rem',
+          background: '#ffffff',
+          borderRadius: '14px',
+          border: '1.5px solid #e2e8f0',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
+          gap: '0.85rem'
+        }}>
+          <div style={{
+            width: '36px',
+            height: '36px',
+            border: '3px solid #f1f5f9',
+            borderTop: '3px solid #c60016',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite'
+          }} />
+          <span style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>
+            Loading real-time user-wise performance graphs...
+          </span>
+          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+            Fetching from MongoDB leads, deals, and quotations
+          </span>
         </div>
       ) : userPerformanceList.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+        <div style={{ textAlign: 'center', padding: '3.5rem', color: '#64748b', background: '#fff', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
           No user performance records found for this team.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {userPerformanceList.map((userPerf) => (
-            <DealPerformanceCard key={userPerf.userId} userPerformance={userPerf} />
+            <DealPerformanceCard
+              key={userPerf.userId}
+              userPerformance={userPerf}
+            />
           ))}
         </div>
       )}
@@ -2067,6 +2145,17 @@ const AdminPanel = () => {
 
   return (
     <div className="admin-panel">
+      {/* Top Welcome Header - Placed where tabs start and only visible on Home tab */}
+      {activeSection === 'home' && (
+        <div className="ap-welcome-row" style={{ marginBottom: '0.75rem' }}>
+          <div className="ap-welcome-header-block">
+            <span className="ap-welcome-subhead">Welcome,</span>
+            <h1 className="ap-welcome-heading">{user?.name || 'Keval V Shah'}!</h1>
+            <p className="ap-welcome-sub">Here&apos;s what&apos;s happening with your business today.</p>
+          </div>
+        </div>
+      )}
+
       <div className="ap-tabbar">
         <button
           type="button"
@@ -2126,14 +2215,6 @@ const AdminPanel = () => {
       </div>
       <div className="ap-tabbar-divider-line" style={{ height: '1px', background: '#cbd5e1', margin: '0 0 1rem 0' }} />
 
-      {/* Top Welcome Header - Placed below tab bar */}
-      <div className="ap-welcome-row" style={{ marginBottom: '0.75rem' }}>
-        <div className="ap-welcome-header-block">
-          <span className="ap-welcome-subhead">Welcome,</span>
-          <h1 className="ap-welcome-heading">{user?.name || 'Keval V Shah'}!</h1>
-          <p className="ap-welcome-sub">Here&apos;s what&apos;s happening with your business today.</p>
-        </div>
-      </div>
 
       {isAdmin && openMenuTab && openMenuState ? createPortal(
         (
@@ -2147,33 +2228,9 @@ const AdminPanel = () => {
               <FiEdit2 />
               <span>Rename Tab</span>
             </button>
-            <button
-              type="button"
-              role="menuitem"
-              className="ap-tab-menu-item"
-              onClick={() => openMenuCanMoveLeft && handleMoveTab(openMenuTab.id, 'left')}
-              disabled={!openMenuCanMoveLeft}
-            >
-              <FiArrowLeft />
-              <span>Move Tab To Left</span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              className="ap-tab-menu-item"
-              onClick={() => openMenuCanMoveRight && handleMoveTab(openMenuTab.id, 'right')}
-              disabled={!openMenuCanMoveRight}
-            >
-              <FiArrowRight />
-              <span>Move Tab To Right</span>
-            </button>
             <button type="button" role="menuitem" className="ap-tab-menu-item ap-tab-menu-item-manage" onClick={() => handleOpenManageModal(openMenuTab)}>
               <FiSettings />
               <span>Manage</span>
-            </button>
-            <button type="button" role="menuitem" className="ap-tab-menu-item" onClick={() => handleToggleTabBookmark(openMenuTab)}>
-              <FaStar className={openMenuIsBookmarked ? 'ap-tab-menu-icon-bookmark-active' : ''} />
-              <span>{openMenuIsBookmarked ? 'Remove Bookmark' : 'Bookmark Tab'}</span>
             </button>
             <button
               type="button"

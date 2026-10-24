@@ -61,25 +61,35 @@ const Toaster = ({ notifications = [], clearNotification }) => {
     if (!notifications || notifications.length === 0) return
 
     const incoming = []
+    let updatedSeen = false
     for (const entry of notifications) {
       const toastKey = getToastKey(entry)
-      if (!seenIdsRef.current.has(toastKey)) {
-        seenIdsRef.current.add(toastKey)
+      if (entry.forceToast || !seenIdsRef.current.has(toastKey)) {
+        if (!entry.forceToast) {
+          seenIdsRef.current.add(toastKey)
+          updatedSeen = true
+        }
         incoming.push(entry)
       }
     }
 
     if (incoming.length === 0) return
 
-    saveSeenNotifications(seenStorageKey, seenIdsRef.current)
-    setVisible((prev) => [...incoming, ...prev].slice(0, MAX_VISIBLE))
+    if (updatedSeen) {
+      saveSeenNotifications(seenStorageKey, seenIdsRef.current)
+    }
+    setVisible((prev) => [...incoming, ...prev.filter((p) => !incoming.some((inc) => getToastKey(inc) === getToastKey(p)))].slice(0, MAX_VISIBLE))
 
     incoming.forEach((entry) => {
       const toastKey = getToastKey(entry)
+      if (timersRef.current.has(toastKey)) {
+        clearTimeout(timersRef.current.get(toastKey))
+      }
+      const duration = Number(entry.duration) || TOAST_DURATION_MS
       const timerId = setTimeout(() => {
         setVisible((prev) => prev.filter((item) => getToastKey(item) !== toastKey))
         timersRef.current.delete(toastKey)
-      }, TOAST_DURATION_MS)
+      }, duration)
       timersRef.current.set(toastKey, timerId)
     })
   }, [notifications, seenStorageKey])

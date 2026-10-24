@@ -578,25 +578,71 @@
 }
 
 .monthly-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   padding: 0.35rem 0.75rem;
   border-radius: 999px;
   font-size: 0.76rem;
   font-weight: 600;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #334155;
   cursor: pointer;
   transition: all 0.14s ease;
+  user-select: none;
 }
 
-.monthly-status-chip:hover {
-  border-color: #cbd5e1;
+.monthly-status-chip--unselected {
+  border: 1.5px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+}
+
+.monthly-status-chip--unselected:hover {
+  border-color: #94a3b8;
   background: #f1f5f9;
 }
 
+.monthly-status-chip--selected,
 .monthly-status-chip--active {
   background: #c60016 !important;
   color: #ffffff !important;
-  border-color: #c60016 !important;
+  border: 1.5px solid #c60016 !important;
   font-weight: 700;
+  box-shadow: 0 1px 4px rgba(198, 0, 22, 0.25);
+}
+
+.monthly-status-chip-icon {
+  font-size: 0.68rem;
+  color: #ffffff !important;
+  fill: #ffffff !important;
+}
+
+.monthly-status-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.5rem;
+  border-top: 1px solid #e2e8f0;
+  background: #fafafa;
+  border-radius: 0 0 14px 14px;
+}
+
+.monthly-status-custom-dates-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 600px) {
+  .monthly-status-custom-dates-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.monthly-status-validation-error {
+  grid-column: 1 / -1;
+  color: #c60016;
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-top: 0.25rem;
 }

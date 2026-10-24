@@ -43,6 +43,15 @@ const SIX_ROW_ACCOUNT_VARIANTS = new Set(['viewAll', 'myAccounts', 'searchAccoun
 const REQUIRED_ACCOUNT_TABLE_COLUMN_KEYS = ['projectName', 'accountOwner']
 const EXACT_ACCOUNT_LIST_VARIANTS = new Set(['viewAll', 'myGroup', 'myAccounts', 'searchAccount'])
 const PLAIN_ACCOUNT_OWNER_VARIANTS = new Set(['myGroup', 'myAccounts', 'searchAccount'])
+const SEARCH_ACCOUNT_NON_ADMIN_COLUMN_KEYS = [
+  'accountNumber',
+  'name',
+  'accountDate',
+  'accountOwner',
+  'projectName',
+  'quotationNumber',
+  'quotationOwnerName',
+]
 const DEFAULT_CONVERTED_FILTER_RULE = () => ({
   id: `converted-filter-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   fieldKey: '',
@@ -737,10 +746,16 @@ const MyGroupAccountsPage = ({ variantKey = 'myGroup' }) => {
   const useExactAccountListTable = EXACT_ACCOUNT_LIST_VARIANTS.has(variantKey)
   const [filters, setFilters] = useState(() => buildInitialFilters(columns))
   const [showFilters, setShowFilters] = useState(true)
-  const [visibleColumnKeys, setVisibleColumnKeys] = useState(() => getAccountColumnKeysWithRequiredFields(
-    columns.map((column) => column.key),
-    columns
-  ))
+  const isCrmAdmin = user?.role === 'admin' || user?.role === 'super_admin'
+  const [visibleColumnKeys, setVisibleColumnKeys] = useState(() => {
+    if (variantKey === 'searchAccount' && !isCrmAdmin) {
+      return SEARCH_ACCOUNT_NON_ADMIN_COLUMN_KEYS
+    }
+    return getAccountColumnKeysWithRequiredFields(
+      columns.map((column) => column.key),
+      columns
+    )
+  })
   const [isConvertedFilterModalOpen, setIsConvertedFilterModalOpen] = useState(false)
   const [appliedConvertedFilterEnabled, setAppliedConvertedFilterEnabled] = useState(false)
   const [appliedConvertedFilterRules, setAppliedConvertedFilterRules] = useState(() => [DEFAULT_CONVERTED_FILTER_RULE()])
@@ -1141,9 +1156,18 @@ const activeStageParam = searchParams.get('stage')
     const sourceColumns = isConvertedAccountsView ? convertedColumnDefinitions : columns
     const nextVisibleColumnKeys = getAccountColumnKeysWithRequiredFields(visibleColumnKeys, sourceColumns)
     const sourceColumnMap = new Map(sourceColumns.map((column) => [column.key, column]))
-    let filteredColumns = nextVisibleColumnKeys.map((key) => sourceColumnMap.get(key)).filter(Boolean)
-    if (filteredColumns.length === 0) {
-      filteredColumns = sourceColumns
+    const isNonAdminUser = user?.role !== 'admin' && user?.role !== 'super_admin'
+    let filteredColumns = []
+
+    if (variantKey === 'searchAccount' && isNonAdminUser) {
+      filteredColumns = SEARCH_ACCOUNT_NON_ADMIN_COLUMN_KEYS
+        .map((key) => sourceColumnMap.get(key))
+        .filter(Boolean)
+    } else {
+      filteredColumns = nextVisibleColumnKeys.map((key) => sourceColumnMap.get(key)).filter(Boolean)
+      if (filteredColumns.length === 0) {
+        filteredColumns = sourceColumns
+      }
     }
     const globalMongoOwnerCodeFix = true;
     filteredColumns = filteredColumns.map((col) => {

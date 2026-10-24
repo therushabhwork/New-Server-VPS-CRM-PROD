@@ -38,6 +38,36 @@ export const CUSTOMER_REPORT_FIELD_OPTIONS = [
   { key: 'userGroup', label: 'User Group' },
 ]
 
+export const CUSTOMER_REPORT_FIELD_CATEGORIES = [
+  {
+    category: 'Customer Information',
+    keys: [
+      'customerNumber', 'customerName', 'addedDate', 'customerCategory',
+      'customerStatus', 'customerType', 'productCategory', 'industryType', 'ageing'
+    ]
+  },
+  {
+    category: 'Ownership & Group',
+    keys: ['customerOwner', 'addedBy', 'userGroup']
+  },
+  {
+    category: 'Contact Details',
+    keys: [
+      'contactPerson', 'designation', 'email', 'phone', 'countryCode',
+      'alternateEmail', 'alternatePhone'
+    ]
+  },
+  {
+    category: 'Location & Address',
+    keys: ['address', 'state', 'stateCode']
+  },
+  {
+    category: 'Commercial & Audit',
+    keys: ['gstin', 'jobNo', 'projectName', 'latestRemark', 'updatedAt']
+  }
+]
+
+
 export const CUSTOMER_REPORT_GROUP_BY_OPTIONS = [
   toOption('', 'Select'),
   toOption('customerOwner', 'Customer Owner'),

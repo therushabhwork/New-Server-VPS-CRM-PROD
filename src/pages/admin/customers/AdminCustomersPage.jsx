@@ -111,6 +111,17 @@ const tableColumnKeys = [
 
 const tableSearchColumns = tableColumnKeys.map((key) => searchColumns.find((column) => column.key === key)).filter(Boolean)
 
+const SEARCH_CUSTOMER_NON_ADMIN_KEYS = [
+  'customerNumber',
+  'customerName',
+  'addedDate',
+  'customerOwner',
+  'customerStatus',
+  'latestRemark',
+]
+
+const searchCustomerNonAdminColumns = SEARCH_CUSTOMER_NON_ADMIN_KEYS.map((key) => searchColumns.find((column) => column.key === key)).filter(Boolean)
+
 const CUSTOMER_GRID_ACTION_KEYS = [
   'add-note-remarks',
   'add-reminder',
@@ -1320,7 +1331,16 @@ const AdminCustomersPage = ({
       return 0
     })
   }, [filteredRows, orderRules])
-  const activeTableSearchColumns = tableSearchColumns
+  const activeTableSearchColumns = useMemo(() => {
+    const isSearchCustomerView = variantKey === 'search'
+    const isCrmAdmin = user?.role === 'admin' || user?.role === 'super_admin'
+
+    if (isSearchCustomerView && !isCrmAdmin) {
+      return searchCustomerNonAdminColumns
+    }
+
+    return tableSearchColumns
+  }, [user?.role, variantKey])
 
   const handleExportCustomers = () => {
     const exportRows = orderedRows.map((row) => ({

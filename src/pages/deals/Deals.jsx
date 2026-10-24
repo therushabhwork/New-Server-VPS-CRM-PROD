@@ -182,6 +182,16 @@ const SEARCH_DEAL_REQUIRED_GRID_KEYS = [
   'reasonForLostOrder',
 ]
 
+const SEARCH_DEAL_NON_ADMIN_KEYS = [
+  'dealNumber',
+  'companyCustomerName',
+  'projectName',
+  'dealDate',
+  'dealOwner',
+  'quotationNumber',
+  'quotationOwnerName',
+]
+
 const OWNER_WISE_COLUMNS = [
   ...VIEW_DEAL_GRID_COLUMNS,
 ]
@@ -1968,8 +1978,15 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
 
   const activeGridColumns = useMemo(() => {
     const raw = !isSearchAdminView ? baseGridColumns : DEAL_GRID_COLUMNS
-    return raw.filter((col) => col.key !== 'convertToPo')
-  }, [baseGridColumns, isSearchAdminView])
+    let cols = raw.filter((col) => col.key !== 'convertToPo')
+
+    if (isSearchAdminView && user?.role !== 'admin' && user?.role !== 'super_admin') {
+      const colMap = new Map(cols.map((c) => [c.key, c]))
+      return SEARCH_DEAL_NON_ADMIN_KEYS.map((k) => colMap.get(k)).filter(Boolean)
+    }
+
+    return cols
+  }, [baseGridColumns, isSearchAdminView, user?.role])
   const filteredGridRows = useMemo(() => {
     const currentUserId = String(user?.id || user?._id || user?.ownerCode || '')
     const currentUserName = normalizeSearchValue(user?.name || user?.username || '')
@@ -4344,7 +4361,27 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
     { key: 'customerName', label: 'Customer Name' },
   ]
 
-  const columns = effectiveVariantKey === 'search' ? searchColumns : defaultColumns
+  const isNonAdminUser = user?.role !== 'admin' && user?.role !== 'super_admin'
+  const effectiveSearchColumns = useMemo(() => {
+    if (isNonAdminUser) {
+      const colMap = new Map(searchColumns.map((col) => [col.key, col]))
+      const result = []
+      SEARCH_DEAL_NON_ADMIN_KEYS.forEach((k) => {
+        let match = colMap.get(k)
+        if (!match && k === 'companyCustomerName') {
+          match = colMap.get('customerName')
+        }
+        if (!match && k === 'projectName') {
+          match = colMap.get('name')
+        }
+        if (match) result.push(match)
+      })
+      return result.length > 0 ? result : searchColumns
+    }
+    return searchColumns
+  }, [isNonAdminUser, searchColumns])
+
+  const columns = effectiveVariantKey === 'search' ? effectiveSearchColumns : defaultColumns
 
   const totalValue = displayedDeals.reduce((sum, deal) => sum + (deal.value || 0), 0)
 

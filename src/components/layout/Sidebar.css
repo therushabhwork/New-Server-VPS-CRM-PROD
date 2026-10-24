@@ -723,6 +723,8 @@
 .sidebar--admin .sb-plain-link--active,
 .sidebar--admin .sb-group-trigger--route-active,
 .sidebar--user .sb-link--active,
+.sidebar--user .sb-link--team.sb-link--active,
+.sidebar--user .sb-plain-link--active,
 .sidebar--user .sb-group-trigger--route-active {
   background: linear-gradient(135deg, rgba(255, 240, 242, 0.98) 0%, rgba(255, 228, 231, 0.95) 100%) !important;
   border: 1px solid rgba(198, 0, 22, 0.35) !important;
@@ -732,13 +734,34 @@
   box-shadow: 0 4px 12px rgba(198, 0, 22, 0.08) !important;
 }
 
+.sb-sub-link--active,
+.sidebar--admin .sb-sub-link--active,
+.sidebar--user .sb-sub-link--active {
+  background: linear-gradient(135deg, rgba(255, 240, 242, 0.98) 0%, rgba(255, 228, 231, 0.95) 100%) !important;
+  border: 1px solid rgba(198, 0, 22, 0.35) !important;
+  border-radius: 9px !important;
+  color: #c60016 !important;
+  font-weight: 800 !important;
+  box-shadow: 0 2px 8px rgba(198, 0, 22, 0.08) !important;
+}
+
+.sb-sub-link--active .sb-sub-arrow,
+.sidebar--admin .sb-sub-link--active .sb-sub-arrow,
+.sidebar--user .sb-sub-link--active .sb-sub-arrow {
+  color: #c60016 !important;
+  opacity: 1 !important;
+}
+
 .sb-link--active::after,
 .sb-link--team.sb-link--active::after,
 .sb-plain-link--active::after,
 .sb-group-trigger--route-active::after,
 .sidebar--admin .sb-link--active::after,
 .sidebar--admin .sb-plain-link--active::after,
-.sidebar--admin .sb-group-trigger--route-active::after {
+.sidebar--admin .sb-group-trigger--route-active::after,
+.sidebar--user .sb-link--active::after,
+.sidebar--user .sb-plain-link--active::after,
+.sidebar--user .sb-group-trigger--route-active::after {
   display: none !important;
 }
 
@@ -751,6 +774,8 @@
 .sidebar--admin .sb-plain-link--active .sb-plain-icon,
 .sidebar--admin .sb-group-trigger--route-active .sb-group-icon,
 .sidebar--user .sb-link--active .sb-link-icon,
+.sidebar--user .sb-link--team.sb-link--active .sb-link-icon,
+.sidebar--user .sb-plain-link--active .sb-plain-icon,
 .sidebar--user .sb-group-trigger--route-active .sb-group-icon {
   background: linear-gradient(135deg, #c60016 0%, #9e0012 100%) !important;
   color: #ffffff !important;
@@ -767,10 +792,17 @@
 .sidebar--admin .sb-plain-link--active .sb-plain-icon svg,
 .sidebar--admin .sb-group-trigger--route-active .sb-group-icon svg,
 .sidebar--user .sb-link--active .sb-link-icon svg,
+.sidebar--user .sb-link--team.sb-link--active .sb-link-icon svg,
+.sidebar--user .sb-plain-link--active .sb-plain-icon svg,
 .sidebar--user .sb-group-trigger--route-active .sb-group-icon svg,
 .sidebar--admin .sb-link--active :where(svg, svg *),
 .sidebar--admin .sb-link--team.sb-link--active :where(svg, svg *),
-.sidebar--admin .sb-group-trigger--route-active :where(svg, svg *) {
+.sidebar--admin .sb-plain-link--active :where(svg, svg *),
+.sidebar--admin .sb-group-trigger--route-active :where(svg, svg *),
+.sidebar--user .sb-link--active :where(svg, svg *),
+.sidebar--user .sb-link--team.sb-link--active :where(svg, svg *),
+.sidebar--user .sb-plain-link--active :where(svg, svg *),
+.sidebar--user .sb-group-trigger--route-active :where(svg, svg *) {
   color: #ffffff !important;
   fill: #ffffff !important;
   stroke: #ffffff !important;

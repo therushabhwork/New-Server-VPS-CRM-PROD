@@ -100,6 +100,9 @@ const filterDismissedNotifications = (notifications = []) => (
 )
 
 const getNotificationDedupeKey = (notification = {}) => {
+  if (notification.forceToast) {
+    return `force:${notification.id || Math.random()}`
+  }
   const stableId = notification.id || notification._id
   if (stableId) return `id:${stableId}`
 
@@ -184,13 +187,14 @@ export const DataProvider = ({ children }) => {
 
   const initialLoadKeyRef = useRef('')
 
-  const addNotification = useCallback((type, title, message) => {
+  const addNotification = useCallback((type, title, message, extra = {}) => {
     const notification = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       type,
       title,
       message,
       timestamp: new Date().toISOString(),
+      ...(typeof extra === 'object' && extra !== null ? extra : {}),
     }
 
     setNotifications((prev) => addUniqueNotification(prev, notification))

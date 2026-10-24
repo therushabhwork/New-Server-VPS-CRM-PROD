@@ -65,24 +65,6 @@ const MONTHLY_STATUS_OPTIONS = [
 ]
 const CUSTOMERS_STATUS_OPTIONS = ['New', 'Follow Up', 'Closed']
 const DEALS_STATUS_OPTIONS = ['New', 'Won', 'Lost', 'Closed']
-const MONTHLY_STATUS_OWNERS = [
-  'Atish Shah',
-  'Bhavesh Prajapati',
-  'Hasmukh Chauhan',
-  'Jagruti Parmar',
-  'Jay Pandya',
-  'Keval V Shah',
-  'Krunal patel',
-  'Monali Pataliya',
-  'Naim Vhora',
-  'Nita Bhavsar',
-  'Rajeshree Parmar',
-  'Samir Sheth',
-  'Tajamul Rafique Solkar',
-  'Vaibhavi Patel',
-  'Kanu Shah',
-  'Samir Jha',
-]
 const DEFAULT_MONTHLY_STATUS_CONFIG = {
   reportName: 'Monthly Status',
   visibility: 'All',
@@ -90,9 +72,11 @@ const DEFAULT_MONTHLY_STATUS_CONFIG = {
   selectedStatuses: [...MONTHLY_STATUS_OPTIONS],
   compareBy: 'Account Owner',
   ownerAll: true,
-  selectedOwners: [...MONTHLY_STATUS_OWNERS],
+  selectedOwners: [],
   timeField: 'Added On',
-  timePeriod: 'This Month',
+  timePeriod: 'Monthly',
+  customStartDate: '',
+  customEndDate: '',
   configureFilters: 'YES',
 }
 const MONTHLY_STATUS_EXPORT_ROW_CONFIG = [
@@ -197,14 +181,13 @@ const resolveMonthlyStatusLabel = (record, reportId) => {
 }
 
 const buildMonthlyStatusOwnerOptions = (normalizedRecords = [], availableUsers = []) => dedupeByNormalizedValue([
-  ...MONTHLY_STATUS_OWNERS,
   ...availableUsers,
   ...normalizedRecords.map((record) => String(record.accountOwner || record.dealOwner || record.customerOwner || record.ownerName || record.addedBy || '').trim()),
 ].map(normalizeOwnerDisplayValue))
 
 const buildMonthlyStatusExportData = (
   reportId,
-  normalizedRecords = [],
+  rawRecords = [],
   config = DEFAULT_MONTHLY_STATUS_CONFIG,
   availableUsersFull = [],
 ) => {
@@ -216,8 +199,26 @@ const buildMonthlyStatusExportData = (
       ? DEALS_STATUS_OPTIONS 
       : MONTHLY_STATUS_OPTIONS
 
+  // Deduplicate and normalize raw records by stable ID
+  const seenIds = new Set()
+  const normalizedRecords = []
+  rawRecords.forEach((record) => {
+    if (!record) return
+    const id = record.id || record._id || record.accountNo || record.dealNumber || record.customerNumber
+    if (id && seenIds.has(String(id))) return
+    if (id) seenIds.add(String(id))
+
+    const normalized = isDeals
+      ? normalizeDealRecord(record)
+      : isCustomers
+        ? (customerService.normalizeCustomerRecord ? customerService.normalizeCustomerRecord(record) : record)
+        : normalizeAccountRecord(record)
+
+    normalizedRecords.push(normalized)
+  })
+
   const activeStatuses = dedupeByNormalizedValue(
-    config.statusAll ? entityStatusOptions : config.selectedStatuses,
+    config.statusAll ? entityStatusOptions : (config.selectedStatuses && config.selectedStatuses.length > 0 ? config.selectedStatuses : entityStatusOptions),
   )
   const selectedStatusSet = new Set(activeStatuses.map((entry) => normalizeLabel(entry)))
   
@@ -227,14 +228,16 @@ const buildMonthlyStatusExportData = (
   }, {})
 
   const period = config.timePeriod || 'Monthly'
+  const customStart = config.customStartDate
+  const customEnd = config.customEndDate
   const now = new Date()
 
   const matchesPeriod = (record) => {
     if (period === 'All Time') return true
-    const rawDate = record.createdAt || record.accountDate || record.date || record.updatedAt
-    if (!rawDate) return true
+    const rawDate = record.createdAt || record.accountDate || record.date || record.dealDate || record.updatedAt
+    if (!rawDate) return false
     const date = new Date(rawDate)
-    if (Number.isNaN(date.getTime())) return true
+    if (Number.isNaN(date.getTime())) return false
 
     if (period === 'Daily' || period === 'Today') {
       return (
@@ -245,6 +248,14 @@ const buildMonthlyStatusExportData = (
     }
     if (period === 'Yearly' || period === 'This Year') {
       return date.getFullYear() === now.getFullYear()
+    }
+    if (period === 'Custom' || period === 'Custom Date Range') {
+      if (!customStart || !customEnd) return true
+      const start = new Date(customStart)
+      start.setHours(0, 0, 0, 0)
+      const end = new Date(customEnd)
+      end.setHours(23, 59, 59, 999)
+      return date >= start && date <= end
     }
     // Default: Monthly / This Month
     return (
@@ -319,6 +330,12 @@ const buildMonthlyStatusExportData = (
     ownerRow.total += 1
   })
 
+  const grandTotalCounts = activeStatuses.reduce((lookup, status) => {
+    lookup[status] = matrixRows.reduce((sum, row) => sum + (row.counts[status] || 0), 0)
+    return lookup
+  }, {})
+  const grandTotalAll = matrixRows.reduce((sum, row) => sum + row.total, 0)
+
   const columns = [
     { key: 'ownerName', label: 'Owner Name', width: 24 },
     { key: 'ownerCode', label: 'Owner Code', width: 15 },
@@ -333,16 +350,25 @@ const buildMonthlyStatusExportData = (
     { key: 'total', label: 'Total', align: 'center', type: 'integer', width: 12 },
   ]
 
-  const tableRows = matrixRows.map((row) => ({
-    ownerName: row.ownerName,
-    ownerCode: row.ownerCode,
-    email: row.email,
-    ...activeStatuses.reduce((lookup, status) => {
-      lookup[status] = row.counts[status] || 0
-      return lookup
-    }, {}),
-    total: row.total,
-  }))
+  const tableRows = [
+    ...matrixRows.map((row) => ({
+      ownerName: row.ownerName,
+      ownerCode: row.ownerCode,
+      email: row.email,
+      ...activeStatuses.reduce((lookup, status) => {
+        lookup[status] = row.counts[status] || 0
+        return lookup
+      }, {}),
+      total: row.total,
+    })),
+    {
+      ownerName: 'Grand Total',
+      ownerCode: '',
+      email: '',
+      ...grandTotalCounts,
+      total: grandTotalAll,
+    },
+  ]
 
   const baseExportTitle = isCustomers 
     ? 'Customers Status Report' 
@@ -354,20 +380,23 @@ const buildMonthlyStatusExportData = (
     ? `Daily (${now.toLocaleDateString('en-IN')})`
     : period === 'Yearly' || period === 'This Year'
       ? `Yearly (${now.getFullYear()})`
-      : period === 'All Time'
-        ? 'All Time'
-        : `Monthly (${now.toLocaleString('en-IN', { month: 'long', year: 'numeric' })})`
+      : (period === 'Custom' || period === 'Custom Date Range') && customStart && customEnd
+        ? `Custom (${customStart} to ${customEnd})`
+        : period === 'All Time'
+          ? 'All Time'
+          : `Monthly (${now.toLocaleString('en-IN', { month: 'long', year: 'numeric' })})`
 
   return {
     reportName: baseExportTitle,
     generatedOn: formatSummaryGeneratedOn(now),
     comparison: config.statusAll ? 'All Statuses' : 'Selected Statuses',
-    reportFilter: `${periodLabel} | Owner: ${config.ownerAll ? 'All Owner' : config.selectedOwners.join(', ')}`,
+    reportFilter: `${periodLabel} | Owner: ${config.ownerAll ? 'All Owner' : (config.selectedOwners || []).join(', ')}`,
     timePeriod: periodLabel,
-    ownerFilter: config.ownerAll ? 'All Owner' : config.selectedOwners.join(', '),
+    ownerFilter: config.ownerAll ? 'All Owner' : (config.selectedOwners || []).join(', '),
     totalRecords: filteredRecords.length,
     columns,
     tableRows,
+    filteredRecords,
   }
 }
 
@@ -380,6 +409,9 @@ const readMonthlyStatusConfig = () => {
     return {
       ...DEFAULT_MONTHLY_STATUS_CONFIG,
       ...parsedValue,
+      timePeriod: parsedValue?.timePeriod || 'Monthly',
+      customStartDate: parsedValue?.customStartDate || '',
+      customEndDate: parsedValue?.customEndDate || '',
       selectedStatuses: Array.isArray(parsedValue?.selectedStatuses) && parsedValue.selectedStatuses.length > 0
         ? parsedValue.selectedStatuses
         : DEFAULT_MONTHLY_STATUS_CONFIG.selectedStatuses,
@@ -532,25 +564,43 @@ const MonthlyStatusSettingsPanel = ({
 }) => {
   if (!draft) return null
 
+  const isCustom = draft.timePeriod === 'Custom'
+  const isDateInvalid = Boolean(
+    isCustom &&
+    draft.customStartDate &&
+    draft.customEndDate &&
+    draft.customEndDate < draft.customStartDate
+  )
+
   const handleStatusToggle = (status) => {
+    const normalizedStatus = normalizeLabel(status)
+    let nextStatuses = []
+
+    if (draft.statusAll) {
+      nextStatuses = statusOptions.filter((s) => normalizeLabel(s) !== normalizedStatus)
+    } else {
+      const currentSet = new Set((draft.selectedStatuses || []).map(normalizeLabel))
+      if (currentSet.has(normalizedStatus)) {
+        currentSet.delete(normalizedStatus)
+      } else {
+        currentSet.add(normalizedStatus)
+      }
+      nextStatuses = statusOptions.filter((s) => currentSet.has(normalizeLabel(s)))
+    }
+
     onUpdate({
       ...draft,
-      statusAll: false,
-      selectedStatuses: toggleConfigValue(
-        draft.statusAll ? statusOptions : draft.selectedStatuses,
-        status,
-        statusOptions,
-      ),
+      statusAll: nextStatuses.length === statusOptions.length,
+      selectedStatuses: nextStatuses,
     })
   }
 
-  const handleOwnerToggle = (owner) => {
-    const nextOwners = toggleConfigValue(draft.selectedOwners, owner, ownerOptions)
-    onUpdate({
-      ...draft,
-      ownerAll: nextOwners.length === ownerOptions.length,
-      selectedOwners: nextOwners.length > 0 ? nextOwners : draft.selectedOwners,
-    })
+  const handleSelectAllStatuses = () => {
+    if (draft.statusAll) {
+      onUpdate({ ...draft, statusAll: false, selectedStatuses: [] })
+    } else {
+      onUpdate({ ...draft, statusAll: true, selectedStatuses: [...statusOptions] })
+    }
   }
 
   return (
@@ -563,6 +613,7 @@ const MonthlyStatusSettingsPanel = ({
               type="button"
               className="monthly-status-action-btn monthly-status-action-btn--save"
               onClick={onSave}
+              disabled={isDateInvalid}
             >
               <FaSave aria-hidden="true" />
               <span>Save</span>
@@ -586,11 +637,56 @@ const MonthlyStatusSettingsPanel = ({
             </label>
             <label className="monthly-status-field">
               <span>Visibility</span>
-              <select value={draft.visibility} onChange={(event) => onUpdate({ ...draft, visibility: event.target.value })}>
+              <select
+                value={draft.visibility}
+                onChange={(event) => onUpdate({ ...draft, visibility: event.target.value })}
+              >
                 <option value="Me Only">Me Only</option>
                 <option value="All">All</option>
               </select>
             </label>
+          </section>
+
+          <section className="monthly-status-section">
+            <label className="monthly-status-field">
+              <span>Period</span>
+              <select
+                value={draft.timePeriod || 'Monthly'}
+                onChange={(event) => onUpdate({ ...draft, timePeriod: event.target.value })}
+              >
+                <option value="Daily">Daily</option>
+                <option value="Monthly">Monthly</option>
+                <option value="Yearly">Yearly</option>
+                <option value="Custom">Custom Date Range</option>
+                <option value="All Time">All Time</option>
+              </select>
+            </label>
+
+            {isCustom && (
+              <div className="monthly-status-custom-dates-row">
+                <label className="monthly-status-field">
+                  <span>Start Date</span>
+                  <input
+                    type="date"
+                    value={draft.customStartDate || ''}
+                    onChange={(e) => onUpdate({ ...draft, customStartDate: e.target.value })}
+                  />
+                </label>
+                <label className="monthly-status-field">
+                  <span>End Date</span>
+                  <input
+                    type="date"
+                    value={draft.customEndDate || ''}
+                    onChange={(e) => onUpdate({ ...draft, customEndDate: e.target.value })}
+                  />
+                </label>
+                {isDateInvalid && (
+                  <div className="monthly-status-validation-error">
+                    End date cannot be earlier than start date.
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           <section className="monthly-status-section">
@@ -622,28 +718,53 @@ const MonthlyStatusSettingsPanel = ({
               <button
                 type="button"
                 className={`monthly-status-toggle-chip${draft.statusAll ? ' monthly-status-toggle-chip--active' : ''}`}
-                onClick={() => onUpdate({ ...draft, statusAll: true, selectedStatuses: [...statusOptions] })}
+                onClick={handleSelectAllStatuses}
               >
                 All
               </button>
             </div>
             <div className="monthly-status-chip-grid">
               {statusOptions.map((status) => {
-                const isActive = draft.statusAll || draft.selectedStatuses.some((entry) => normalizeLabel(entry) === normalizeLabel(status))
+                const isSelected = draft.statusAll || (draft.selectedStatuses || []).some(
+                  (entry) => normalizeLabel(entry) === normalizeLabel(status)
+                )
                 return (
                   <button
                     key={status}
                     type="button"
-                    className={`monthly-status-chip${isActive ? ' monthly-status-chip--active' : ''}`}
+                    className={`monthly-status-chip ${
+                      isSelected ? 'monthly-status-chip--selected' : 'monthly-status-chip--unselected'
+                    }`}
                     onClick={() => handleStatusToggle(status)}
                   >
-                    {status}
+                    {isSelected && <FaCheck className="monthly-status-chip-icon" />}
+                    <span>{status}</span>
                   </button>
                 )
               })}
             </div>
           </section>
         </div>
+
+        <footer className="monthly-status-footer">
+          <button
+            type="button"
+            className="monthly-status-action-btn monthly-status-action-btn--close"
+            onClick={onClose}
+          >
+            <FaTimes aria-hidden="true" />
+            <span>Close</span>
+          </button>
+          <button
+            type="button"
+            className="monthly-status-action-btn monthly-status-action-btn--save"
+            onClick={onSave}
+            disabled={isDateInvalid}
+          >
+            <FaSave aria-hidden="true" />
+            <span>Save</span>
+          </button>
+        </footer>
       </section>
     </div>
   )
@@ -876,6 +997,9 @@ const SummaryReportsPage = () => {
     [availableUsers, normalizedAccountsBoard.records],
   )
   const canEditReports = useMemo(() => {
+    if (user?.role === 'admin' || user?.role === 'super_admin' || user?.actualRole === 'admin' || location.pathname.startsWith('/admin')) {
+      return true
+    }
     const userNames = [
       user?.name,
       user?.ownerDisplayName,
@@ -887,7 +1011,7 @@ const SummaryReportsPage = () => {
     return REPORT_EDIT_AUTHORIZED_USERS.some((authorizedName) => (
       userNames.some((userName) => isSameCrmOwner(userName, authorizedName))
     ))
-  }, [user?.email, user?.name, user?.ownerCode, user?.ownerDisplayName, user?.username])
+  }, [location.pathname, user?.actualRole, user?.email, user?.name, user?.ownerCode, user?.ownerDisplayName, user?.role, user?.username])
 
   const reports = useMemo(() => {
     const baseReports = getSummaryReports({
@@ -907,10 +1031,19 @@ const SummaryReportsPage = () => {
           ? 'Count By Deal Status'
           : 'Count By Account Status'
 
+      const resolvedPeriodDisplay = (monthlyStatusConfig.timePeriod === 'Custom' || monthlyStatusConfig.timePeriod === 'Custom Date Range') && monthlyStatusConfig.customStartDate && monthlyStatusConfig.customEndDate
+        ? `Custom (${monthlyStatusConfig.customStartDate} to ${monthlyStatusConfig.customEndDate})`
+        : (monthlyStatusConfig.timePeriod || 'Monthly')
+
       return {
         ...report,
         visibility: monthlyStatusConfig.visibility,
         lines: [
+          {
+            key: 'filters',
+            label: 'Period',
+            value: resolvedPeriodDisplay,
+          },
           {
             key: 'owner',
             label: 'Owner',
@@ -981,19 +1114,45 @@ const SummaryReportsPage = () => {
               }
               .pdf-page { 
                 background-color: #fff; 
-                padding: 60px; 
+                padding: 40px 50px; 
                 margin: 0 auto; 
-                max-width: 1000px; 
+                max-width: 1100px; 
                 box-shadow: 0 4px 15px rgba(0,0,0,0.2); 
                 min-height: 800px;
                 overflow-x: auto;
+                border-radius: 6px;
               }
-              .table-responsive { overflow-x: auto; white-space: nowrap; }
-              h2 { text-align: center; color: #1a1a1a; margin-top: 0; margin-bottom: 30px; font-size: 24px; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
-              th, td { border: 1px solid #d1d5db; padding: 12px 16px; text-align: left; color: #374151; }
-              th { background-color: #f3f4f6; color: #111827; font-weight: 600; border-bottom: 2px solid #9ca3af; }
-              tr:nth-child(even) { background-color: #f9fafb; }
+              .report-header {
+                border-bottom: 2px solid #c60016;
+                padding-bottom: 15px;
+                margin-bottom: 20px;
+              }
+              .report-header h2 {
+                color: #c60016;
+                margin: 0 0 10px 0;
+                font-size: 22px;
+              }
+              .report-meta-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                gap: 8px 16px;
+                font-size: 13px;
+                color: #475569;
+                background: #f8fafc;
+                padding: 12px 16px;
+                border-radius: 6px;
+                border: 1px solid #e2e8f0;
+              }
+              .meta-item strong {
+                color: #1e293b;
+              }
+              .table-responsive { overflow-x: auto; white-space: nowrap; margin-top: 20px; }
+              table { width: 100%; border-collapse: collapse; font-size: 13px; }
+              th, td { border: 1px solid #cbd5e1; padding: 10px 14px; text-align: left; color: #334155; }
+              th { background-color: #f1f5f9; color: #0f172a; font-weight: 700; border-bottom: 2px solid #94a3b8; }
+              tr:nth-child(even) { background-color: #f8fafc; }
+              tr:last-child { background-color: #fff1f2; font-weight: 700; border-top: 2px solid #c60016; }
+              tr:last-child td { color: #c60016; }
               @media print {
                 body { display: none !important; }
               }
@@ -1001,18 +1160,27 @@ const SummaryReportsPage = () => {
           </head>
           <body oncontextmenu="return false;">
             <div class="pdf-page">
-              <h2>${exportData.reportName}</h2>
+              <div class="report-header">
+                <h2>${exportData.reportName}</h2>
+                <div class="report-meta-grid">
+                  <div class="meta-item"><strong>Generated On:</strong> ${exportData.generatedOn}</div>
+                  <div class="meta-item"><strong>Time Period:</strong> ${exportData.timePeriod}</div>
+                  <div class="meta-item"><strong>Owner:</strong> ${exportData.ownerFilter}</div>
+                  <div class="meta-item"><strong>Statuses:</strong> ${exportData.comparison}</div>
+                  <div class="meta-item"><strong>Total Records:</strong> ${exportData.totalRecords}</div>
+                </div>
+              </div>
               <div class="table-responsive">
                 <table>
                   <thead>
                     <tr>
-                      ${exportData.columns.map(col => `<th>${col.label}</th>`).join('')}
+                      ${exportData.columns.map(col => `<th style="text-align:${col.align || 'left'}">${col.label}</th>`).join('')}
                     </tr>
                   </thead>
                   <tbody>
                     ${exportData.tableRows.map(row => `
                       <tr>
-                        ${exportData.columns.map(col => `<td>${row[col.key] != null ? row[col.key] : ''}</td>`).join('')}
+                        ${exportData.columns.map(col => `<td style="text-align:${col.align || 'left'}">${row[col.key] != null ? row[col.key] : ''}</td>`).join('')}
                       </tr>
                     `).join('')}
                   </tbody>
@@ -1100,9 +1268,16 @@ const SummaryReportsPage = () => {
     if (MONTHLY_STATUS_REPORT_IDS.includes(report.id)) {
       if (actionKey === 'excel') {
         const userNames = [user?.name, user?.ownerDisplayName, user?.username, user?.email, user?.ownerCode]
-        const isAdminOnly = userNames.some((userName) => isSameCrmOwner(userName, 'Keval V Shah'))
-        if (!isAdminOnly) {
-          showToast('error', 'admin can access')
+        const isAdmin = Boolean(
+          user?.role === 'admin'
+          || user?.role === 'super_admin'
+          || user?.actualRole === 'admin'
+          || user?.permissions?.includes('admin_reports')
+          || location.pathname.startsWith('/admin')
+          || userNames.some((userName) => isSameCrmOwner(userName, 'Keval V Shah'))
+        )
+        if (!isAdmin) {
+          showToast('error', 'Only administrators can export reports.')
           return
         }
       }
@@ -1113,13 +1288,15 @@ const SummaryReportsPage = () => {
         { label: 'Summary Report Name', value: exportData.reportName },
         { label: 'Comparison', value: exportData.comparison },
         { label: 'Report Filter', value: exportData.reportFilter },
-        { label: 'Total Records', value: String(exportData.totalRecords) },
+        { label: 'Time Period', value: exportData.timePeriod },
+        { label: 'Owner Filter', value: exportData.ownerFilter },
+        { label: 'Total Filtered Records', value: String(exportData.totalRecords) },
       ]
 
       if (actionKey === 'excel') {
         exportExcelWorkbook({
-          title: exportData.title,
-          subtitle: '',
+          title: exportData.reportName,
+          subtitle: 'Monthly Status Summary',
           metadata: monthlyStatusMetadata,
           columns: exportData.columns,
           rows: exportData.tableRows,
@@ -1161,9 +1338,16 @@ const SummaryReportsPage = () => {
 
     if (actionKey === 'excel') {
       const userNames = [user?.name, user?.ownerDisplayName, user?.username, user?.email, user?.ownerCode]
-      const isAdminOnly = userNames.some((userName) => isSameCrmOwner(userName, 'Keval V Shah'))
-      if (!isAdminOnly) {
-        showToast('error', 'admin can access')
+      const isAdmin = Boolean(
+        user?.role === 'admin'
+        || user?.role === 'super_admin'
+        || user?.actualRole === 'admin'
+        || user?.permissions?.includes('admin_reports')
+        || location.pathname.startsWith('/admin')
+        || userNames.some((userName) => isSameCrmOwner(userName, 'Keval V Shah'))
+      )
+      if (!isAdmin) {
+        showToast('error', 'Only administrators can export reports.')
         return
       }
       exportExcelWorkbook({
@@ -1173,7 +1357,7 @@ const SummaryReportsPage = () => {
       addNotification('success', 'Excel exported', `${report.title} was exported to Excel.`)
       showToast('success', `${report.title} exported to Excel.`)
     }
-  }, [addNotification, buildReportFilename, generateExportDataAsync, showToast, user])
+  }, [addNotification, buildReportFilename, generateExportDataAsync, showToast, user, location.pathname])
 
   const handleToggleSummaryCollapse = (reportId) => {
     setCollapsedReportIds((currentValue) => (
@@ -1256,16 +1440,20 @@ const SummaryReportsPage = () => {
 
     const normalizedConfig = {
       ...monthlyStatusDraft,
-      statusAll: monthlyStatusDraft.statusAll || monthlyStatusDraft.selectedStatuses.length === statusOptions.length,
-      ownerAll: monthlyStatusDraft.ownerAll || monthlyStatusDraft.selectedOwners.length === monthlyStatusOwnerOptions.length,
-      selectedStatuses: monthlyStatusDraft.statusAll ? [...statusOptions] : monthlyStatusDraft.selectedStatuses,
-      selectedOwners: monthlyStatusDraft.ownerAll ? [...monthlyStatusOwnerOptions] : monthlyStatusDraft.selectedOwners,
+      statusAll: monthlyStatusDraft.statusAll || (monthlyStatusDraft.selectedStatuses?.length === statusOptions.length),
+      ownerAll: monthlyStatusDraft.ownerAll || (monthlyStatusDraft.selectedOwners?.length === monthlyStatusOwnerOptions.length),
+      selectedStatuses: monthlyStatusDraft.statusAll ? [...statusOptions] : (monthlyStatusDraft.selectedStatuses || []),
+      selectedOwners: monthlyStatusDraft.ownerAll ? [...monthlyStatusOwnerOptions] : (monthlyStatusDraft.selectedOwners || []),
+      timePeriod: monthlyStatusDraft.timePeriod || 'Monthly',
+      customStartDate: monthlyStatusDraft.customStartDate || '',
+      customEndDate: monthlyStatusDraft.customEndDate || '',
     }
 
     setMonthlyStatusConfig(normalizedConfig)
     window.localStorage.setItem(MONTHLY_STATUS_STORAGE_KEY, JSON.stringify(normalizedConfig))
     setMonthlyStatusDraft(null)
     addNotification('success', 'Monthly Status saved', 'Summary Report settings were updated successfully.')
+    showToast('success', 'Settings saved successfully.')
   }
 
   const handleQuotationAction = useCallback((key, quotation) => {

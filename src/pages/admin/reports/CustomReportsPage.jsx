@@ -463,13 +463,13 @@ const ReportCard = ({ report, onViewWeb, onExport, onDelete, isKevalOrAdmin, can
 
               {dropdownOpen && (
                 <div className="cr-card-dropdown-menu" style={{ padding: '0', minWidth: '170px' }}>
-                  <button type="button" className="cr-dropdown-item" onClick={() => { setDropdownOpen(false); onExport(report, 'csv') }}>
-                    <FaFileCsv className="cr-dropdown-export-icon" />
-                    <span className="cr-dropdown-export-label">Export to CSV</span>
-                  </button>
                   <button type="button" className="cr-dropdown-item" onClick={() => { setDropdownOpen(false); onExport(report, 'excel') }}>
                     <FaFileExcel className="cr-dropdown-export-icon" />
                     <span className="cr-dropdown-export-label">Export to Excel</span>
+                  </button>
+                  <button type="button" className="cr-dropdown-item" onClick={() => { setDropdownOpen(false); onExport(report, 'pdf') }}>
+                    <FaFilePdf className="cr-dropdown-export-icon" />
+                    <span className="cr-dropdown-export-label">Export to PDF</span>
                   </button>
                   <button
                     type="button"
@@ -1022,8 +1022,11 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     const finalQuotations = allQuotations.length > 0 ? allQuotations : quotations
 
     const reportOwner = String(report.accountOwner || report.owner || '').trim().toLowerCase()
-    const reportFrom = report.generatedFrom ? new Date(`${report.generatedFrom}T00:00:00`) : null
-    const reportTo = report.generatedTo ? new Date(`${report.generatedTo}T23:59:59`) : null
+    const rawFrom = report.recordDateFrom || report.generatedFrom || report.dateRange?.fromDate || report.fromDate
+    const rawTo = report.recordDateTo || report.generatedTo || report.dateRange?.toDate || report.toDate
+    const reportFrom = rawFrom ? new Date(`${rawFrom}T00:00:00`) : null
+    const reportTo = rawTo ? new Date(`${rawTo}T23:59:59`) : null
+    const reportDateFilterField = report.dateFilterField || report.dateRange?.dateFilterField || 'accountDate'
 
     // Pre-calculate quotation matches within [reportFrom, reportTo]
     const quotesInRange = (reportFrom || reportTo)
@@ -1078,7 +1081,15 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           const hasQuoteInRange = quoteAccountKeys.has(itemAccId) || quoteAccountKeys.has(itemAccName)
           if (hasQuoteInRange) return true
 
-          const dVal = item.accountDate || item.date || item.createdAt || item.updatedAt
+          let dVal = null
+          if (reportDateFilterField === 'updatedAt') {
+            dVal = item.updatedAt || item.formData?.updatedAt || item.createdAt
+          } else if (reportDateFilterField === 'createdAt') {
+            dVal = item.createdAt || item.formData?.createdAt
+          } else {
+            dVal = item.formData?.accountDate || item.accountDate || item.date || item.createdAt
+          }
+
           if (dVal) {
             const d = new Date(dVal)
             if (!isNaN(d.getTime())) {
@@ -1142,13 +1153,14 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
       }
 
       if (type === 'account') {
-        const rawOwner = item.accountOwnerName || item.accountOwner || item.ownerName || item.owner || item.raw?.accountOwner || '-'
-        const rawName = item.name || item.customerName || item.accountName || '-'
-        const rawStatus = item.status || item.accountStatus || '-'
-        const rawNo = item.accountNumber || item.accountNo || item.id || '-'
-        const rawDate = dateStr(item.accountDate || item.date || item.createdAt)
-        const rawCategory = item.accountCategory || item.category || '-'
-        const rawSource = item.accountSource || item.source || '-'
+        const rawOwner = item.formData?.accountOwner || item.formData?.ownerName || item.accountOwnerName || item.accountOwner || item.ownerName || item.owner || item.raw?.accountOwner || '-'
+        const rawName = item.formData?.accountName || item.formData?.name || item.name || item.customerName || item.accountName || '-'
+        const rawStatus = item.formData?.status || item.formData?.accountStatus || item.status || item.accountStatus || '-'
+        const rawNo = item.accountNumber || item.accountNo || item.formData?.accountNumber || item.formData?.accountNo || item.id || '-'
+        const rawDate = dateStr(item.formData?.accountDate || item.accountDate || item.date || item.createdAt)
+        const rawUpdatedAt = dateStr(item.updatedAt || item.formData?.updatedAt || item.createdAt)
+        const rawCategory = item.formData?.accountCategory || item.accountCategory || item.category || '-'
+        const rawSource = item.formData?.accountSource || item.accountSource || item.source || '-'
 
         return {
           ...item,
@@ -1160,6 +1172,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           customerName: item.customerName || rawName,
           accountDate: rawDate,
           date: rawDate,
+          updatedAt: rawUpdatedAt,
           accountCategory: rawCategory,
           category: rawCategory,
           accountOwner: rawOwner,
@@ -1570,6 +1583,104 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
       }
       return
     }
+
+    const isCustomTemplate = !report.systemReport && (report.isCustom || report.isBackend || (Array.isArray(report.displayFields) && report.displayFields.length > 0) || (Array.isArray(report.selectedFields) && report.selectedFields.length > 0))
+
+    if (isCustomTemplate) {
+      try {
+        const selectedFieldKeys = getReportDisplayFieldKeys(report)
+        const ctx = getCustomReportContext(report.reportContext) || {}
+        const reportCat = normalizeEntityKey(report.categoryKey || report.entityType || ctx.categoryKey || 'account')
+        const targetCategory = reportCat || 'account'
+
+        const hasDateFilter = Boolean(report.recordDateFrom || report.dateRange?.fromDate || report.recordDateTo || report.dateRange?.toDate)
+        const payload = {
+          dataSource: targetCategory === 'all' ? 'account' : targetCategory,
+          reportContext: targetCategory === 'all' ? 'account' : targetCategory,
+          selectedFields: selectedFieldKeys,
+          ownerFilter: report.accountOwner || report.owner || 'all',
+          period: hasDateFilter ? 'custom' : 'all',
+          recordDateFrom: report.recordDateFrom || report.dateRange?.fromDate || '',
+          recordDateTo: report.recordDateTo || report.dateRange?.toDate || '',
+          dateRange: {
+            fromDate: report.recordDateFrom || report.dateRange?.fromDate || '',
+            toDate: report.recordDateTo || report.dateRange?.toDate || '',
+          },
+          quotesGeneratedRange: {
+            generatedFrom: report.generatedFrom || report.quotesGeneratedRange?.generatedFrom || '',
+            generatedTo: report.generatedTo || report.quotesGeneratedRange?.generatedTo || '',
+          },
+          generatedFrom: report.generatedFrom || report.quotesGeneratedRange?.generatedFrom || '',
+          generatedTo: report.generatedTo || report.quotesGeneratedRange?.generatedTo || '',
+          filters: Array.isArray(report.filters) ? report.filters : [],
+          limit: 0,
+        }
+
+        const res = await apiClient.post('/reports/export-excel', payload)
+        const exportRows = res.data?.rows || []
+
+        if (exportRows.length === 0) {
+          alert('No matching records found for this report for the specified date range.')
+          return
+        }
+
+        const fieldLabels = res.data?.fieldLabels || selectedFieldKeys
+        const columns = fieldLabels.map((lbl) => ({
+          key: lbl,
+          label: lbl,
+          width: Math.min(36, Math.max(14, lbl.length + 5)),
+        }))
+
+        // Safeguard context-specific deduplication to guarantee zero repeated rows
+        const seenRowKeys = new Set()
+        const dedupedDataSets = []
+        for (const row of exportRows) {
+          let rowKey = String(row['Account No.'] || row['Account No'] || row['Deal No.'] || row['Customer No.'] || row['Quotation No.'] || row._id || '').trim()
+          if (!rowKey) rowKey = JSON.stringify(row)
+          if (!seenRowKeys.has(rowKey)) {
+            seenRowKeys.add(rowKey)
+            dedupedDataSets.push(row)
+          }
+        }
+
+        if (format === 'pdf') {
+          const doc = new jsPDF({ orientation: 'landscape' })
+          doc.setFontSize(14)
+          doc.text(reportName, 14, 15)
+          doc.setFontSize(9)
+          doc.setTextColor(100)
+          doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')} | Total Records: ${dedupedDataSets.length}`, 14, 22)
+
+          const tableHead = [columns.map((c) => c.label)]
+          const tableBody = dedupedDataSets.map((row) => columns.map((c) => String(row[c.key] ?? '-')))
+
+          doc.autoTable({
+            head: tableHead,
+            body: tableBody,
+            startY: 26,
+            theme: 'grid',
+            styles: { fontSize: 8, cellPadding: 2 },
+            headStyles: { fillColor: [198, 0, 22], textColor: 255 },
+          })
+
+          doc.save(`${slugify(reportName)}-${new Date().toISOString().slice(0, 10)}.pdf`)
+        } else {
+          exportExcelWorkbook({
+            filename: `${slugify(reportName)}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+            title: reportName,
+            sheetName: 'Report Data',
+            columns,
+            rows: dedupedDataSets,
+          })
+        }
+        return
+      } catch (err) {
+        console.error('Custom report export error:', err)
+        alert('Failed to export report: ' + (err.response?.data?.error || err.message))
+        return
+      }
+    }
+
     const isDailyStatus = groupName === 'Daily Status' || String(reportName).includes('Daily Status')
 
     const isToday = (dateString) => {
@@ -1633,13 +1744,14 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
       }
 
       if (type === 'account') {
-        const rawOwner = item.accountOwnerName || item.accountOwner || item.ownerName || item.owner || item.raw?.accountOwner || '-'
-        const rawName = item.name || item.customerName || item.accountName || '-'
-        const rawStatus = item.status || item.accountStatus || '-'
-        const rawNo = item.accountNumber || item.accountNo || item.id || '-'
-        const rawDate = dateStr(item.accountDate || item.date || item.createdAt)
-        const rawCategory = item.accountCategory || item.category || '-'
-        const rawSource = item.accountSource || item.source || '-'
+        const rawOwner = item.formData?.accountOwner || item.formData?.ownerName || item.accountOwnerName || item.accountOwner || item.ownerName || item.owner || item.raw?.accountOwner || '-'
+        const rawName = item.formData?.accountName || item.formData?.name || item.name || item.customerName || item.accountName || '-'
+        const rawStatus = item.formData?.status || item.formData?.accountStatus || item.status || item.accountStatus || '-'
+        const rawNo = item.accountNumber || item.accountNo || item.formData?.accountNumber || item.formData?.accountNo || item.id || '-'
+        const rawDate = dateStr(item.formData?.accountDate || item.accountDate || item.date || item.createdAt)
+        const rawUpdatedAt = dateStr(item.updatedAt || item.formData?.updatedAt || item.createdAt)
+        const rawCategory = item.formData?.accountCategory || item.accountCategory || item.category || '-'
+        const rawSource = item.formData?.accountSource || item.accountSource || item.source || '-'
 
         return {
           ...item,
@@ -1651,6 +1763,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           customerName: item.customerName || rawName,
           accountDate: rawDate,
           date: rawDate,
+          updatedAt: rawUpdatedAt,
           accountCategory: rawCategory,
           category: rawCategory,
           accountOwner: rawOwner,
@@ -1798,6 +1911,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           'PO Value': mapped.poValue,
           'Job No': mapped.jobNo,
           'Created At': mapped.createdAt,
+          'Updated At': mapped.updatedAt || '-',
         }
       } else if (type === 'deal') {
         return {
@@ -1856,9 +1970,10 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     const allowedMemberNames = new Set(liveGroupMembers.map((m) => String(m.name || '').trim().toLowerCase()).filter(Boolean))
     const allowedMemberEmails = new Set(liveGroupMembers.map((m) => String(m.email || '').trim().toLowerCase()).filter(Boolean))
 
-    const reportFromStr = String(report.generatedFrom || '').trim()
-    const reportToStr = String(report.generatedTo || '').trim()
+    const reportFromStr = String(report.recordDateFrom || report.generatedFrom || report.dateRange?.fromDate || report.fromDate || '').trim()
+    const reportToStr = String(report.recordDateTo || report.generatedTo || report.dateRange?.toDate || report.toDate || '').trim()
     const hasCustomDateRange = Boolean(reportFromStr || reportToStr)
+    const reportDateFilterField = report.dateFilterField || report.dateRange?.dateFilterField || 'accountDate'
 
     const applyReportScope = (items, type) => items.filter((item) => {
       // 1. Owner & User Group Scope Filter
@@ -1943,13 +2058,20 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
       // 2. Date Filter ("Quotes Generated Between" / Custom Range)
       if (hasCustomDateRange) {
         if (type === 'account') {
-          const dateCandidates = [
-            item.accountDate,
-            item.date,
-            item.createdAt,
-            item.formData?.accountDate,
-            item.formData?.date,
-          ].filter(Boolean)
+          let dateCandidates = []
+          if (reportDateFilterField === 'updatedAt') {
+            dateCandidates = [item.updatedAt, item.formData?.updatedAt, item.createdAt].filter(Boolean)
+          } else if (reportDateFilterField === 'createdAt') {
+            dateCandidates = [item.createdAt, item.formData?.createdAt].filter(Boolean)
+          } else {
+            dateCandidates = [
+              item.formData?.accountDate,
+              item.accountDate,
+              item.date,
+              item.formData?.date,
+              item.createdAt,
+            ].filter(Boolean)
+          }
 
           const inRange = dateCandidates.some((d) => isDateInRange(d, reportFromStr, reportToStr))
           if (!inRange) return false
@@ -2031,21 +2153,59 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
       dataSets = [{ Status: 'No records found' }]
     }
 
-    if (format === 'csv') {
-      exportCsvWorkbook({
-        filename: `${reportName}-${activeFilter}-${new Date().toISOString().slice(0, 10)}.csv`,
-        title: `${reportName} - ${activeFilter.toUpperCase()}`,
-        sheetName: 'Custom Report',
-        columns,
-        rows: dataSets,
+    // Safeguard context-specific deduplication to guarantee zero repeated rows in Excel
+    const seenRowKeys = new Set()
+    const dedupedDataSets = []
+    for (const row of dataSets) {
+      let rowKey = ''
+      if (targetCategory === 'account') {
+        rowKey = String(row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || row.id || row._id || '').trim()
+      } else if (targetCategory === 'deal') {
+        rowKey = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || row.id || row._id || '').trim()
+      } else if (targetCategory === 'customer') {
+        rowKey = String(row['Customer No.'] || row['Customer No'] || row.customerNumber || row.customerNo || row.id || row._id || '').trim()
+      } else if (targetCategory === 'quotation') {
+        rowKey = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNo || row.quotationNumber || row.id || row._id || '').trim()
+      } else {
+        rowKey = String(row._id || row.id || '').trim()
+      }
+      if (!rowKey) {
+        rowKey = JSON.stringify(row)
+      }
+      if (!seenRowKeys.has(rowKey)) {
+        seenRowKeys.add(rowKey)
+        dedupedDataSets.push(row)
+      }
+    }
+
+    if (format === 'pdf') {
+      const doc = new jsPDF({ orientation: 'landscape' })
+      doc.setFontSize(14)
+      doc.text(reportName, 14, 15)
+      doc.setFontSize(9)
+      doc.setTextColor(100)
+      doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')} | Records: ${dedupedDataSets.length}`, 14, 22)
+
+      const tableHead = [columns.map((c) => c.label)]
+      const tableBody = dedupedDataSets.map((row) => columns.map((c) => String(row[c.key] ?? '-')))
+
+      doc.autoTable({
+        head: tableHead,
+        body: tableBody,
+        startY: 26,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [198, 0, 22], textColor: 255 },
       })
+
+      doc.save(`${slugify(reportName)}-${new Date().toISOString().slice(0, 10)}.pdf`)
     } else {
       exportExcelWorkbook({
         filename: `${reportName}-${activeFilter}-${new Date().toISOString().slice(0, 10)}.xlsx`,
         title: `${reportName} - ${activeFilter.toUpperCase()}`,
         sheetName: 'Custom Report',
         columns,
-        rows: dataSets,
+        rows: dedupedDataSets,
       })
     }
 

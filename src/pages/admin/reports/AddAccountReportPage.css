@@ -2,6 +2,7 @@
   margin: -1rem -1.25rem 0;
   min-height: 100%;
   background: var(--surface-app);
+  padding-bottom: 2rem;
 }
 
 .account-report-builder-topbar {
@@ -14,11 +15,29 @@
   background: var(--surface-app);
 }
 
+.account-report-builder-title-block {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
 .account-report-builder-topbar h1 {
   margin: 0;
   color: var(--text-secondary);
   font-size: 0.98rem;
   font-weight: 700;
+}
+
+.account-report-builder-badge {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .account-report-builder-topbar-actions {
@@ -28,334 +47,198 @@
 }
 
 .account-report-builder-btn {
-  min-height: 1.55rem;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.6rem;
+  border: 1px solid rgba(0, 0, 0, 0.1);
   color: #ffffff;
   font-size: 0.72rem;
   font-weight: 700;
   padding: 0 0.7rem;
   cursor: pointer;
+  border-radius: 2px;
+  transition: opacity 0.15s ease, transform 0.1s ease;
 }
 
-.account-report-builder-btn-cancel {
-  background: linear-gradient(180deg, #e66f6f 0%, #cd4d4d 100%);
+.account-report-builder-btn:hover {
+  opacity: 0.92;
 }
 
-.account-report-builder-btn-save {
-  background: linear-gradient(180deg, #79b663 0%, #5c9a45 100%);
+.account-report-builder-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.account-report-builder-btn-primary,
+.account-report-builder-btn-save,
+.account-report-builder-btn-preview,
+.account-report-builder-btn-excel {
+  background: #c60016 !important;
+  border: 1px solid #a80012 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 2px 0 rgba(198, 0, 22, 0.2) !important;
+}
+
+.account-report-builder-btn-primary:hover:not(:disabled),
+.account-report-builder-btn-save:hover:not(:disabled),
+.account-report-builder-btn-preview:hover:not(:disabled),
+.account-report-builder-btn-excel:hover:not(:disabled) {
+  background: #a80012 !important;
+  border-color: #88000e !important;
+  color: #ffffff !important;
+}
+
+.account-report-builder-btn-cancel,
+.account-report-builder-btn-clear {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #334155 !important;
+}
+
+.account-report-builder-btn-cancel:hover:not(:disabled),
+.account-report-builder-btn-clear:hover:not(:disabled) {
+  background: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+}
+
+.account-report-builder-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.9rem;
+  margin: 0.5rem 0.6rem 0;
+  font-size: 0.74rem;
+  font-weight: 600;
+  border-radius: 2px;
+}
+
+.account-report-builder-alert-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+.account-report-builder-alert-success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #15803d;
+}
+
+.account-report-alert-icon {
+  flex-shrink: 0;
 }
 
 .account-report-builder-form {
   padding: 0.6rem;
 }
 
-.account-report-builder-panel,
-.account-report-builder-section {
+.account-report-builder-panel {
   border: 1px solid var(--border-subtle);
   background: rgba(238, 247, 253, 0.88);
   margin-bottom: 0.55rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 2px;
 }
 
-.account-report-builder-panel {
-  padding: 0.5rem 0.8rem;
-}
-
-.account-report-builder-row-inline {
-  display: grid;
-  grid-template-columns: 260px minmax(220px, 420px);
+.account-report-builder-section-heading {
+  display: flex;
   align-items: center;
-  gap: 1rem;
-}
-
-.account-report-builder-row-inline label,
-.account-report-builder-field label,
-.account-report-builder-checkbox span {
-  color: var(--text-primary);
-  font-size: 0.74rem;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.76rem;
   font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
-.account-report-builder-panel select,
-.account-report-builder-panel input,
-.account-report-builder-panel textarea,
-.account-report-builder-section select,
-.account-report-builder-section input {
-  width: 100%;
-  min-height: 1.65rem;
-  border: 1px solid var(--border-subtle);
-  background: var(--surface-card);
-  color: var(--text-primary);
-  font-size: 0.73rem;
-  padding: 0.16rem 0.35rem;
-}
-
-.account-report-builder-panel textarea {
-  min-height: 3.6rem;
-  resize: vertical;
-}
-
-.account-report-builder-checkbox {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.account-report-builder-checkbox input {
-  width: auto;
-  min-height: auto;
+.account-report-required {
+  color: #dc2626;
+  font-weight: 700;
 }
 
 .account-report-builder-meta-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(240px, 1fr));
-  gap: 0.55rem 1rem;
+  grid-template-columns: repeat(3, minmax(200px, 1fr));
+  gap: 0.55rem 0.8rem;
 }
 
 .account-report-builder-field {
   display: flex;
   flex-direction: column;
-  gap: 0.18rem;
+  gap: 0.2rem;
+}
+
+.account-report-builder-field label {
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.account-report-builder-field input,
+.account-report-builder-field select,
+.account-report-builder-field textarea {
+  width: 100%;
+  min-height: 1.7rem;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font-size: 0.73rem;
+  padding: 0.18rem 0.4rem;
+  border-radius: 2px;
+  box-sizing: border-box;
+}
+
+.account-report-builder-field input:focus,
+.account-report-builder-field select:focus,
+.account-report-builder-field textarea:focus {
+  outline: none;
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px #38bdf8;
 }
 
 .account-report-builder-field-full {
   grid-column: 1 / -1;
 }
 
-.account-report-builder-inline-select {
-  display: flex;
-  align-items: stretch;
-  gap: 0.25rem;
-}
-
-.account-report-builder-plus-btn,
-.account-report-builder-mini-btn,
-.account-report-builder-transfer-btn {
-  border: 1px solid var(--border-subtle);
-  background: linear-gradient(180deg, #75c6ec 0%, #57add5 100%);
-  color: #ffffff;
-  font-size: 0.8rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.account-report-builder-plus-btn {
-  min-width: 1.5rem;
-}
-
-.account-report-builder-mini-btn {
-  min-width: 1.45rem;
-}
-
-.account-report-builder-mini-btn-remove {
-  background: linear-gradient(180deg, #e68a8a 0%, #ce5f5f 100%);
-  border-color:  var(--border-subtle);
-}
-
-.account-report-builder-section-title {
-  padding: 0.45rem 0.65rem;
-  border-bottom: 1px solid var(--border-subtle);
-  color: var(--text-primary);
-  font-size: 0.74rem;
-  font-weight: 700;
-  background: var(--surface-card);
-}
-
-.account-report-builder-section-body {
-  padding: 0.7rem;
-}
-
-.account-report-builder-subpanel-title {
-  padding: 0.35rem 0.6rem;
-  border: 1px solid var(--border-subtle);
-  background: linear-gradient(180deg, #4ca7d5 0%, #2988bc 100%);
-  color: #ffffff;
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.account-report-builder-filter-shell {
-  border: 1px solid var(--border-subtle);
-  border-top: none;
-  background: var(--surface-card);
-  padding: 0.6rem;
-}
-
-.account-report-builder-filter-caption {
-  color: var(--text-primary);
-  font-size: 0.74rem;
-  font-weight: 700;
-  margin-bottom: 0.45rem;
-}
-
-.account-report-builder-filter-row {
+.account-report-builder-filters-grid {
   display: grid;
-  grid-template-columns: minmax(190px, 1.5fr) auto minmax(130px, 1fr) minmax(180px, 1.2fr) auto auto;
-  gap: 0.35rem;
-  align-items: center;
-  margin-bottom: 0.35rem;
-}
-
-.account-report-builder-filter-operator-label {
-  color: var(--text-primary);
-  font-size: 0.72rem;
-}
-
-.account-report-builder-fields-body {
-  display: grid;
-  grid-template-columns: minmax(280px, 1fr) 72px minmax(280px, 0.85fr);
-  gap: 1rem;
-  align-items: start;
-}
-
-.account-report-builder-field-box {
-  min-width: 0;
-}
-
-.account-report-builder-field-list {
-  border: 1px solid var(--border-subtle);
-  border-top: none;
-  background: var(--surface-card);
-  min-height: 380px;
-  max-height: 420px;
-  overflow-y: auto;
-  padding: 0.5rem 0.6rem;
-}
-
-.account-report-builder-field-list-source {
-  min-height: 420px;
-}
-
-.account-report-builder-field-item {
-  display: block;
-  width: 100%;
-  border: none;
-  background: transparent;
-  color: var(--text-primary);
-  text-align: left;
-  font-size: 0.73rem;
-  padding: 0.16rem 0.2rem;
-  cursor: pointer;
-}
-
-.account-report-builder-field-item-active {
-  background: rgba(63, 160, 209, 0.14);
-  color: var(--text-primary);
-  font-weight: 700;
-}
-
-.account-report-builder-field-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem;
-  min-height: 420px;
-}
-
-.account-report-builder-transfer-btn {
-  min-width: 2rem;
-  min-height: 2rem;
-}
-
-.account-report-builder-error {
-  margin-top: 0.6rem;
-  color: var(--color-danger);
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-@media (max-width: 1100px) {
-  .account-report-builder-meta-grid,
-  .account-report-builder-fields-body {
-    grid-template-columns: 1fr;
-  }
-
-  .account-report-builder-field-actions {
-    flex-direction: row;
-    min-height: auto;
-  }
-}
-
-@media (max-width: 760px) {
-  .account-report-builder-row-inline,
-  .account-report-builder-filter-row {
-    grid-template-columns: 1fr;
-  }
-
-  .account-report-builder-topbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .account-report-builder-topbar-actions {
-    justify-content: flex-end;
-  }
-}
-
-/* Light mode only custom overrides for Account Report Template builder */
-html:not([data-theme="dark"]) .account-report-builder-section-title,
-html:not([data-theme="dark"]) .account-report-builder-subpanel-title {
-  background: #dc2626 !important;
-  color: #ffffff !important;
-  border-color: #b91c1c !important;
-}
-html:not([data-theme="dark"]) .account-report-builder-plus-btn,
-html:not([data-theme="dark"]) .account-report-builder-mini-btn,
-html:not([data-theme="dark"]) .account-report-builder-mini-btn-remove,
-html:not([data-theme="dark"]) .account-report-builder-transfer-btn {
-  background: #dc2626 !important;
-  color: #ffffff !important;
-  border: 1px solid #b91c1c !important;
-}
-
-.account-report-builder-template-filters,
-.account-report-builder-meta-grid > .account-report-builder-field:has(label) {
-  display: block;
-}
-
-.account-report-builder-template-filters {
-  display: none !important;
-}
-
-.account-report-builder-meta-grid > .account-report-builder-field:nth-child(n + 4) {
-  display: none !important;
-}
-
-.account-report-builder-meta-grid > .account-report-builder-field:has(> label:first-child) {
-  display: block;
-}
-
-.account-report-builder-context-filters {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(320px, 2fr);
-  gap: 1rem;
+  grid-template-columns: 1.2fr 1.3fr 1.3fr auto;
+  gap: 0.6rem 0.8rem;
+  align-items: flex-end;
 }
 
 .account-report-builder-date-range {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.4rem;
 }
 
-.account-report-builder-date-range input {
-  min-width: 0;
-  flex: 1;
+.account-report-builder-date-range span {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 600;
 }
 
-.account-report-builder-user-group-section {
-  margin-bottom: 0.55rem;
+.account-report-builder-filter-actions-field {
+  justify-content: flex-end;
 }
 
+/* User Group Multiselect */
 .account-report-builder-multiselect-container {
   position: relative;
   width: 100%;
 }
 
 .account-report-builder-multiselect-trigger {
-  min-height: 2.1rem;
-  border: 1px solid var(--border-subtle);
+  min-height: 1.7rem;
+  padding: 0.15rem 0.4rem;
   background: var(--surface-card);
-  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -366,105 +249,566 @@ html:not([data-theme="dark"]) .account-report-builder-transfer-btn {
 .account-report-builder-multiselect-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 0.25rem;
   align-items: center;
-}
-
-.account-report-builder-placeholder {
-  color: #888;
-  font-size: 0.74rem;
+  max-width: calc(100% - 1.2rem);
 }
 
 .account-report-builder-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  background: #e0f2fe;
-  border: 1px solid #bae6fd;
-  color: #0369a1;
-  font-size: 0.72rem;
+  gap: 0.25rem;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 0.68rem;
   font-weight: 600;
-  padding: 0.12rem 0.45rem;
-  border-radius: 3px;
+  padding: 0.1rem 0.35rem;
+  border-radius: 2px;
 }
 
 .account-report-builder-chip-remove {
-  background: transparent;
+  background: none;
   border: none;
-  color: #b91c1c;
-  font-size: 0.85rem;
+  color: #ef4444;
+  font-size: 0.8rem;
   cursor: pointer;
   padding: 0;
   line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .account-report-builder-caret {
-  font-size: 0.75rem;
-  color: #666;
-  margin-left: 0.5rem;
-  user-select: none;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.account-report-builder-placeholder {
+  color: #9ca3af;
+  font-size: 0.72rem;
 }
 
 .account-report-builder-multiselect-dropdown {
   position: absolute;
-  top: calc(100% + 2px);
+  top: 100%;
   left: 0;
   right: 0;
-  background: #ffffff;
-  border: 1px solid var(--border-subtle, #cbd5e1);
+  z-index: 50;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 2px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-  z-index: 1000;
-  max-height: 240px;
+  margin-top: 2px;
+  max-height: 220px;
   display: flex;
   flex-direction: column;
 }
 
 .account-report-builder-dropdown-search {
-  padding: 0.4rem;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 0.3rem 0.4rem;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .account-report-builder-dropdown-search input {
   width: 100%;
-  padding: 0.3rem 0.5rem;
-  font-size: 0.74rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 2px;
+  padding: 0.18rem 0.35rem;
+  font-size: 0.72rem;
+  border: 1px solid var(--border-subtle);
 }
 
 .account-report-builder-dropdown-options {
   overflow-y: auto;
-  max-height: 190px;
-  padding: 0.25rem 0;
+  max-height: 180px;
+  padding: 0.2rem 0;
 }
 
 .account-report-builder-option-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.38rem 0.65rem;
-  font-size: 0.74rem;
+  gap: 0.45rem;
+  padding: 0.25rem 0.5rem;
   cursor: pointer;
-  color: #1e293b;
+  font-size: 0.72rem;
+  color: var(--text-primary);
 }
 
 .account-report-builder-option-item:hover {
+  background: rgba(56, 189, 248, 0.1);
+}
+
+/* SECTION C: DRAG AND DROP FIELD BUILDER */
+.account-report-selected-count-badge {
+  font-size: 0.7rem;
+  background: #e0f2fe;
+  color: #0284c7;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  border: 1px solid #bae6fd;
+}
+
+.account-report-builder-dnd-container {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+  gap: 0.8rem;
+  margin-top: 0.4rem;
+}
+
+.account-report-dnd-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 2px;
+  min-height: 420px;
+  max-height: 520px;
+}
+
+.account-report-dnd-panel-header {
+  padding: 0.45rem 0.65rem;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.account-report-dnd-panel-header h3 {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.account-report-field-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.account-report-search-icon {
+  position: absolute;
+  left: 0.4rem;
+  font-size: 0.65rem;
+  color: #9ca3af;
+}
+
+.account-report-field-search-box input {
+  padding: 0.16rem 1.4rem 0.16rem 1.3rem;
+  font-size: 0.7rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 2px;
+  width: 140px;
+}
+
+.account-report-search-clear {
+  position: absolute;
+  right: 0.35rem;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0;
+}
+
+.account-report-category-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.4rem 0.5rem;
+}
+
+.account-report-available-flat-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.35rem;
+  align-content: flex-start;
+}
+
+.account-report-category-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 2px;
+  margin-bottom: 0.4rem;
+  background: #ffffff;
+}
+
+.account-report-category-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.55rem;
+  background: #f8fafc;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.account-report-category-header:hover {
   background: #f1f5f9;
 }
 
-.account-report-builder-option-item input[type="checkbox"] {
-  width: auto;
-  min-height: auto;
-  margin: 0;
-  cursor: pointer;
+.account-report-category-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.73rem;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
-.account-report-builder-no-options {
-  padding: 0.6rem;
+.account-report-chevron {
+  font-size: 0.65rem;
+  color: #64748b;
+}
+
+.account-report-category-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  background: #e2e8f0;
+  color: #475569;
+  padding: 0.05rem 0.35rem;
+  border-radius: 10px;
+}
+
+.account-report-category-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.3rem;
+  padding: 0.4rem;
+}
+
+.account-report-available-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0.45rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 2px;
+  cursor: grab;
+  font-size: 0.71rem;
+  color: var(--text-primary);
+  transition: all 0.12s ease;
+}
+
+.account-report-available-item:hover:not(.account-report-item-selected) {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0369a1;
+}
+
+.account-report-item-selected {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-style: dashed;
+  cursor: default;
+}
+
+.account-report-item-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 0.3rem;
+}
+
+.account-report-item-add-btn {
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  border-radius: 2px;
+  width: 1.2rem;
+  height: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.account-report-item-add-btn:hover {
+  background: #0369a1;
+}
+
+.account-report-item-added-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.65rem;
+  color: #10b981;
+  font-weight: 600;
+}
+
+/* Right Panel Selected Columns */
+.account-report-dnd-hint {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.account-report-selected-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.4rem 0.5rem;
+}
+
+.account-report-empty-selected {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 200px;
+  color: #94a3b8;
+  text-align: center;
   font-size: 0.74rem;
-  color: #888;
+}
+
+.account-report-empty-selected p {
+  margin: 0 0 0.2rem;
+  font-weight: 600;
+}
+
+.account-report-empty-selected span {
+  font-size: 0.68rem;
+}
+
+.account-report-selected-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.5rem;
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: 2px;
+  margin-bottom: 0.28rem;
+  font-size: 0.72rem;
+  color: var(--text-primary);
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.account-report-selected-item.dragging {
+  opacity: 0.45;
+  background: #f1f5f9;
+}
+
+.account-report-selected-item.drag-over {
+  border-top: 2px solid #0284c7;
+  background: #e0f2fe;
+}
+
+.account-report-item-drag-handle {
+  cursor: grab;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  font-size: 0.72rem;
+}
+
+.account-report-item-drag-handle:active {
+  cursor: grabbing;
+}
+
+.account-report-item-index {
+  color: #64748b;
+  font-weight: 700;
+  min-width: 1.2rem;
+}
+
+.account-report-selected-label {
+  flex: 1;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-report-item-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.account-report-order-btn,
+.account-report-remove-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.65rem;
+}
+
+.account-report-order-btn:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.account-report-order-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.account-report-remove-btn {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+.account-report-remove-btn:hover {
+  background: #fecaca;
+  color: #b91c1c;
+}
+
+/* SECTION D: LIVE CRM PREVIEW */
+.account-report-preview-section {
+  background: #ffffff;
+  border-top: 2px solid #0284c7;
+  margin-top: 0.6rem;
+}
+
+.account-report-preview-count-badge {
+  font-size: 0.7rem;
+  background: #f0fdf4;
+  color: #15803d;
+  padding: 0.1rem 0.45rem;
+  border-radius: 3px;
+  border: 1px solid #bbf7d0;
+  font-weight: 700;
+}
+
+.account-report-preview-loading,
+.account-report-preview-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  font-size: 0.75rem;
+  color: #64748b;
   text-align: center;
 }
+
+.account-report-spinner {
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 3px solid #e2e8f0;
+  border-top-color: #0284c7;
+  border-radius: 50%;
+  animation: accountReportSpin 0.7s linear infinite;
+  margin-bottom: 0.6rem;
+}
+
+@keyframes accountReportSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.account-report-preview-empty p {
+  margin: 0 0 0.3rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.account-report-preview-empty span {
+  color: var(--text-muted);
+}
+
+.account-report-preview-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  max-height: 480px;
+}
+
+.account-report-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.account-report-preview-table th {
+  background: #f1f5f9;
+  color: var(--text-secondary);
+  font-weight: 700;
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid #cbd5e1;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.account-report-preview-table td {
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: var(--text-primary);
+}
+
+.account-report-preview-table tbody tr:nth-child(even) {
+  background: #fafafa;
+}
+
+.account-report-preview-table tbody tr:hover {
+  background: #f0fdf4;
+}
+
+.account-report-preview-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.account-report-preview-pagination button {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  padding: 0.2rem 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.account-report-preview-pagination button:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.account-report-preview-pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+  .account-report-builder-dnd-container {
+    grid-template-columns: 1fr;
+  }
+
+  .account-report-builder-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .account-report-builder-filters-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.account-report-builder-bottom-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0.9rem;
+  margin-top: 0.75rem;
+  background: var(--surface-card, #ffffff);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: 4px;
+}
+

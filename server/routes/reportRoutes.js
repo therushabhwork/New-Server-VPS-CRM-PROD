@@ -49,13 +49,24 @@ router.get('/fields', requireAuth, (req, res) => {
 router.post('/preview', requireAuth, async (req, res) => {
   try {
     const payload = req.body || {};
+    const dateRange = payload.dateRange || {};
+    const fromDate = payload.recordDateFrom || dateRange.fromDate || '';
+    const toDate = payload.recordDateTo || dateRange.toDate || '';
+
     const result = await executeReportPayload({
       dataSource: payload.dataSource || payload.reportContext || 'account',
       selectedFields: payload.selectedFields || [],
       reportType: payload.reportType || 'detail',
-      period: payload.period || 'monthly',
-      dateRange: payload.dateRange || {},
+      period: payload.period || (fromDate || toDate ? 'custom' : 'all'),
+      dateRange: { fromDate, toDate },
       ownerFilter: payload.ownerFilter || 'all',
+      quotesGeneratedRange: payload.quotesGeneratedRange || {
+        generatedFrom: payload.generatedFrom || '',
+        generatedTo: payload.generatedTo || '',
+      },
+      filters: Array.isArray(payload.filters) ? payload.filters : [],
+      page: Number(payload.page || 1),
+      limit: payload.limit !== undefined ? Number(payload.limit) : 50,
       companyId: req.user?.companyId,
     });
     res.json(result);
@@ -64,17 +75,28 @@ router.post('/preview', requireAuth, async (req, res) => {
   }
 });
 
+
 // Excel Export Endpoint
 router.post('/export-excel', requireAuth, async (req, res) => {
   try {
     const payload = req.body || {};
+    const dateRange = payload.dateRange || {};
+    const fromDate = payload.recordDateFrom || dateRange.fromDate || '';
+    const toDate = payload.recordDateTo || dateRange.toDate || '';
+
     const result = await executeReportPayload({
       dataSource: payload.dataSource || payload.reportContext || 'account',
       selectedFields: payload.selectedFields || [],
       reportType: payload.reportType || 'detail',
-      period: payload.period || 'monthly',
-      dateRange: payload.dateRange || {},
+      period: payload.period || (fromDate || toDate ? 'custom' : 'all'),
+      dateRange: { fromDate, toDate },
       ownerFilter: payload.ownerFilter || 'all',
+      quotesGeneratedRange: payload.quotesGeneratedRange || {
+        generatedFrom: payload.generatedFrom || '',
+        generatedTo: payload.generatedTo || '',
+      },
+      filters: Array.isArray(payload.filters) ? payload.filters : [],
+      limit: 0,
       companyId: req.user?.companyId,
     });
     res.json(result);
@@ -173,7 +195,52 @@ router.get('/templates', requireAuth, async (req, res) => {
   }
 });
 
+router.get('/templates/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const query = { $or: [{ name: id }, { reportName: id }] };
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
+      query.$or.unshift({ _id: id });
+    }
+    const template = await ReportTemplate.findOne(query);
+    if (!template) {
+      return res.status(404).json({ error: 'Report template not found' });
+    }
+    res.json(template);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/templates/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const query = { $or: [{ name: id }, { reportName: id }] };
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
+      query.$or.unshift({ _id: id });
+    }
+    const updates = {
+      ...req.body,
+      name: req.body.name || req.body.reportName,
+      reportName: req.body.reportName || req.body.name,
+      accountOwner: req.body.accountOwner || req.body.owner || '',
+      owner: req.body.owner || req.body.accountOwner || '',
+      generatedFrom: req.body.generatedFrom || '',
+      generatedTo: req.body.generatedTo || '',
+      updatedAt: new Date(),
+    };
+    const updated = await ReportTemplate.findOneAndUpdate(query, updates, { new: true });
+    if (!updated) {
+      return res.status(404).json({ error: 'Report template not found' });
+    }
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.delete('/templates/:id', requireAuth, async (req, res) => {
+
   try {
     if (req.user?.role !== 'admin') {
       return res.status(403).json({ error: 'Only administrators have authority to delete report templates' });

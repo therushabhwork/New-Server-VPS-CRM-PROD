@@ -57,3 +57,45 @@ export const ACCOUNT_REPORT_FIELD_OPTIONS = ACCOUNT_EXPORT_COLUMNS
     key: column.key,
     label: column.label,
   }))
+
+export const ACCOUNT_REPORT_FIELD_CATEGORIES = [
+  {
+    category: 'Account Information',
+    keys: [
+      'accountNumber', 'accountDate', 'name', 'stageLabel', 'status',
+      'accountCategory', 'accountSource', 'accountSubsource',
+      'customerType', 'productCategory', 'industryType'
+    ]
+  },
+  {
+    category: 'Ownership',
+    keys: ['accountOwner', 'addedBy']
+  },
+  {
+    category: 'Contact Information',
+    keys: [
+      'contactPerson', 'phone', 'email', 'contactDesignation',
+      'contactEmail', 'contactPhone', 'contactMobile',
+      'alternatePhone', 'alternateEmail'
+    ]
+  },
+  {
+    category: 'Location & Address',
+    keys: ['location', 'address']
+  },
+  {
+    category: 'Quotation & Commercials',
+    keys: [
+      'customerName', 'customerRefNo', 'customerRefDate', 'consultantName',
+      'gstin', 'poValue', 'statusAsPerQuotationGiven', 'statusAsPerOrderReceived', 'jobNo'
+    ]
+  },
+  {
+    category: 'Remarks & Audit',
+    keys: [
+      'projectName', 'latestRemark', 'remark', 'description',
+      'reasonForLost', 'reminderDate', 'reminderMode', 'createdAt', 'updatedAt'
+    ]
+  }
+]
+

@@ -139,7 +139,7 @@ const DealPerformanceCard = ({ userPerformance }) => {
             </button>
           </div>
 
-          {/* Daily, Monthly, Yearly Timeframe Toggle Switcher */}
+          {/* Timeframe Switcher: Daily, Monthly, Yearly */}
           <div className="deal-perf-timeframe-group" role="group" aria-label="Select timeframe">
             <button
               type="button"

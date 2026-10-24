@@ -422,49 +422,49 @@ const UserDashboardPage = () => {
                   </div>
                   <p className="ud-todo-subtitle" style={{ fontSize: '0.75rem' }}>Prioritized pending tasks and support replies</p>
                 </div>
-              </div>
-
-              <div className="ud-todo-filter-tabs">
-                <button
-                  type="button"
-                  className={`ud-todo-tab ${todoFilter === 'all' ? 'active' : ''}`}
-                  onClick={() => {
-                    setTodoFilter('all')
-                    setTodoPage(1)
-                  }}
-                >
-                  All ({counts.all})
-                </button>
-                <button
-                  type="button"
-                  className={`ud-todo-tab ${todoFilter === 'task' ? 'active' : ''}`}
-                  onClick={() => {
-                    setTodoFilter('task')
-                    setTodoPage(1)
-                  }}
-                >
-                  Tasks ({counts.task})
-                </button>
-                <button
-                  type="button"
-                  className={`ud-todo-tab ${todoFilter === 'reply' ? 'active' : ''}`}
-                  onClick={() => {
-                    setTodoFilter('reply')
-                    setTodoPage(1)
-                  }}
-                >
-                  Replies ({counts.reply})
-                </button>
-              </div>
-
-              <div className="ud-card-header-right">
                 <button
                   type="button"
                   className="ud-red-btn"
                   onClick={() => navigate('/tasks')}
+                  style={{ marginLeft: '0.5rem', whiteSpace: 'nowrap' }}
                 >
                   + Add Task
                 </button>
+              </div>
+
+              <div className="ud-card-header-right">
+                <div className="ud-todo-filter-tabs">
+                  <button
+                    type="button"
+                    className={`ud-todo-tab ${todoFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => {
+                      setTodoFilter('all')
+                      setTodoPage(1)
+                    }}
+                  >
+                    All ({counts.all})
+                  </button>
+                  <button
+                    type="button"
+                    className={`ud-todo-tab ${todoFilter === 'task' ? 'active' : ''}`}
+                    onClick={() => {
+                      setTodoFilter('task')
+                      setTodoPage(1)
+                    }}
+                  >
+                    Tasks ({counts.task})
+                  </button>
+                  <button
+                    type="button"
+                    className={`ud-todo-tab ${todoFilter === 'reply' ? 'active' : ''}`}
+                    onClick={() => {
+                      setTodoFilter('reply')
+                      setTodoPage(1)
+                    }}
+                  >
+                    Replies ({counts.reply})
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -678,45 +678,88 @@ const UserDashboardPage = () => {
 
             <div className="ud-reminders-list--expansive" style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '0.85rem 1rem', background: '#fdfcfb', maxHeight: '280px', overflowY: 'auto' }}>
               {paginatedReminderItems.length > 0 ? (
-                paginatedReminderItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`ud-todo-row ud-todo-row--${item.type.toLowerCase().replace(/[^a-z]/g, '')}`}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '0.75rem',
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      background: '#fffbeb',
-                      border: '1px solid #fde68a',
-                      minHeight: '44px',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-                      transition: 'all 0.18s ease',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
-                      <FaBell style={{ color: '#dc2626', fontSize: '1.15rem', flexShrink: 0 }} />
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', minWidth: 0, flex: 1 }}>
-                        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {item.reminder?.accountName || item.reminder?.dealName ? `${item.reminder.accountName || item.reminder.dealName} | ` : ''}{item.meta || 'Follow up'} {item.reminder?.ownerName ? `| ${item.reminder.ownerName}` : ''}
-                        </span>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title || item.message}>
-                          {item.title || item.message}
-                        </span>
+                paginatedReminderItems.map((item) => {
+                  const isActivated = isReminderItemActivated(item.reminder)
+                  return (
+                    <div
+                      key={item.id}
+                      className={`ud-todo-row ud-todo-row--${item.type.toLowerCase().replace(/[^a-z]/g, '')}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.75rem',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        background: isActivated ? '#f0fdf4' : '#fffbeb',
+                        border: isActivated ? '1px solid #bbf7d0' : '1px solid #fde68a',
+                        minHeight: '44px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                        transition: 'all 0.18s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+                        <FaBell style={{ color: isActivated ? '#16a34a' : '#dc2626', fontSize: '1.15rem', flexShrink: 0 }} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', minWidth: 0, flex: 1 }}>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: isActivated ? '#15803d' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.reminder?.accountName || item.reminder?.dealName ? `${item.reminder.accountName || item.reminder.dealName} | ` : ''}{item.meta || 'Follow up'} {item.reminder?.ownerName ? `| ${item.reminder.ownerName}` : ''}
+                          </span>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title || item.message}>
+                            {item.title || item.message}
+                          </span>
+                        </div>
                       </div>
-                    </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                      {!isReminderItemActivated(item.reminder) && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                        {isActivated ? (
+                          <span
+                            title="Reminder Activated"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              background: '#16a34a',
+                              color: '#ffffff',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                            }}
+                          >
+                            <FaCheck style={{ fontSize: '0.65rem' }} /> Activated
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              if (item.reminder) handleOpenReminderModal(item.reminder, e)
+                              else item.onClick?.(e)
+                            }}
+                            title="Activate Reminder"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '6px',
+                              border: '1.5px solid #ef4444',
+                              background: '#ffffff',
+                              color: '#dc2626',
+                              fontSize: '0.78rem',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <FaCheck />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={(e) => {
                             if (item.reminder) handleOpenReminderModal(item.reminder, e)
-                            else item.onClick?.(e)
+                            else navigate('/tasks')
                           }}
-                          title="Activate Reminder"
+                          title="Create Task / Reschedule"
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -724,65 +767,42 @@ const UserDashboardPage = () => {
                             width: '28px',
                             height: '28px',
                             borderRadius: '6px',
-                            border: '1.5px solid #ef4444',
+                            border: isActivated ? '1.5px solid #16a34a' : '1.5px solid #ef4444',
                             background: '#ffffff',
-                            color: '#dc2626',
+                            color: isActivated ? '#16a34a' : '#dc2626',
                             fontSize: '0.78rem',
                             cursor: 'pointer',
                           }}
                         >
-                          <FaCheck />
+                          <FaPlus />
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          if (item.reminder) handleOpenReminderModal(item.reminder, e)
-                          else navigate('/tasks')
-                        }}
-                        title="Create Task / Reschedule"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: '6px',
-                          border: '1.5px solid #ef4444',
-                          background: '#ffffff',
-                          color: '#dc2626',
-                          fontSize: '0.78rem',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <FaPlus />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          if (item.reminder) handleTodoReminderClose(item.reminder, e)
-                          else if (typeof refreshData === 'function') refreshData()
-                        }}
-                        title="Close Reminder"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: '6px',
-                          border: '1.5px solid #ef4444',
-                          background: '#ffffff',
-                          color: '#dc2626',
-                          fontSize: '0.78rem',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <FaTimes />
-                      </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            if (item.reminder) handleTodoReminderClose(item.reminder, e)
+                            else if (typeof refreshData === 'function') refreshData()
+                          }}
+                          title="Close Reminder"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '6px',
+                            border: isActivated ? '1.5px solid #16a34a' : '1.5px solid #ef4444',
+                            background: '#ffffff',
+                            color: isActivated ? '#16a34a' : '#dc2626',
+                            fontSize: '0.78rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <FaTimes />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  )
+                })
               ) : (
                 <div className="ud-todo-empty-state">
                   <FaBell className="ud-todo-empty-icon" style={{ color: '#dc2626' }} />
