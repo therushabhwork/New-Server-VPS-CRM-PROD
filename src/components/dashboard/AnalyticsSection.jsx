@@ -92,6 +92,8 @@ const matchesOwner = (item, ownerFilter) => {
   return owner && owner === normalize(ownerFilter)
 }
 
+const isNumericId = (str) => /^\d+$/.test(String(str || '').trim())
+
 const buildOwnerOptions = (records, user, systemUsers = [], isAdmin = true) => {
   const currentUserName = String(user?.name || user?.ownerDisplayName || user?.fullName || user?.displayName || user?.username || user?.email || '').trim()
   if (!isAdmin && currentUserName) {
@@ -100,19 +102,20 @@ const buildOwnerOptions = (records, user, systemUsers = [], isAdmin = true) => {
   const ownerMap = new Map()
   const addOwner = (value) => {
     const name = String(value || '').trim()
-    if (!name) return
+    if (!name || isNumericId(name)) return
     const key = normalize(name)
     if (!ownerMap.has(key)) ownerMap.set(key, name)
   }
-  addOwner(currentUserName)
+  if (!isNumericId(currentUserName)) addOwner(currentUserName)
   records.forEach((record) => {
     addOwner(ownerOf(record))
   })
   systemUsers.forEach((u) => {
     const primaryName = u?.name || u?.ownerDisplayName || u?.fullName || u?.displayName || u?.username || u?.email
-    if (primaryName) addOwner(primaryName)
+    if (primaryName && !isNumericId(primaryName)) addOwner(primaryName)
   })
-  return ['all', ...Array.from(ownerMap.values()).sort((a, b) => a.localeCompare(b))]
+  const sortedNames = Array.from(ownerMap.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+  return ['all', ...sortedNames]
 }
 
 const buildWorkTrendData = (records, ownerFilter, period = 'month') => {
@@ -479,20 +482,6 @@ const AnalyticsSection = ({ accounts = [], deals = [], customers = [], quotation
       <div className="analytics-grid analytics-grid--charts">
         <ChartRenderer
           config={{
-            _id: 'live-owner-funnel',
-            title: `Sales Conversion Funnel - ${activeOwnerFilter === 'all' ? 'All Users' : activeOwnerFilter}`,
-            chartType: 'Funnel',
-            entity: 'Deals',
-          }}
-          data={{
-            data: funnelData.length ? funnelData : [{ name: 'No Deals', value: 0 }],
-            labels: (funnelData.length ? funnelData : [{ name: 'No Deals', value: 0 }]).map((entry) => entry.name),
-            values: (funnelData.length ? funnelData : [{ name: 'No Deals', value: 0 }]).map((entry) => entry.value),
-          }}
-          loading={false}
-        />
-        <ChartRenderer
-          config={{
             _id: 'live-daily-work',
             title: `${period === 'day' ? 'Daily' : period === 'week' ? 'Weekly' : 'Monthly'} ${liveEntity} Work - ${activeOwnerFilter === 'all' ? 'All Users' : activeOwnerFilter}`,
             chartType: 'Line',
@@ -552,11 +541,6 @@ const AnalyticsSection = ({ accounts = [], deals = [], customers = [], quotation
           ))
         ) : (
           <>
-            <ChartRenderer
-              config={{ _id: 'fallback-funnel', title: 'Sales Conversion Funnel', chartType: 'Funnel', entity: 'Deals' }}
-              data={{ data: pipeline.length ? pipeline : [{ name: 'No Deals', value: 0 }] }}
-              loading={loadingCharts}
-            />
             <ChartRenderer
               config={{ _id: 'fallback-trend', title: 'Deal Volume Trend', chartType: 'Line', entity: 'Deals' }}
               data={{ labels: chartData.map((d) => d.name), values: chartData.map((d) => d.newDeals) }}

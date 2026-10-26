@@ -44,8 +44,6 @@ const resolveReportOwnerValues = async (ownerFilter, companyId) => {
 
   const normalized = requested.toLowerCase();
   safeUsers.forEach((user) => {
-    if (companyId !== undefined && companyId !== null && user.companyId !== undefined
-      && String(user.companyId) !== String(companyId)) return;
     if (user.status && String(user.status).toLowerCase() !== 'approved') return;
     if (user.isApproved === false) return;
 
@@ -244,10 +242,8 @@ const executeReportPayload = async ({
   const entityDefs = reportFieldDefinitions[dataSource] || reportFieldDefinitions.account;
   const Model = getMongoModel(dataSource);
   const andClauses = [];
+  // Zero companyId filtering - direct collection access
 
-  if (companyId) {
-    andClauses.push({ companyId });
-  }
 
   // Date Filtering (Record primary business date)
   const { fromDate, toDate } = getDateRangeBounds(period, dateRange);
@@ -276,7 +272,16 @@ const executeReportPayload = async ({
             $and: [
               { accountDate: { $in: [null, undefined, ''] } },
               { 'formData.accountDate': { $in: [null, undefined, ''] } },
-              { $or: [{ createdAt: { $gte: fromDate, $lte: toDate } }, { 'formData.createdAt': { $gte: fromDate, $lte: toDate } }] }
+              {
+                $or: [
+                  { createdAt: { $gte: fromDate, $lte: toDate } },
+                  { 'formData.createdAt': { $gte: fromDate, $lte: toDate } },
+                  { createdAt: { $gte: fromIso, $lte: toIso } },
+                  { 'formData.createdAt': { $gte: fromIso, $lte: toIso } },
+                  { createdAt: { $gte: fromStr, $lte: toStr } },
+                  { 'formData.createdAt': { $gte: fromStr, $lte: toStr } },
+                ]
+              }
             ]
           }
         );
@@ -494,7 +499,7 @@ const executeReportPayload = async ({
       try {
         const QuotationModel = getMongoModel('quotation');
         const qDocs = await QuotationModel.find(
-          { createdAt: qDateCond, ...(companyId ? { companyId } : {}) },
+          { createdAt: qDateCond },
           {
             accountId: 1,
             accountNumber: 1,
@@ -662,7 +667,7 @@ const executeReportPayload = async ({
   projection.quotationNumber = 1;
 
   const collectionCount = await Model.countDocuments({});
-  const companyScopeCount = companyId ? await Model.countDocuments({ companyId }) : collectionCount;
+  const companyScopeCount = collectionCount;
   const totalCount = await Model.countDocuments(matchQuery);
   const pageNum = Math.max(1, Number(page) || 1);
   const pageSize = limit !== undefined && limit !== null ? Number(limit) : 50;
@@ -776,14 +781,17 @@ const executeReportPayload = async ({
         rawVal = rawVal || doc.expectedCloseDate || doc.expectedClosureDate || doc.closeDate || doc.data?.expectedClosureDate;
       }
 
+      let cellDisplay = '-';
       if (def.type === 'currency') {
-        row[def.label] = formatCurrencyDisplay(rawVal);
+        cellDisplay = formatCurrencyDisplay(rawVal);
       } else if (def.type === 'date' || def.type === 'datetime') {
         const isTimeField = key === 'updatedAt' || key === 'createdAt' || def.type === 'datetime';
-        row[def.label] = formatDateDisplay(rawVal, isTimeField);
+        cellDisplay = formatDateDisplay(rawVal, isTimeField);
       } else {
-        row[def.label] = rawVal !== undefined && rawVal !== null && rawVal !== '' ? String(rawVal) : '-';
+        cellDisplay = rawVal !== undefined && rawVal !== null && rawVal !== '' ? String(rawVal) : '-';
       }
+      row[def.label] = cellDisplay;
+      row[key] = cellDisplay;
     });
 
     // Attach metadata for isolation processing
@@ -925,7 +933,6 @@ const sendOwnerWiseReportEmails = async ({
     const userIdStr = String(userId || '').trim();
 
     return dbUsers.find((u) => {
-      if (companyId && String(u.companyId ?? '').trim() !== String(companyId).trim()) return false;
       if (u.status && String(u.status).toLowerCase() !== 'approved') return false;
       if (u.isApproved === false) return false;
       const uCode = String(u.ownerCode || u.owner_code || u.employeeId || '').trim();

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Universal Document Field Resolver & Central Type Converter
  * Dynamically resolves any requested field (human label, camelCase, snake_case)
  * across MongoDB collections ('leads', 'deals', 'customers', 'quotations', 'users')
@@ -79,6 +79,7 @@ function findDeepFieldValue(doc, requestedKey) {
   const containers = [
     doc,
     doc.formData,
+    doc.formData && doc.formData.formData,
     doc.data,
     doc.data && doc.data.data,
     doc.raw,
@@ -117,7 +118,7 @@ function resolveDocumentField(doc, fieldIdentifier, usersLookupMap = {}) {
     } else if (canon.includes('customerno') || canon.includes('customernumber')) {
       rawVal = findDeepFieldValue(doc, 'customerNumber') || findDeepFieldValue(doc, 'customerNo') || doc._id;
     } else if (canon.includes('date')) {
-      rawVal = findDeepFieldValue(doc, 'accountDate') || findDeepFieldValue(doc, 'dealDate') || findDeepFieldValue(doc, 'quotationDate') || findDeepFieldValue(doc, 'quoteDate') || findDeepFieldValue(doc, 'date') || doc.createdAt;
+      rawVal = findDeepFieldValue(doc, 'accountDate') || findDeepFieldValue(doc, 'dealDate') || findDeepFieldValue(doc, 'quotationDate') || findDeepFieldValue(doc, 'quoteDate') || findDeepFieldValue(doc, 'convertedAt') || findDeepFieldValue(doc, 'date') || doc.createdAt;
     } else if (canon.includes('owner')) {
       rawVal = findDeepFieldValue(doc, 'accountOwner') || findDeepFieldValue(doc, 'dealOwner') || findDeepFieldValue(doc, 'quotationOwner') || findDeepFieldValue(doc, 'customerOwner') || findDeepFieldValue(doc, 'ownerName') || findDeepFieldValue(doc, 'owner') || findDeepFieldValue(doc, 'assignedTo') || findDeepFieldValue(doc, 'ownerCode');
     } else if (canon.includes('status') || canon.includes('stage')) {
@@ -133,6 +134,32 @@ function resolveDocumentField(doc, fieldIdentifier, usersLookupMap = {}) {
       const rawStr = String(rawVal).trim().toLowerCase();
       if (usersLookupMap && usersLookupMap[rawStr]) {
         return usersLookupMap[rawStr];
+      }
+    }
+    return rawVal ? String(rawVal) : '-';
+  }
+
+  if (canon.includes('email') || canon.includes('mail')) {
+    if (rawVal && String(rawVal).trim() !== '' && String(rawVal).trim() !== '-') {
+      return String(rawVal).trim();
+    }
+    // Fallback: resolve owner email dynamically from usersLookupMap._emails
+    const ownerCandidate = findDeepFieldValue(doc, 'dealOwner') ||
+      findDeepFieldValue(doc, 'accountOwner') ||
+      findDeepFieldValue(doc, 'customerOwner') ||
+      findDeepFieldValue(doc, 'quotationOwner') ||
+      findDeepFieldValue(doc, 'ownerName') ||
+      findDeepFieldValue(doc, 'owner') ||
+      findDeepFieldValue(doc, 'ownerCode') ||
+      findDeepFieldValue(doc, 'assignedTo');
+
+    if (ownerCandidate && usersLookupMap && usersLookupMap._emails) {
+      const ownerKey = String(ownerCandidate).trim().toLowerCase();
+      if (usersLookupMap._emails[ownerKey]) {
+        return usersLookupMap._emails[ownerKey];
+      }
+      if (usersLookupMap[ownerKey] && usersLookupMap._emails[String(usersLookupMap[ownerKey]).toLowerCase()]) {
+        return usersLookupMap._emails[String(usersLookupMap[ownerKey]).toLowerCase()];
       }
     }
     return rawVal ? String(rawVal) : '-';

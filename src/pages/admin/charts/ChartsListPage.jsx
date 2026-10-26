@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  FaChartPie, FaChevronDown, FaPencilAlt, FaTrash,
+  FaChartPie, FaChevronDown, FaEye, FaPencilAlt, FaTrash,
 } from 'react-icons/fa'
 import { ADMIN_CHART_CATEGORIES } from '../../../features/adminCharts/chartDefinitions'
 import { loadAllCharts, fetchAllChartsFromDb } from '../../../features/adminCharts/chartStorage'
@@ -48,6 +48,9 @@ const ChartRow = ({
             {sourceLabel}
           </span>
           <div className="cl-row-actions">
+            <button type="button" className="cl-action cl-action--view" title="View Chart Preview" onClick={onView}>
+              <FaEye />
+            </button>
             <button type="button" className="cl-action cl-action--edit" title="Edit" onClick={onEdit}>
               <FaPencilAlt />
             </button>
@@ -104,7 +107,7 @@ const ChartsListPage = ({ basePath = '/admin/charts' }) => {
   }
 
   const handleEdit = (chart) => {
-    navigate(`${basePath}/new`, { state: { editChartId: chart.id, editChartTitle: chart.title || chart.name } })
+    navigate(`${basePath}/new`, { state: { editChartId: chart.id, configureNew: true, editChartTitle: chart.title || chart.name } })
   }
 
   const handleDelete = async (chart) => {

@@ -384,13 +384,33 @@ const AddAccountReportPage = () => {
     const columns = selectedFieldObjects.map((f) => ({
       key: f.label,
       label: f.label,
+      rawKey: f.key,
       width: Math.min(36, Math.max(14, f.label.length + 5)),
+      formatter: (val, row) => {
+        if (!row) return '-'
+        const resolved = row[f.label] ?? (f.key ? row[f.key] : undefined) ?? val
+        return (resolved !== undefined && resolved !== null && resolved !== '') ? String(resolved) : '-'
+      },
     }))
 
     setIsExporting(true)
     try {
       const hasDateRange = Boolean(formState.recordDateFrom || formState.recordDateTo)
+      const sanitizedFilters = formState.filters.filter(
+        (f) => f.field && ((f.value !== undefined && f.value !== null && String(f.value).trim() !== '') || f.operator === 'is_empty' || f.operator === 'is_not_empty')
+      )
       const payload = {
+        template: {
+          entityType: formState.entityType,
+          reportName: reportTitle,
+          accountOwner: formState.accountOwner || 'all',
+          owner: formState.accountOwner || 'all',
+          recordDateFrom: formState.recordDateFrom || undefined,
+          recordDateTo: formState.recordDateTo || undefined,
+          selectedFields: selectedKeys,
+          displayFields: selectedKeys,
+          filters: sanitizedFilters,
+        },
         dataSource: formState.entityType.toLowerCase(),
         reportContext: formState.entityType.toLowerCase(),
         selectedFields: selectedKeys,
@@ -408,49 +428,100 @@ const AddAccountReportPage = () => {
         },
         generatedFrom: formState.generatedFrom || undefined,
         generatedTo: formState.generatedTo || undefined,
-        filters: formState.filters.filter((f) => f.field),
+        filters: sanitizedFilters,
         limit: 0,
       }
       const res = await apiClient.post('/reports/export-excel', payload)
-      const exportRows = res.data?.rows || []
+      const exportPayload = (res && typeof res === 'object') ? res : {}
+
+      let rawRecords = []
+      if (Array.isArray(exportPayload.rows)) rawRecords = exportPayload.rows
+      else if (Array.isArray(exportPayload.records)) rawRecords = exportPayload.records
+      else if (Array.isArray(exportPayload.data)) rawRecords = exportPayload.data
+      else if (Array.isArray(exportPayload)) rawRecords = exportPayload
+      else if (exportPayload.row && typeof exportPayload.row === 'object') rawRecords = [exportPayload.row]
+      else if (exportPayload.record && typeof exportPayload.record === 'object') rawRecords = [exportPayload.record]
+      else if (exportPayload._id || exportPayload.id || exportPayload.accountNumber || exportPayload.dealNumber || exportPayload.quotationNumber) rawRecords = [exportPayload]
+
+      const exportRows = rawRecords
 
       if (exportRows.length === 0) {
         setPageError('No matching records found to export for the selected date range and filters.')
         return
       }
 
-      // Safeguard context-specific deduplication to ensure zero repeated rows in Excel
+      // Canonical deduplication ensuring 100% zero repeated rows
+      const getCanonicalRecordKey = (row) => {
+        const accNo = String(
+          row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
+        ).trim().toUpperCase()
+        if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL') return `ACC:${accNo}`
+
+        const dealNo = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || '').trim().toUpperCase()
+        if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED') return `DEAL:${dealNo}`
+
+        const qNo = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNumber || row.quoteNumber || '').trim().toUpperCase()
+        if (qNo && qNo !== '-' && qNo !== 'UNDEFINED') return `QUOTE:${qNo}`
+
+        const custNo = String(row['Customer No.'] || row['Customer No'] || row.customerNumber || '').trim().toUpperCase()
+        if (custNo && custNo !== '-' && custNo !== 'UNDEFINED') return `CUST:${custNo}`
+
+        const id = String(row._id || row.id || '').trim()
+        if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
+
+        return JSON.stringify(row)
+      }
+
       const seenRowKeys = new Set()
       const dedupedRows = []
       for (const row of exportRows) {
-        let rowKey = ''
-        if (formState.entityType === 'Account') {
-          rowKey = String(row['Account No.'] || row['Account No'] || row._id || '').trim()
-        } else if (formState.entityType === 'Deal') {
-          rowKey = String(row['Deal No.'] || row['Deal No'] || row._id || '').trim()
-        } else if (formState.entityType === 'Customer') {
-          rowKey = String(row['Customer No.'] || row['Customer No'] || row._id || '').trim()
-        } else if (formState.entityType === 'Quotation') {
-          rowKey = String(row['Quotation No.'] || row['Quotation No'] || row._id || '').trim()
-        } else {
-          rowKey = String(row._id || '').trim()
-        }
-        if (!rowKey) {
-          rowKey = JSON.stringify(row)
-        }
+        const rowKey = getCanonicalRecordKey(row)
         if (!seenRowKeys.has(rowKey)) {
           seenRowKeys.add(rowKey)
           dedupedRows.push(row)
         }
       }
 
+      // Group records by Owner if All Owners or multiple owners exist
+      const ownerGroups = {}
+      dedupedRows.forEach((row) => {
+        const ownerName = String(row['Account Owner'] || row.accountOwner || row.ownerName || row.owner || formState.accountOwner || 'Unassigned').trim() || 'Unassigned'
+        if (!ownerGroups[ownerName]) ownerGroups[ownerName] = []
+        ownerGroups[ownerName].push(row)
+      })
+
+      const sortedOwnerNames = Object.keys(ownerGroups).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+      const isMultiOwner = sortedOwnerNames.length > 1 || !formState.accountOwner || formState.accountOwner === 'all'
+
+      const finalExcelRows = []
+      if (isMultiOwner && sortedOwnerNames.length > 1) {
+        sortedOwnerNames.forEach((ownerName) => {
+          const groupRows = ownerGroups[ownerName] || []
+          const ownerHeaderRow = {}
+          columns.forEach((c, idx) => {
+            if (idx === 0) {
+              ownerHeaderRow[c.key] = `▶ Account Owner: ${ownerName} (${groupRows.length} Accounts)`
+              ownerHeaderRow[c.label] = ownerHeaderRow[c.key]
+            } else {
+              ownerHeaderRow[c.key] = ''
+              ownerHeaderRow[c.label] = ''
+            }
+          })
+          finalExcelRows.push(ownerHeaderRow)
+          groupRows.forEach(r => finalExcelRows.push(r))
+        })
+      } else {
+        dedupedRows.forEach(r => finalExcelRows.push(r))
+      }
+
+      const totalOwnersText = isMultiOwner && sortedOwnerNames.length > 1 ? ` | Total Owners: ${sortedOwnerNames.length}` : ''
       exportExcelWorkbook({
         filename: `${slugify(reportTitle)}.xlsx`,
         title: reportTitle,
-        subtitle: `Owner Scope: ${formState.accountOwner || 'All Owners'} | Generated: ${new Date().toLocaleDateString('en-IN')}`,
+        subtitle: `Owner Scope: ${formState.accountOwner || 'All Owners'}${totalOwnersText} | Total Unique Records: ${dedupedRows.length} | Generated: ${new Date().toLocaleDateString('en-IN')}`,
         sheetName: `${formState.entityType} Data`,
         columns,
-        rows: dedupedRows,
+        rows: finalExcelRows,
       })
     } catch (err) {
       console.error('Export error:', err)
@@ -485,7 +556,7 @@ const AddAccountReportPage = () => {
         operator: String(filter.operator || 'equals').trim(),
         value: String(filter.value || '').trim(),
       }))
-      .filter((filter) => filter.field)
+      .filter((filter) => filter.field && (filter.value !== '' || filter.operator === 'is_empty' || filter.operator === 'is_not_empty'))
 
     const payload = {
       entityType: formState.entityType,
@@ -499,7 +570,16 @@ const AddAccountReportPage = () => {
       aggregate: formState.aggregate,
       owner: formState.accountOwner,
       accountOwner: formState.accountOwner,
-      accountOwnerEmail: selectedGroupMembers.find((m) => m.name === formState.accountOwner)?.email || '',
+      accountOwnerEmail: (
+        selectedGroupMembers.find((m) => m.name === formState.accountOwner)?.email ||
+        allDirectoryUsers.find((u) => u.name === formState.accountOwner || u.value === formState.accountOwner)?.email ||
+        ''
+      ),
+      ownerEmail: (
+        selectedGroupMembers.find((m) => m.name === formState.accountOwner)?.email ||
+        allDirectoryUsers.find((u) => u.name === formState.accountOwner || u.value === formState.accountOwner)?.email ||
+        ''
+      ),
       userGroups: selectedUserGroups,
       selectedUserGroups: selectedUserGroups,
       userGroupMembers: selectedGroupMembers.map((m) => ({
@@ -597,8 +677,6 @@ const AddAccountReportPage = () => {
                     selectedFields: [],
                     description: `${newEntity} Report Template`,
                   }))
-                  setHasPreview(false)
-                  setPreviewData(null)
                 }}
               >
                 {ACCOUNT_REPORT_CONTEXT_OPTIONS.map((option) => (
@@ -732,7 +810,18 @@ const AddAccountReportPage = () => {
             </div>
 
             <div className="account-report-builder-field">
-              <label>Account Record Date Range</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={{ margin: 0 }}>Record Date Range</label>
+                {(formState.recordDateFrom || formState.recordDateTo) && (
+                  <button
+                    type="button"
+                    style={{ fontSize: '11px', color: '#c60016', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                    onClick={() => setFormState((prev) => ({ ...prev, recordDateFrom: '', recordDateTo: '' }))}
+                  >
+                    Clear (All Dates)
+                  </button>
+                )}
+              </div>
               <div className="account-report-builder-date-range">
                 <input
                   type="date"
@@ -746,6 +835,11 @@ const AddAccountReportPage = () => {
                   onChange={(e) => setFormState((prev) => ({ ...prev, recordDateTo: e.target.value }))}
                 />
               </div>
+              <small style={{ color: '#64748b', fontSize: '11px', marginTop: '3px', display: 'block' }}>
+                {!formState.recordDateFrom && !formState.recordDateTo
+                  ? 'All Dates active (pulls all database records dynamically).'
+                  : 'Date window selected.'}
+              </small>
             </div>
 
             <div className="account-report-builder-field account-report-builder-filter-actions-field">

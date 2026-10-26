@@ -55,7 +55,6 @@ router.post('/templates/preview', requireAuth, async (req, res) => {
       template: payload.template || payload,
       templateId: payload.templateId || payload.id,
       filters: payload.filters || [],
-      companyId: req.user?.companyId,
     });
     res.json(result);
   } catch (error) {
@@ -72,7 +71,6 @@ router.post('/templates/export-excel', requireAuth, async (req, res) => {
       template: payload.template || payload,
       templateId: payload.templateId || payload.id,
       filters: payload.filters || [],
-      companyId: req.user?.companyId,
     });
 
     const { buffer, fileName } = generateTemplateExcelBuffer({
@@ -94,7 +92,6 @@ router.get('/templates/:id/export-excel', requireAuth, async (req, res) => {
   try {
     const result = await executeTemplateReport({
       templateId: req.params.id,
-      companyId: req.user?.companyId,
     });
 
     const { buffer, fileName } = generateTemplateExcelBuffer({
@@ -130,7 +127,6 @@ router.post('/preview', requireAuth, async (req, res) => {
       filters: Array.isArray(payload.filters) ? payload.filters : [],
       page: Number(payload.page || 1),
       limit: payload.limit !== undefined ? Number(payload.limit) : 50,
-      companyId: req.user?.companyId,
     });
     res.json(result);
   } catch (error) {
@@ -143,6 +139,28 @@ router.post('/preview', requireAuth, async (req, res) => {
 router.post('/export-excel', requireAuth, async (req, res) => {
   try {
     const payload = req.body || {};
+
+    // If templateId, template, dataSource, or reportContext is provided, route through executeTemplateReport
+    const hasTemplate = Boolean(
+      payload.templateId ||
+      payload.template ||
+      (payload._id && !payload.systemReport) ||
+      (payload.id && !payload.systemReport && (payload.displayFields || payload.selectedFields)) ||
+      payload.dataSource ||
+      payload.reportContext
+    );
+
+    if (hasTemplate) {
+      const targetTplId = payload.templateId || payload.template?._id || payload.template?.id || payload._id || payload.id;
+      const targetTpl = payload.template || payload;
+      const templateResult = await executeTemplateReport({
+        template: targetTpl,
+        templateId: targetTplId,
+        filters: Array.isArray(payload.filters) ? payload.filters : (targetTpl?.filters || []),
+      });
+      return res.json(templateResult);
+    }
+
     const dateRange = payload.dateRange || {};
     const fromDate = payload.recordDateFrom || dateRange.fromDate || '';
     const toDate = payload.recordDateTo || dateRange.toDate || '';
@@ -156,7 +174,6 @@ router.post('/export-excel', requireAuth, async (req, res) => {
       ownerFilter: payload.ownerFilter || 'all',
       filters: Array.isArray(payload.filters) ? payload.filters : [],
       limit: 0,
-      companyId: req.user?.companyId,
     });
     res.json(result);
   } catch (error) {

@@ -292,6 +292,7 @@ function App() {
                 <Route path="reminders/active" element={<UserRemindersPage variantKey="active" />} />
                 <Route path="reminders/closed" element={<UserRemindersPage variantKey="closed" />} />
                 <Route path="charts" element={<ChartsPage basePath="/charts" />} />
+                <Route path="charts/new" element={<ChartsPage basePath="/charts" />} />
                 <Route path="charts/list" element={<ChartsListPage basePath="/charts" />} />
                 <Route path="view-settings" element={<Navigate to="/dashboard" replace />} />
                 <Route path="view-settings/*" element={<Navigate to="/dashboard" replace />} />
@@ -411,6 +412,7 @@ function App() {
                 <Route path="reports/scheduled-emails" element={<EmailSchedulerPage />} />
                 <Route path="reports/scheduled-emails/new" element={<CreateEmailSchedulePage />} />
                 <Route path="charts" element={<ChartsPage />} />
+                <Route path="charts/new" element={<ChartsPage />} />
                 <Route path="charts/list" element={<ChartsListPage />} />
                 <Route path="view-settings" element={<Navigate to="/admin/monitoring" replace />} />
                 <Route path="view-settings/*" element={<Navigate to="/admin/monitoring" replace />} />

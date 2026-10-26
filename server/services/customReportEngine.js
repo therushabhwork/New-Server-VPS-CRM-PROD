@@ -273,12 +273,15 @@ const mapAccountDoc = (doc) => {
   };
 };
 
-const mapDealDoc = (doc) => {
-  const rawNo = doc.dealNumber || doc.id || '-';
-  const rawName = doc.dealName || doc.name || doc.title || '-';
-  const rawOwner = doc.dealOwnerName || doc.dealOwner || doc.ownerName || doc.owner || '-';
-  const rawDate = formatDate(doc.dealDate || doc.quotationDate || doc.createdAt);
-  const rawValue = doc.dealValue || doc.value || doc.amount || '-';
+const mapDealDoc = (doc, usersMap = {}) => {
+  const rawNo = doc.dealNumber || doc.id || doc.data?.dealNumber || '-';
+  const rawName = doc.dealName || doc.name || doc.title || doc.data?.dealName || doc.data?.title || '-';
+  const rawOwner = doc.dealOwnerName || doc.dealOwner || doc.ownerName || doc.owner || doc.data?.dealOwner || doc.data?.ownerName || '-';
+  const resolvedOwner = (usersMap && usersMap[String(rawOwner).trim().toLowerCase()]) || rawOwner;
+  const rawDate = formatDate(doc.dealDate || doc.data?.dealDate || doc.data?.convertedAt || doc.quotationDate || doc.createdAt);
+  const rawValue = doc.dealValue || doc.value || doc.amount || doc.data?.dealValue || doc.data?.value || '-';
+  const ownerEmail = (usersMap._emails && usersMap._emails[String(resolvedOwner).trim().toLowerCase()]) ||
+    (usersMap._emails && usersMap._emails[String(rawOwner).trim().toLowerCase()]) || '-';
 
   return {
     ...doc,
@@ -289,32 +292,37 @@ const mapDealDoc = (doc) => {
     title: rawName,
     dealDate: rawDate,
     date: rawDate,
-    dealOwner: rawOwner,
-    dealOwnerName: rawOwner,
-    owner: rawOwner,
-    dealType: doc.dealType || doc.stage || '-',
-    stage: doc.stage || doc.dealType || '-',
-    status: doc.status || doc.stage || '-',
-    dealStatus: doc.status || doc.stage || '-',
+    dealOwner: resolvedOwner,
+    dealOwnerName: resolvedOwner,
+    owner: resolvedOwner,
+    email: ownerEmail,
+    ownerEmail: ownerEmail,
+    dealType: doc.dealType || doc.stage || doc.data?.dealType || '-',
+    stage: doc.stage || doc.dealType || doc.data?.stage || '-',
+    status: doc.status || doc.stage || doc.data?.status || '-',
+    dealStatus: doc.status || doc.stage || doc.data?.status || '-',
     dealValue: rawValue,
     value: rawValue,
     amount: rawValue,
-    customerName: doc.customerName || doc.name || '-',
-    projectName: doc.projectName || doc.project || '-',
-    project: doc.projectName || doc.project || '-',
-    consultantName: doc.consultantName || '-',
-    expectedCloseDate: formatDate(doc.expectedCloseDate),
-    expectedClosureDate: formatDate(doc.expectedClosureDate || doc.expectedCloseDate),
-    poValue: doc.poValue || '-',
-    addedOn: formatDate(doc.addedOn),
+    customerName: doc.customerName || doc.name || doc.data?.customerName || '-',
+    projectName: doc.projectName || doc.project || doc.data?.projectName || '-',
+    project: doc.projectName || doc.project || doc.data?.projectName || '-',
+    consultantName: doc.consultantName || doc.data?.consultantName || '-',
+    expectedCloseDate: formatDate(doc.expectedCloseDate || doc.data?.expectedCloseDate),
+    expectedClosureDate: formatDate(doc.expectedClosureDate || doc.expectedCloseDate || doc.data?.expectedClosureDate),
+    poValue: doc.poValue || doc.data?.poValue || '-',
+    addedOn: formatDate(doc.addedOn || doc.data?.convertedAt || doc.createdAt),
     createdAt: formatDate(doc.createdAt),
   };
 };
 
-const mapCustomerDoc = (doc) => {
-  const rawNo = doc.customerNumber || doc.customerNo || doc.id || '-';
-  const rawName = doc.customerName || doc.name || '-';
-  const rawOwner = doc.assignedToName || doc.ownerName || doc.owner || doc.customerOwner || '-';
+const mapCustomerDoc = (doc, usersMap = {}) => {
+  const rawNo = doc.customerNumber || doc.customerNo || doc.id || doc.formData?.customerNumber || '-';
+  const rawName = doc.customerName || doc.name || doc.formData?.customerName || '-';
+  const rawOwner = doc.assignedToName || doc.ownerName || doc.owner || doc.customerOwner || doc.formData?.assignedTo || '-';
+  const resolvedOwner = (usersMap && usersMap[String(rawOwner).trim().toLowerCase()]) || rawOwner;
+  const ownerEmail = (usersMap._emails && usersMap._emails[String(resolvedOwner).trim().toLowerCase()]) ||
+    (usersMap._emails && usersMap._emails[String(rawOwner).trim().toLowerCase()]) || '-';
 
   return {
     ...doc,
@@ -323,34 +331,39 @@ const mapCustomerDoc = (doc) => {
     id: rawNo,
     customerName: rawName,
     name: rawName,
-    company: doc.company || doc.companyName || '-',
-    companyName: doc.company || doc.companyName || '-',
-    city: doc.city || doc.location || '-',
-    location: doc.city || doc.location || '-',
-    phone: doc.phone || doc.mobile || '-',
-    mobile: doc.phone || doc.mobile || '-',
-    email: doc.email || '-',
-    status: doc.status || '-',
-    customerStatus: doc.status || '-',
-    customerCategory: doc.customerCategory || doc.category || '-',
-    customerType: doc.customerType || '-',
-    assignedTo: rawOwner,
-    assignedToName: rawOwner,
-    customerOwner: rawOwner,
-    owner: rawOwner,
-    contactPerson: doc.contactPerson || '-',
-    state: doc.state || '-',
-    industryType: doc.industryType || '-',
+    company: doc.company || doc.companyName || doc.formData?.company || '-',
+    companyName: doc.company || doc.companyName || doc.formData?.companyName || '-',
+    city: doc.city || doc.location || doc.formData?.city || '-',
+    location: doc.city || doc.location || doc.formData?.location || '-',
+    phone: doc.phone || doc.mobile || doc.formData?.phone || '-',
+    mobile: doc.phone || doc.mobile || doc.formData?.mobile || '-',
+    email: doc.email || doc.formData?.email || ownerEmail,
+    ownerEmail: ownerEmail,
+    status: doc.status || doc.formData?.status || '-',
+    customerStatus: doc.status || doc.formData?.status || '-',
+    customerCategory: doc.customerCategory || doc.category || doc.formData?.category || '-',
+    customerType: doc.customerType || doc.formData?.customerType || '-',
+    assignedTo: resolvedOwner,
+    assignedToName: resolvedOwner,
+    customerOwner: resolvedOwner,
+    owner: resolvedOwner,
+    contactPerson: doc.contactPerson || doc.formData?.contactPerson || '-',
+    state: doc.state || doc.formData?.state || '-',
+    industryType: doc.industryType || doc.formData?.industryType || '-',
     createdAt: formatDate(doc.createdAt),
   };
 };
 
-const mapQuotationDoc = (doc) => {
-  const rawNo = doc.quotationNo || doc.quotationNumber || doc.id || '-';
-  const rawDate = formatDate(doc.date || doc.quotationDate || doc.createdAt);
-  const rawAccount = doc.accountName || doc.customerName || doc.name || '-';
-  const rawDeal = doc.dealName || doc.title || '-';
-  const rawTotal = doc.grandTotal || doc.total || doc.amount || '-';
+const mapQuotationDoc = (doc, usersMap = {}) => {
+  const rawNo = doc.quotationNo || doc.quotationNumber || doc.id || doc.data?.quotationNumber || '-';
+  const rawDate = formatDate(doc.date || doc.quotationDate || doc.data?.quotationDate || doc.data?.customerReference?.date || doc.createdAt);
+  const rawAccount = doc.accountName || doc.customerName || doc.name || doc.data?.customerReference?.accountName || '-';
+  const rawDeal = doc.dealName || doc.title || doc.data?.dealName || '-';
+  const rawTotal = doc.grandTotal || doc.total || doc.amount || doc.data?.grandTotal || '-';
+  const rawOwner = doc.quotationOwner || doc.owner || doc.data?.quotationOwner || doc.data?.owner || '-';
+  const resolvedOwner = (usersMap && usersMap[String(rawOwner).trim().toLowerCase()]) || rawOwner;
+  const ownerEmail = (usersMap._emails && usersMap._emails[String(resolvedOwner).trim().toLowerCase()]) ||
+    (usersMap._emails && usersMap._emails[String(rawOwner).trim().toLowerCase()]) || '-';
 
   return {
     ...doc,
@@ -367,11 +380,14 @@ const mapQuotationDoc = (doc) => {
     grandTotal: rawTotal,
     total: rawTotal,
     amount: rawTotal,
-    status: doc.status || '-',
-    quotationStatus: doc.status || '-',
-    quotationOwner: doc.quotationOwner || doc.owner || '-',
-    projectName: doc.projectName || doc.project || '-',
-    validUntil: formatDate(doc.validUntil),
+    status: doc.status || doc.data?.status || '-',
+    quotationStatus: doc.status || doc.data?.status || '-',
+    quotationOwner: resolvedOwner,
+    owner: resolvedOwner,
+    email: ownerEmail,
+    ownerEmail: ownerEmail,
+    projectName: doc.projectName || doc.project || doc.data?.projectName || '-',
+    validUntil: formatDate(doc.validUntil || doc.data?.validUntil),
     createdAt: formatDate(doc.createdAt),
   };
 };
@@ -557,65 +573,204 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
 
 async function getUsersLookupMap() {
   const map = {};
+  const _emails = {};
+  const _names = {};
+  const _codes = {};
+  const _profiles = {};
+
   try {
     const col = mongoose.connection.db.collection('users');
     const users = await col.find({}, {
       projection: { name: 1, username: 1, ownerCode: 1, owner_code: 1, email: 1, employeeId: 1, legacyId: 1 }
     }).toArray();
-    users.forEach(u => {
-      const displayName = u.name || u.username || u.email;
-      if (!displayName) return;
-      if (u._id) map[String(u._id).toLowerCase()] = displayName;
-      if (u.legacyId) map[String(u.legacyId).toLowerCase()] = displayName;
-      if (u.username) map[String(u.username).toLowerCase()] = displayName;
-      if (u.name) map[String(u.name).toLowerCase()] = displayName;
-      if (u.email) map[String(u.email).toLowerCase()] = displayName;
-      if (u.ownerCode) map[String(u.ownerCode).toLowerCase()] = displayName;
-      if (u.owner_code) map[String(u.owner_code).toLowerCase()] = displayName;
-      if (u.employeeId) map[String(u.employeeId).toLowerCase()] = displayName;
+
+    users.forEach((u) => {
+      const displayName = String(u.name || u.username || u.email || '').trim();
+      const email = String(u.email || '').trim();
+      const ownerCode = String(u.ownerCode || u.owner_code || '').trim();
+      const legacyId = String(u.legacyId || '').trim();
+      const username = String(u.username || '').trim();
+      const id = String(u._id || '').trim();
+
+      const profile = { name: displayName, email, ownerCode, legacyId, username, id };
+
+      const registerKey = (k) => {
+        if (!k) return;
+        const lower = String(k).trim().toLowerCase();
+        if (!lower) return;
+        map[lower] = displayName;
+        if (email) _emails[lower] = email;
+        if (displayName) _names[lower] = displayName;
+        if (ownerCode) _codes[lower] = ownerCode;
+        _profiles[lower] = profile;
+      };
+
+      registerKey(id);
+      registerKey(legacyId);
+      registerKey(username);
+      registerKey(displayName);
+      registerKey(email);
+      registerKey(ownerCode);
+      registerKey(u.employeeId);
     });
   } catch (_) {}
+
+  map._emails = _emails;
+  map._names = _names;
+  map._codes = _codes;
+  map._profiles = _profiles;
+
   return map;
 }
 
-async function executeTemplateReport({ template, templateId, filters = [], companyId }) {
-  let tpl = template;
-  if (!tpl && templateId) {
+const detectTemplateEntityType = (tpl) => {
+  let raw = String(tpl?.entityType || tpl?.categoryKey || tpl?.reportContext || '').toLowerCase().trim();
+  if (raw === 'accounts' || raw === 'lead' || raw === 'leads') return 'account';
+  if (raw === 'deals' || raw === 'deal') return 'deal';
+  if (raw === 'quotations' || raw === 'quotation') return 'quotation';
+  if (raw === 'customers' || raw === 'customer') return 'customer';
+
+  // Dynamic signature inspection from selectedFields & displayFields
+  const allFields = [...(tpl?.selectedFields || []), ...(tpl?.displayFields || [])]
+    .map((f) => (typeof f === 'object' ? (f.key || f.label) : String(f)))
+    .map((f) => f.toLowerCase());
+
+  if (allFields.some((f) => f.includes('deal'))) return 'deal';
+  if (allFields.some((f) => f.includes('quotation') || f.includes('quote'))) return 'quotation';
+  if (allFields.some((f) => f.includes('customer'))) return 'customer';
+
+  const name = String(tpl?.reportName || tpl?.title || tpl?.name || '').toLowerCase();
+  if (name.includes('deal')) return 'deal';
+  if (name.includes('quotation') || name.includes('quote')) return 'quotation';
+  if (name.includes('customer')) return 'customer';
+
+  return 'account';
+};
+
+const extractAllDocOwnerIdentities = (doc, usersMap = {}, entityType = null) => {
+  const identities = new Set();
+  let rawList = [];
+
+  if (entityType === 'deal') {
+    rawList = [
+      doc.data?.dealOwner,
+      doc.dealOwner,
+      doc.data?.dealOwnerName,
+      doc.dealOwnerName,
+      doc.data?.data?.dealOwner,
+      doc.data?.ownerCode,
+      doc.ownerCode,
+    ];
+    if (!rawList.some((x) => x !== undefined && x !== null && String(x).trim() !== '')) {
+      rawList.push(doc.assignedTo, doc.ownerUserId, doc.owner, doc.ownerName);
+    }
+  } else if (entityType === 'quotation') {
+    rawList = [
+      doc.data?.quotationOwner,
+      doc.quotationOwner,
+      doc.data?.customerReference?.owner,
+      doc.data?.ownerCode,
+      doc.ownerCode,
+    ];
+    if (!rawList.some((x) => x !== undefined && x !== null && String(x).trim() !== '')) {
+      rawList.push(doc.assignedTo, doc.ownerUserId, doc.owner, doc.ownerName);
+    }
+  } else if (entityType === 'account') {
+    rawList = [
+      doc.accountOwner,
+      doc.formData?.accountOwner,
+      doc.formData?.formData?.accountOwner,
+      doc.accountOwnerName,
+      doc.formData?.accountOwnerName,
+      doc.accountOwnerCode,
+      doc.formData?.accountOwnerCode,
+      doc.ownerCode,
+      doc.formData?.ownerCode,
+    ];
+    if (!rawList.some((x) => x !== undefined && x !== null && String(x).trim() !== '')) {
+      rawList.push(doc.assignedTo, doc.owner, doc.ownerName, doc.formData?.owner, doc.formData?.ownerName);
+    }
+  } else {
+    rawList = [
+      doc.accountOwner,
+      doc.accountOwnerName,
+      doc.ownerName,
+      doc.owner,
+      doc.dealOwner,
+      doc.dealOwnerName,
+      doc.assignedTo,
+      doc.assignedToName,
+      doc.customerOwner,
+      doc.quotationOwner,
+      doc.ownerCode,
+      doc.accountOwnerCode,
+      doc.formData?.accountOwner,
+      doc.formData?.accountOwnerName,
+      doc.formData?.ownerName,
+      doc.formData?.owner,
+      doc.formData?.ownerCode,
+      doc.formData?.accountOwnerCode,
+      doc.formData?.formData?.accountOwner,
+      doc.formData?.formData?.ownerName,
+      doc.data?.dealOwner,
+      doc.data?.dealOwnerName,
+      doc.data?.ownerName,
+      doc.data?.owner,
+      doc.data?.ownerCode,
+      doc.data?.selectedAccountOwner,
+      doc.data?.data?.dealOwner,
+      doc.data?.quotationOwner,
+      doc.data?.customerReference?.owner,
+    ];
+  }
+
+  rawList.forEach((item) => {
+    if (item !== undefined && item !== null && item !== '') {
+      const s = String(item).trim().toLowerCase();
+      if (s) {
+        identities.add(s);
+        if (usersMap[s]) identities.add(String(usersMap[s]).trim().toLowerCase());
+        if (usersMap._names && usersMap._names[s]) identities.add(String(usersMap._names[s]).trim().toLowerCase());
+        if (usersMap._emails && usersMap._emails[s]) identities.add(String(usersMap._emails[s]).trim().toLowerCase());
+        if (usersMap._codes && usersMap._codes[s]) identities.add(String(usersMap._codes[s]).trim().toLowerCase());
+      }
+    }
+  });
+
+  return Array.from(identities);
+};
+
+async function executeTemplateReport({ template, templateId, filters = [] }) {
+  let tpl = template || {};
+  const targetId = templateId || template?._id || template?.id;
+
+  if (targetId) {
     try {
       const templateCol = mongoose.connection.db.collection('reporttemplates');
-      tpl = await templateCol.findOne({
+      let dbTpl = await templateCol.findOne({
         $or: [
-          ...(mongoose.Types.ObjectId.isValid(templateId) ? [{ _id: new mongoose.Types.ObjectId(String(templateId)) }] : []),
-          { id: String(templateId) },
+          ...(mongoose.Types.ObjectId.isValid(targetId) ? [{ _id: new mongoose.Types.ObjectId(String(targetId)) }] : []),
+          { id: String(targetId) },
         ],
       }).catch(() => null);
 
-      if (!tpl) {
+      if (!dbTpl) {
         const reportsCol = mongoose.connection.db.collection('reports');
-        tpl = await reportsCol.findOne({
+        dbTpl = await reportsCol.findOne({
           $or: [
-            ...(mongoose.Types.ObjectId.isValid(templateId) ? [{ _id: new mongoose.Types.ObjectId(String(templateId)) }] : []),
-            { id: String(templateId) },
+            ...(mongoose.Types.ObjectId.isValid(targetId) ? [{ _id: new mongoose.Types.ObjectId(String(targetId)) }] : []),
+            { id: String(targetId) },
           ],
         }).catch(() => null);
+      }
+
+      if (dbTpl) {
+        tpl = { ...dbTpl, ...(template || {}) };
       }
     } catch (_) {}
   }
 
-  let rawEntity = String(
-    tpl?.entityType ||
-    tpl?.categoryKey ||
-    tpl?.reportContext ||
-    'account'
-  ).toLowerCase().trim();
-
-  if (rawEntity === 'accounts' || rawEntity === 'lead' || rawEntity === 'leads') rawEntity = 'account';
-  if (rawEntity === 'deals') rawEntity = 'deal';
-  if (rawEntity === 'customers') rawEntity = 'customer';
-  if (rawEntity === 'quotations') rawEntity = 'quotation';
-  if (rawEntity === 'users') rawEntity = 'user';
-
-  const entityType = rawEntity;
+  const entityType = detectTemplateEntityType(tpl);
   const collectionName = COLLECTION_MAP[entityType] || 'leads';
 
   let fields = [];
@@ -629,116 +784,209 @@ async function executeTemplateReport({ template, templateId, filters = [], compa
 
   const usersMap = await getUsersLookupMap();
   const col = mongoose.connection.db.collection(collectionName);
-  const query = {};
-  if (companyId) {
-    query.companyId = companyId;
-  }
-  const rawDocs = await col.find(query).sort({ createdAt: -1 }).toArray();
+  // Zero companyId filtering - direct collection access
+  const rawDocs = await col.find({}).sort({ createdAt: -1 }).toArray();
 
-  const templateFilters = Array.isArray(tpl?.filters) ? tpl.filters : (Array.isArray(filters) ? filters : []);
+  // 1. Dynamic Filterization Normalization (Zero Hardcoding)
+  const templateFilters = (Array.isArray(tpl?.filters) ? tpl.filters : (Array.isArray(filters) ? filters : []))
+    .filter(flt => flt && flt.field && (
+      (flt.value !== undefined && flt.value !== null && String(flt.value).trim() !== '') ||
+      flt.operator === 'is_empty' ||
+      flt.operator === 'is_not_empty'
+    ));
+
   let filteredDocs = rawDocs;
 
   if (templateFilters.length > 0) {
-    filteredDocs = filteredDocs.filter(doc => {
-      return templateFilters.every(flt => {
+    filteredDocs = filteredDocs.filter((doc) => {
+      return templateFilters.every((flt) => {
         if (!flt.field) return true;
         const docVal = resolveDocumentField(doc, flt.field, usersMap);
-        const op = flt.operator || 'equals';
-        const targetVal = String(flt.value || '').trim().toLowerCase();
-        const testStr = String(docVal || '').trim().toLowerCase();
+        const op = String(flt.operator || 'equals').trim().toLowerCase();
+        const targetVal = String(flt.value !== undefined && flt.value !== null ? flt.value : '').trim().toLowerCase();
+        const testStr = String(docVal !== undefined && docVal !== null ? docVal : '').trim().toLowerCase();
 
-        if (op === 'equals' || op === 'equal') return testStr === targetVal;
-        if (op === 'not_equals' || op === 'not_equal') return testStr !== targetVal;
+        if (op === 'equals' || op === 'equal' || op === '=') return testStr === targetVal;
+        if (op === 'not_equals' || op === 'not_equal' || op === '!=') return testStr !== targetVal;
         if (op === 'contains') return testStr.includes(targetVal);
         if (op === 'not_contains') return !testStr.includes(targetVal);
         if (op === 'starts_with') return testStr.startsWith(targetVal);
         if (op === 'ends_with') return testStr.endsWith(targetVal);
         if (op === 'is_empty') return docVal === '-' || docVal === '' || docVal === null || docVal === undefined;
         if (op === 'is_not_empty') return docVal !== '-' && docVal !== '' && docVal !== null && docVal !== undefined;
+        if (op === '>' || op === 'greater_than') return Number(docVal) > Number(flt.value);
+        if (op === '>=' || op === 'greater_than_or_equal') return Number(docVal) >= Number(flt.value);
+        if (op === '<' || op === 'less_than') return Number(docVal) < Number(flt.value);
+        if (op === '<=' || op === 'less_than_or_equal') return Number(docVal) <= Number(flt.value);
         return true;
       });
     });
   }
 
-  // Universal Date Range Filtering (Dual Mode: string YYYY-MM-DD + ISO UTC Date bounds)
-  const rawFrom = tpl?.recordDateFrom || tpl?.dateRange?.fromDate || tpl?.fromDate || '';
-  const rawTo = tpl?.recordDateTo || tpl?.dateRange?.toDate || tpl?.toDate || '';
-  if (rawFrom || rawTo) {
-    const fromStr = rawFrom ? String(rawFrom).slice(0, 10) : '';
-    const toStr = rawTo ? String(rawTo).slice(0, 10) : '';
-    let fromDate = null;
-    let toDate = null;
-    if (fromStr) {
-      fromDate = new Date(fromStr);
-      fromDate.setUTCHours(0, 0, 0, 0);
+  // Universal Owner Filter (Dynamic lookup across users collection - Exact Mail-Wise Matching)
+  const rawOwnerInput = String(tpl?.accountOwnerEmail || tpl?.ownerEmail || tpl?.accountOwner || tpl?.owner || tpl?.ownerFilter || 'all').trim();
+  const ownerFilter = rawOwnerInput.toLowerCase();
+  let targetOwnerEmail = '';
+  let targetOwnerName = '';
+
+  if (ownerFilter && ownerFilter !== 'all') {
+    // 1. Resolve canonical email directly from usersMap (from users collection)
+    if (usersMap._emails && usersMap._emails[ownerFilter]) {
+      targetOwnerEmail = usersMap._emails[ownerFilter].toLowerCase().trim();
+    } else if (ownerFilter.includes('@')) {
+      targetOwnerEmail = ownerFilter;
     }
-    if (toStr) {
-      toDate = new Date(toStr);
-      toDate.setUTCHours(23, 59, 59, 999);
+
+    if (usersMap[ownerFilter]) {
+      targetOwnerName = usersMap[ownerFilter];
+      if (!targetOwnerEmail && usersMap._emails && usersMap._emails[String(targetOwnerName).toLowerCase().trim()]) {
+        targetOwnerEmail = usersMap._emails[String(targetOwnerName).toLowerCase().trim()].toLowerCase().trim();
+      }
+    } else if (usersMap._names && usersMap._names[ownerFilter]) {
+      targetOwnerName = usersMap._names[ownerFilter];
+    } else {
+      targetOwnerName = rawOwnerInput;
+    }
+
+    if (usersMap._profiles && usersMap._profiles[ownerFilter]) {
+      const prof = usersMap._profiles[ownerFilter];
+      if (prof.email) targetOwnerEmail = prof.email.toLowerCase().trim();
+      if (prof.name) targetOwnerName = prof.name;
+    }
+
+    // Build the set of target owner emails (exact mail-wise identification)
+    const targetOwnerEmails = new Set();
+    if (targetOwnerEmail) targetOwnerEmails.add(targetOwnerEmail);
+    if (targetOwnerName && usersMap._emails && usersMap._emails[targetOwnerName.toLowerCase().trim()]) {
+      targetOwnerEmails.add(usersMap._emails[targetOwnerName.toLowerCase().trim()].toLowerCase().trim());
+    }
+
+    // Build owner identities for exact code or exact name if doc stores owner name/code
+    const targetOwnerExactIdentities = new Set([ownerFilter]);
+    if (targetOwnerName) targetOwnerExactIdentities.add(targetOwnerName.toLowerCase().trim());
+    if (targetOwnerEmail) targetOwnerExactIdentities.add(targetOwnerEmail);
+    if (usersMap._codes && usersMap._codes[ownerFilter]) {
+      targetOwnerExactIdentities.add(String(usersMap._codes[ownerFilter]).toLowerCase().trim());
+    }
+    if (targetOwnerName && usersMap._codes && usersMap._codes[targetOwnerName.toLowerCase().trim()]) {
+      targetOwnerExactIdentities.add(String(usersMap._codes[targetOwnerName.toLowerCase().trim()]).toLowerCase().trim());
     }
 
     filteredDocs = filteredDocs.filter((doc) => {
+      // 1. Direct Mail-wise match: check if document email or creator email matches target email from users collection
+      const docEmailCandidates = [
+        doc.userEmail,
+        doc.createdUserBy,
+        doc.formData?.userEmail,
+        doc.formData?.createdUserBy,
+        doc.accountOwnerEmail,
+        doc.formData?.accountOwnerEmail,
+        doc.ownerEmail,
+        doc.formData?.ownerEmail,
+      ].filter(Boolean).map(e => String(e).trim().toLowerCase());
+
+      if (targetOwnerEmails.size > 0 && docEmailCandidates.some(e => targetOwnerEmails.has(e))) {
+        return true;
+      }
+
+      // 2. Resolve document's owner via users collection lookup to obtain their canonical mail
+      const docRawOwners = [
+        doc.accountOwner,
+        doc.formData?.accountOwner,
+        doc.formData?.formData?.accountOwner,
+        doc.ownerName,
+        doc.formData?.ownerName,
+        doc.owner,
+        doc.formData?.owner,
+        doc.dealOwner,
+        doc.data?.dealOwner,
+        doc.dealOwnerName,
+        doc.data?.dealOwnerName,
+        doc.quotationOwner,
+        doc.customerOwner,
+        doc.assignedTo,
+        doc.assignedToName,
+      ].filter(Boolean).map(o => String(o).trim().toLowerCase());
+
+      for (const rawO of docRawOwners) {
+        if (targetOwnerExactIdentities.has(rawO)) return true;
+        // Resolve this doc owner's email from users collection
+        if (usersMap._emails && usersMap._emails[rawO]) {
+          const resolvedDocEmail = String(usersMap._emails[rawO]).toLowerCase().trim();
+          if (targetOwnerEmails.has(resolvedDocEmail)) return true;
+        }
+      }
+
+      // 3. Resolve document's owner code via users collection lookup to obtain canonical mail
+      const docCodes = [
+        doc.ownerCode,
+        doc.formData?.ownerCode,
+        doc.accountOwnerCode,
+        doc.formData?.accountOwnerCode,
+        doc.data?.ownerCode,
+      ].filter(Boolean).map(c => String(c).trim().toLowerCase());
+
+      for (const code of docCodes) {
+        if (targetOwnerExactIdentities.has(code)) return true;
+        if (usersMap._emails && usersMap._emails[code]) {
+          const resolvedDocEmail = String(usersMap._emails[code]).toLowerCase().trim();
+          if (targetOwnerEmails.has(resolvedDocEmail)) return true;
+        }
+      }
+
+      return false;
+    });
+  }
+
+  // Keep reference of records that matched owner and filters before applying date window
+  const docsBeforeDateFilter = [...filteredDocs];
+  let dateFilterFellBack = false;
+  let dateMatchedCount = null;
+
+  // Universal Date Range Filtering (Using parseDateTimestamp for ISO, YYYY-MM-DD, and DD/MM/YYYY)
+  const rawFrom = tpl?.recordDateFrom || tpl?.dateRange?.fromDate || tpl?.fromDate || '';
+  const rawTo = tpl?.recordDateTo || tpl?.dateRange?.toDate || tpl?.toDate || '';
+  if (rawFrom || rawTo) {
+    const fromTime = rawFrom ? parseDateTimestamp(rawFrom) : null;
+    let toTime = rawTo ? parseDateTimestamp(rawTo) : null;
+    if (toTime !== null) {
+      const toObj = new Date(toTime);
+      toObj.setHours(23, 59, 59, 999);
+      toTime = toObj.getTime();
+    }
+
+    const dateFiltered = filteredDocs.filter((doc) => {
       let rawDateVal = null;
       if (entityType === 'account') {
-        rawDateVal = doc.accountDate || doc.formData?.accountDate || doc.date || doc.createdAt;
+        rawDateVal = doc.accountDate || doc.formData?.accountDate || doc.formData?.formData?.accountDate || doc.date || doc.createdAt;
       } else if (entityType === 'deal') {
-        rawDateVal = doc.dealDate || doc.data?.dealDate || doc.quotationDate || doc.createdAt;
+        rawDateVal = doc.dealDate || doc.data?.dealDate || doc.data?.data?.dealDate || doc.data?.convertedAt || doc.formData?.dealDate || doc.quotationDate || doc.createdAt;
       } else if (entityType === 'customer') {
-        rawDateVal = doc.createdAt || doc.addedDate;
+        rawDateVal = doc.createdAt || doc.addedDate || doc.date;
       } else if (entityType === 'quotation') {
-        rawDateVal = doc.quotationDate || doc.data?.quotationDate || doc.date || doc.createdAt;
+        rawDateVal = doc.quotationDate || doc.data?.quotationDate || doc.data?.customerReference?.date || doc.date || doc.createdAt;
       } else {
         rawDateVal = doc.date || doc.createdAt;
       }
 
       if (!rawDateVal) return false;
-      const strVal = String(rawDateVal).slice(0, 10);
-      const dateObj = new Date(rawDateVal);
-      const hasValidDate = !Number.isNaN(dateObj.getTime());
+      const docTime = parseDateTimestamp(rawDateVal);
+      if (docTime === null) return false;
 
-      if (fromStr && toStr) {
-        const inStrRange = strVal >= fromStr && strVal <= toStr;
-        const inDateRange = hasValidDate && dateObj >= fromDate && dateObj <= toDate;
-        return inStrRange || inDateRange;
-      } else if (fromStr) {
-        const afterStr = strVal >= fromStr;
-        const afterDate = hasValidDate && dateObj >= fromDate;
-        return afterStr || afterDate;
-      } else if (toStr) {
-        const beforeStr = strVal <= toStr;
-        const beforeDate = hasValidDate && dateObj <= toDate;
-        return beforeStr || beforeDate;
-      }
+      if (fromTime !== null && docTime < fromTime) return false;
+      if (toTime !== null && docTime > toTime) return false;
       return true;
     });
-  }
 
-  // Universal Owner Filter
-  const ownerFilter = String(tpl?.accountOwner || tpl?.owner || 'all').trim().toLowerCase();
-  if (ownerFilter && ownerFilter !== 'all') {
-    filteredDocs = filteredDocs.filter((doc) => {
-      const ownerVal = resolveDocumentField(doc, 'owner', usersMap);
-      const docOwners = [
-        ownerVal,
-        doc.accountOwnerName,
-        doc.accountOwner,
-        doc.ownerName,
-        doc.owner,
-        doc.formData?.accountOwner,
-        doc.formData?.owner,
-        doc.formData?.accountOwnerName,
-        doc.dealOwnerName,
-        doc.dealOwner,
-        doc.assignedToName,
-        doc.assignedTo,
-        doc.customerOwner,
-        doc.quotationOwner,
-        doc.ownerCode,
-        doc.formData?.ownerCode,
-      ].filter(Boolean).map((o) => String(o).trim().toLowerCase());
+    dateMatchedCount = dateFiltered.length;
 
-      return docOwners.some((o) => o === ownerFilter || o.includes(ownerFilter) || ownerFilter.includes(o));
-    });
+    // Strict Date Range Filtering: Do not fall back to dumping all historical records unless explicitly configured
+    if (dateFiltered.length === 0 && docsBeforeDateFilter.length > 0 && tpl?.autoFallback === true) {
+      filteredDocs = docsBeforeDateFilter;
+      dateFilterFellBack = true;
+    } else {
+      filteredDocs = dateFiltered;
+    }
   }
 
   // Field Labels Mapping
@@ -763,11 +1011,19 @@ async function executeTemplateReport({ template, templateId, filters = [], compa
       const displayLabel = fieldLabels[idx] || rawKey;
       const resolvedVal = resolveDocumentField(doc, fieldIdentifier, usersMap);
       const finalVal = resolvedVal !== undefined && resolvedVal !== null ? resolvedVal : '-';
-      
+
       // Set both the human label and the raw key so whatever key is requested, it matches!
       rowObj[displayLabel] = finalVal;
       rowObj[rawKey] = finalVal;
     });
+
+    // Attach identifiers for deduplication and client processing
+    rowObj._id = doc._id ? String(doc._id) : undefined;
+    rowObj['Account No.'] = rowObj['Account No.'] || rowObj['Account No'] || doc.accountNumber || doc.accountNo || doc.formData?.accountNumber || doc.formData?.accountNo;
+    rowObj['Deal No.'] = rowObj['Deal No.'] || rowObj['Deal No'] || doc.dealNumber || doc.data?.dealNumber;
+    rowObj['Quotation No.'] = rowObj['Quotation No.'] || rowObj['Quotation No'] || doc.quotationNumber || doc.data?.quotationNumber;
+    rowObj['Customer No.'] = rowObj['Customer No.'] || rowObj['Customer No'] || doc.customerNumber || doc.formData?.customerNumber;
+
     return rowObj;
   });
 
@@ -782,15 +1038,21 @@ async function executeTemplateReport({ template, templateId, filters = [], compa
     rows,
     totalRecords: rows.length,
     reportTitle,
+    ownerEmail: targetOwnerEmail || tpl?.accountOwnerEmail || '',
+    ownerName: targetOwnerName || tpl?.accountOwner || tpl?.owner || tpl?.ownerFilter || '',
+    dateFilterFellBack,
+    dateMatchedCount,
+    ownerMatchedCount: docsBeforeDateFilter.length,
+    collectionRecordsCount: rawDocs.length,
   };
 }
 
 function generateTemplateExcelBuffer({ reportTitle, fieldLabels, rows }) {
   const workbook = XLSX.utils.book_new();
   const rowsForSheet = rows.length > 0 ? rows : [{ 'Report Status': 'No records found matching report criteria' }];
-  const worksheet = XLSX.utils.json_to_sheet(rowsForSheet);
-
   const keys = fieldLabels && fieldLabels.length > 0 ? fieldLabels : Object.keys(rowsForSheet[0] || {});
+  const worksheet = XLSX.utils.json_to_sheet(rowsForSheet, { header: keys });
+
   worksheet['!cols'] = keys.map(key => {
     let maxLen = key.length;
     rowsForSheet.slice(0, 100).forEach(r => {

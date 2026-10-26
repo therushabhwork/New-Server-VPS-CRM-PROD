@@ -10,7 +10,6 @@ import {
   BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell,
-  FunnelChart, Funnel, LabelList,
 } from 'recharts'
 import { useData } from '../../../context/DataContext'
 import { saveUserChartToDb, mapContextToCategory, fetchAllChartsFromDb } from '../../../features/adminCharts/chartStorage'
@@ -27,7 +26,7 @@ const STEPS = [
 ]
 
 const CONTEXTS = ['Account', 'Customer', 'SR', 'Deal', 'Quotation']
-const CHART_TYPES = ['Pie', 'Donut', 'Funnel', 'Bar', 'Stack', 'Card']
+const CHART_TYPES = ['Pie', 'Donut', 'Bar', 'Stack', 'Card']
 const AGGREGATE_TYPES = ['Count', 'Sum']
 
 const CONTEXT_LABELS = {
@@ -75,12 +74,7 @@ const CHART_SLICE_STROKE = 'var(--chart-slice-stroke, #ffffff)'
 const CHART_LABEL_FILL = 'var(--chart-label-fill, #ffffff)'
 const CHART_TOOLTIP_CURSOR = 'rgba(75, 184, 232, 0.14)'
 
-const FUNNEL_PREVIEW_DATA = [
-  { name: 'Status 4', value: 350, fill: '#3a5a99' },
-  { name: 'Status 1', value: 300, fill: '#dd863a' },
-  { name: 'Status 3', value: 200, fill: '#4a9a3b' },
-  { name: 'Status 2', value: 100, fill: '#cf3d3d' },
-]
+
 
 const CONTEXT_FIELDS = {
   Account: [
@@ -264,6 +258,12 @@ const ChartsPage = ({ basePath = '/admin/charts' }) => {
   }, [isConfiguring])
 
   useEffect(() => {
+    if (editChartId || location.state?.configureNew) {
+      setIsConfiguring(true)
+    }
+  }, [editChartId, location.state])
+
+  useEffect(() => {
     if (!editChartId) return undefined
 
     let isMounted = true
@@ -293,7 +293,8 @@ const ChartsPage = ({ basePath = '/admin/charts' }) => {
       setOrderByEnabled(Boolean(foundChart.orderByEnabled))
       setOrderByField(foundChart.orderByField || '')
       setSelectedFieldKeys(foundChart.selectedFieldKeys || [])
-      setCurrentStep(2)
+      setIsConfiguring(true)
+      setCurrentStep(1)
     }).catch((error) => {
       console.warn('Unable to load chart for editing:', error)
     })
@@ -518,20 +519,7 @@ const ChartsPage = ({ basePath = '/admin/charts' }) => {
             </div>
           </div>
         )
-      case 'Funnel':
-        return (
-          <ResponsiveContainer width="100%" height={260}>
-            <FunnelChart>
-              <Tooltip />
-              <Funnel dataKey="value" data={FUNNEL_PREVIEW_DATA} isAnimationActive>
-                <LabelList position="center" fill={CHART_LABEL_FILL} stroke="none" dataKey="name" formatter={(name) => {
-                  const entry = FUNNEL_PREVIEW_DATA.find((item) => item.name === name)
-                  return entry ? `${entry.name}: ${entry.value}` : name
-                }} />
-              </Funnel>
-            </FunnelChart>
-          </ResponsiveContainer>
-        )
+
       default:
         return (
           <div className="cc-preview-empty">
@@ -848,7 +836,7 @@ const ChartsPage = ({ basePath = '/admin/charts' }) => {
             </select>
             <button
               type="button"
-              className="cc-next-btn"
+              className="cp-btn cp-btn--primary"
               onClick={() => {
                 setEditingChart(null)
                 setCurrentStep(1)
@@ -859,7 +847,7 @@ const ChartsPage = ({ basePath = '/admin/charts' }) => {
             </button>
             <button
               type="button"
-              className="cc-cancel-btn"
+              className="cp-btn cp-btn--secondary"
               onClick={() => navigate(`${basePath}/list`)}
             >
               All Charts
@@ -888,11 +876,14 @@ const ChartsPage = ({ basePath = '/admin/charts' }) => {
   return (
     <div className="cc-page">
       <div className="cc-topbar">
-        <h1 className="cc-topbar-title">{editingChart ? 'Edit Chart' : 'Configure Chart'}</h1>
+        <h1 className="cc-topbar-title">{editingChart ? `Edit Chart: ${editingChart.title || editingChart.name || 'Untitled'}` : 'Configure Chart'}</h1>
         <button
           type="button"
           className="cc-cancel-btn"
-          onClick={() => setIsConfiguring(false)}
+          onClick={() => {
+            setIsConfiguring(false)
+            navigate(basePath)
+          }}
         >
           <FaTimes /> Back to All Charts
         </button>

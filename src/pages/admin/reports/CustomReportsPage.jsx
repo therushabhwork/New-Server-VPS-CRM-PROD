@@ -28,6 +28,39 @@ import reportApi from '../../../services/reportApi'
 import { customerService } from '../../../services/customerService'
 import { jsPDF } from 'jspdf'
 import { autoTable } from 'jspdf-autotable'
+import swatiLogo from '../../../assets/swati-logo.png'
+
+export const formatTitleCase = (str) => {
+  if (!str || typeof str !== 'string') return ''
+  return str
+    .trim()
+    .split(/\s+/)
+    .map((word) => {
+      if (!word) return ''
+      return word
+        .split('-')
+        .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : ''))
+        .join('-')
+    })
+    .join(' ')
+}
+
+const loadLogoImage = (src) => {
+  return new Promise((resolve) => {
+    if (!src) return resolve(null)
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => resolve(img)
+    img.onerror = () => {
+      const fallback = new Image()
+      fallback.crossOrigin = 'anonymous'
+      fallback.onload = () => resolve(fallback)
+      fallback.onerror = () => resolve(null)
+      fallback.src = '/swati-logo.png'
+    }
+    img.src = src
+  })
+}
 import {
   CUSTOM_REPORT_CONTEXTS,
   getCustomReportContext,
@@ -394,18 +427,43 @@ const getReportFields = (report) => {
 const getReportFilters = (report) => {
   if (report.filtersText || typeof report.filters === 'string') return report.filtersText || report.filters
   const contextKey = normalizeEntityKey(report.entityType || report.reportContext || 'account')
+  const parts = []
+
+  const owner = String(report.accountOwner || report.owner || '').trim()
+  const ownerEmail = String(report.accountOwnerEmail || report.ownerEmail || '').trim()
+  if (owner && owner.toLowerCase() !== 'all') {
+    parts.push(`Owner: ${owner}${ownerEmail ? ` (${ownerEmail})` : ''}`)
+  } else if (ownerEmail) {
+    parts.push(`Owner Email: ${ownerEmail}`)
+  }
+
+  const groups = Array.isArray(report.userGroups) ? report.userGroups : (Array.isArray(report.selectedUserGroups) ? report.selectedUserGroups : [])
+  if (groups.length > 0) {
+    parts.push(`Groups: ${groups.join(', ')}`)
+  }
+
+  const fromDate = report.recordDateFrom || report.dateRange?.fromDate || report.fromDate || ''
+  const toDate = report.recordDateTo || report.dateRange?.toDate || report.toDate || ''
+  if (fromDate || toDate) {
+    parts.push(`Date: ${fromDate || 'Start'} to ${toDate || 'Present'}`)
+  }
+
   const filters = Array.isArray(report.filters) ? report.filters : []
-  if (filters.length === 0) return ''
-  return filters
-    .filter((filter) => filter && (filter.field || filter.label))
-    .map((filter, index) => [
-      index > 0 ? (filter.connector || 'AND') : '',
-      getCustomReportFieldLabel(contextKey, filter.field) || filter.field || filter.label,
-      filter.operator || '=',
-      filter.value || '',
-      filter.operator === 'between' ? (filter.valueTo || '') : '',
-    ].filter(Boolean).join(' '))
-    .join('; ')
+  if (filters.length > 0) {
+    const criteria = filters
+      .filter((filter) => filter && (filter.field || filter.label))
+      .map((filter, index) => [
+        index > 0 ? (filter.connector || 'AND') : '',
+        getCustomReportFieldLabel(contextKey, filter.field) || filter.field || filter.label,
+        filter.operator || '=',
+        filter.value || '',
+        filter.operator === 'between' ? (filter.valueTo || '') : '',
+      ].filter(Boolean).join(' '))
+      .join('; ')
+    if (criteria) parts.push(`Criteria: ${criteria}`)
+  }
+
+  return parts.join(' | ')
 }
 
 const getReportGroupBy = (report) => (
@@ -672,7 +730,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           selectedUserGroups: Array.isArray(tpl.selectedUserGroups) ? tpl.selectedUserGroups : (Array.isArray(tpl.userGroups) ? tpl.userGroups : []),
           userGroupMembers: Array.isArray(tpl.userGroupMembers) ? tpl.userGroupMembers : [],
           accountOwner: tpl.accountOwner || tpl.owner || '',
-          accountOwnerEmail: tpl.accountOwnerEmail || '',
+          accountOwnerEmail: tpl.accountOwnerEmail || tpl.ownerEmail || '',
           recordDateFrom: tpl.recordDateFrom || tpl.dateRange?.fromDate || '',
           recordDateTo: tpl.recordDateTo || tpl.dateRange?.toDate || '',
           dateFilterField: tpl.dateFilterField || tpl.dateRange?.dateFilterField || 'accountDate',
@@ -1607,9 +1665,12 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         const ctx = getCustomReportContext(report.reportContext) || {}
         const reportCat = normalizeEntityKey(report.categoryKey || report.entityType || ctx.categoryKey || 'account')
         const targetCategory = reportCat || 'account'
+        const templateId = report._id || report.id
 
         const hasDateFilter = Boolean(report.recordDateFrom || report.dateRange?.fromDate || report.recordDateTo || report.dateRange?.toDate)
         const payload = {
+          templateId,
+          template: report,
           dataSource: targetCategory === 'all' ? 'account' : targetCategory,
           reportContext: targetCategory === 'all' ? 'account' : targetCategory,
           selectedFields: selectedFieldKeys,
@@ -1626,55 +1687,372 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         }
 
         const res = await apiClient.post('/reports/export-excel', payload)
-        const exportRows = res.data?.rows || res.data?.data || res.data?.records || []
 
-        const fieldLabels = res.data?.fieldLabels || selectedFieldKeys
-        const columns = fieldLabels.map((lbl) => ({
+        // STRICT SINGLE ACCESS ONLY: Zero double .data (apiClient already unwraps response.data)
+        const exportPayload = (res && typeof res === 'object') ? res : {}
+
+        let rawRecords = []
+        if (Array.isArray(exportPayload.rows)) {
+          rawRecords = exportPayload.rows
+        } else if (Array.isArray(exportPayload.records)) {
+          rawRecords = exportPayload.records
+        } else if (Array.isArray(exportPayload.data)) {
+          rawRecords = exportPayload.data
+        } else if (Array.isArray(exportPayload)) {
+          rawRecords = exportPayload
+        } else if (exportPayload.row && typeof exportPayload.row === 'object') {
+          rawRecords = [exportPayload.row]
+        } else if (exportPayload.record && typeof exportPayload.record === 'object') {
+          rawRecords = [exportPayload.record]
+        } else if (exportPayload._id || exportPayload.id || exportPayload.accountNumber || exportPayload.dealNumber || exportPayload.quotationNumber) {
+          rawRecords = [exportPayload]
+        }
+
+        const exportRows = rawRecords
+        const fieldLabels = exportPayload.fieldLabels || selectedFieldKeys
+        const rawFields = exportPayload.selectedFields || selectedFieldKeys
+
+        const columns = fieldLabels.map((lbl, idx) => ({
           key: lbl,
           label: lbl,
+          rawKey: rawFields[idx] || lbl,
           width: Math.min(36, Math.max(14, lbl.length + 5)),
         }))
 
-        // Safeguard context-specific deduplication to guarantee zero repeated rows
+        // Helper to resolve cell values case-insensitively and normalize dates & numbers
+        const resolveExportCell = (row, col) => {
+          if (!row || !col) return '-'
+          const candidates = [
+            row[col.label],
+            row[col.key],
+            col.rawKey ? row[col.rawKey] : undefined,
+            col.label ? row[String(col.label).toLowerCase()] : undefined,
+            col.key ? row[String(col.key).toLowerCase()] : undefined,
+            col.rawKey ? row[String(col.rawKey).toLowerCase()] : undefined,
+            col.label ? row[String(col.label).toLowerCase().replace(/[^a-z0-9]/g, '')] : undefined,
+            col.key ? row[String(col.key).toLowerCase().replace(/[^a-z0-9]/g, '')] : undefined,
+            col.rawKey ? row[String(col.rawKey).toLowerCase().replace(/[^a-z0-9]/g, '')] : undefined,
+          ]
+          const isOwnerCol = /owner|assigned|createdby|addedby/i.test(String(col.label || col.key || col.rawKey || ''))
+          for (const cand of candidates) {
+            if (cand !== undefined && cand !== null && cand !== '') {
+              // Normalize date if ISO format (YYYY-MM-DD -> DD/MM/YYYY)
+              if (typeof cand === 'string' && /^\d{4}-\d{2}-\d{2}/.test(cand)) {
+                const parts = cand.slice(0, 10).split('-')
+                if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`
+              }
+              const strVal = String(cand).trim()
+              if (isOwnerCol && strVal && strVal !== '-' && strVal.toLowerCase() !== 'unassigned') {
+                return formatTitleCase(strVal)
+              }
+              return strVal
+            }
+          }
+          return '-'
+        }
+
+        // Helper to canonically identify unique records to guarantee 100% zero repeated rows
+        const getCanonicalRecordKey = (row) => {
+          const accNo = String(
+            row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
+          ).trim().toUpperCase()
+          if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL') return `ACC:${accNo}`
+
+          const dealNo = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || '').trim().toUpperCase()
+          if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED') return `DEAL:${dealNo}`
+
+          const qNo = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNumber || row.quoteNumber || '').trim().toUpperCase()
+          if (qNo && qNo !== '-' && qNo !== 'UNDEFINED') return `QUOTE:${qNo}`
+
+          const custNo = String(row['Customer No.'] || row['Customer No'] || row.customerNumber || '').trim().toUpperCase()
+          if (custNo && custNo !== '-' && custNo !== 'UNDEFINED') return `CUST:${custNo}`
+
+          const id = String(row._id || row.id || '').trim()
+          if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
+
+          return JSON.stringify(row)
+        }
+
+        // Strict canonical deduplication
         const seenRowKeys = new Set()
         const dedupedDataSets = []
-        for (const row of exportRows) {
-          let rowKey = String(row['Account No.'] || row['Account No'] || row['Deal No.'] || row['Customer No.'] || row['Quotation No.'] || row._id || '').trim()
-          if (!rowKey) rowKey = JSON.stringify(row)
+        exportRows.forEach((row, idx) => {
+          const rowKey = getCanonicalRecordKey(row) || `row-idx-${idx}`
           if (!seenRowKeys.has(rowKey)) {
             seenRowKeys.add(rowKey)
             dedupedDataSets.push(row)
           }
+        })
+
+        // Account Owner resolver for grouping
+        const resolveRowOwner = (row) => {
+          const val = row['Account Owner'] || row.accountOwner || row.ownerName || row.owner || row._ownerName ||
+            row['Deal Owner'] || row.dealOwner || row['Quotation Owner'] || row.quotationOwner ||
+            row['Customer Owner'] || row.customerOwner || ''
+          const trimmed = String(val || 'Unassigned').trim() || 'Unassigned'
+          return trimmed.toLowerCase() === 'unassigned' ? 'Unassigned' : formatTitleCase(trimmed)
         }
+
+        const rawOwner = report.accountOwner || report.owner || exportPayload.ownerName || ''
+        const rawOwnerEmail = report.accountOwnerEmail || report.ownerEmail || exportPayload.ownerEmail || ''
+        const formattedRawOwner = rawOwner && rawOwner.toLowerCase() !== 'all' ? formatTitleCase(rawOwner) : ''
+        let ownerScopeText = 'All Owners'
+        if (formattedRawOwner) {
+          ownerScopeText = rawOwnerEmail ? `${formattedRawOwner} (${rawOwnerEmail})` : formattedRawOwner
+        } else if (rawOwnerEmail) {
+          ownerScopeText = rawOwnerEmail
+        }
+        const primaryTargetOwner = formattedRawOwner.toLowerCase()
+
+        // Group unique records by Account Owner
+        const ownerGroups = {}
+        dedupedDataSets.forEach((row) => {
+          const ownerName = resolveRowOwner(row)
+          if (!ownerGroups[ownerName]) {
+            ownerGroups[ownerName] = []
+          }
+          ownerGroups[ownerName].push(row)
+        })
+
+        // Sort owner groups: Primary Target Owner first, then remaining owners alphabetically
+        const sortedOwnerNames = Object.keys(ownerGroups).sort((a, b) => {
+          const aLower = a.toLowerCase()
+          const bLower = b.toLowerCase()
+          if (primaryTargetOwner && primaryTargetOwner !== 'all') {
+            if (aLower === primaryTargetOwner) return -1
+            if (bLower === primaryTargetOwner) return 1
+          }
+          return a.localeCompare(b, undefined, { sensitivity: 'base' })
+        })
+        const isMultiOwner = sortedOwnerNames.length > 1 || (ownerScopeText && ownerScopeText.toLowerCase().includes('all'))
+
+        const rawFrom = report.recordDateFrom || report.dateRange?.fromDate || report.fromDate || ''
+        const rawTo = report.recordDateTo || report.dateRange?.toDate || report.toDate || ''
+        const dateRangeText = (rawFrom || rawTo) ? `Date Range: ${rawFrom || 'Start'} to ${rawTo || 'Present'}` : 'Date Range: All Dates'
+
+        const criteriaList = Array.isArray(report.filters) && report.filters.length > 0
+          ? report.filters.filter(f => f && (f.field || f.label)).map(f => `${f.field || f.label} ${f.operator || '='} ${f.value}`).join('; ')
+          : ''
+        const criteriaText = criteriaList ? `Filters: ${criteriaList}` : ''
+
+        const totalOwnersText = isMultiOwner && sortedOwnerNames.length > 1 ? ` | Total Owners: ${sortedOwnerNames.length}` : ''
+
+        // Dynamically compute exact total unique records from active rendered owner groups
+        const totalRenderedCount = Object.values(ownerGroups).reduce((sum, rows) => sum + rows.length, 0)
+        const totalUniqueRecordsCount = totalRenderedCount || dedupedDataSets.length
+
+        const filterSummaryText = [
+          `Owner: ${ownerScopeText}${totalOwnersText}`,
+          dateRangeText,
+          criteriaText,
+          `Total Unique Records: ${totalUniqueRecordsCount}`,
+        ].filter(Boolean).join(' | ')
+
+        if (dedupedDataSets.length === 0) {
+          console.info(`[Report Export] Zero records returned for report "${reportName}". Generating file with template headers.`)
+          const emptyRow = {}
+          columns.forEach((c) => {
+            emptyRow[c.key] = '-'
+            emptyRow[c.label] = '-'
+          })
+          if (columns.length > 0) {
+            emptyRow[columns[0].key] = 'No records found matching criteria'
+            emptyRow[columns[0].label] = 'No records found matching criteria'
+          }
+          dedupedDataSets.push(emptyRow)
+        }
+
+        if (exportPayload.dateFilterFellBack) {
+          console.info(`[Report Export] Saved date range had 0 records; exported all available records from '${exportPayload.collectionName || 'leads'}' for "${reportName}".`)
+        }
+
+        const displayReportTitle = formatTitleCase(reportName)
 
         if (format === 'pdf') {
           const doc = new jsPDF({ orientation: 'landscape' })
-          doc.setFontSize(14)
-          doc.text(reportName, 14, 15)
-          doc.setFontSize(9)
-          doc.setTextColor(100)
-          doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')} | Total Records: ${dedupedDataSets.length}`, 14, 22)
 
-          const tableHead = [columns.map((c) => c.label)]
-          const tableBody = dedupedDataSets.map((row) => columns.map((c) => String(row[c.key] ?? '-')))
+          // Preload and insert centered Swati Switchgears logo with natural 1:1 aspect ratio
+          let logoRendered = false
+          let logoBottomY = 8
+          try {
+            const logoImg = await loadLogoImage(swatiLogo)
+            if (logoImg) {
+              const naturalWidth = logoImg.naturalWidth || logoImg.width || 412
+              const naturalHeight = logoImg.naturalHeight || logoImg.height || 413
+              const aspectRatio = naturalHeight > 0 ? (naturalWidth / naturalHeight) : 1
+              // Prominent logo size: height 22mm, width scaled by exact natural aspect ratio (22mm x 22mm for square)
+              const logoHeight = 22
+              const logoWidth = Number((logoHeight * aspectRatio).toFixed(2))
+              const logoX = (297 - logoWidth) / 2
+              const logoY = 6.0
+              doc.addImage(logoImg, 'PNG', logoX, logoY, logoWidth, logoHeight)
+              logoRendered = true
+              logoBottomY = logoY + logoHeight
+            }
+          } catch (imgErr) {
+            console.warn('[PDF Export] Could not render logo:', imgErr)
+          }
 
-          autoTable(doc, {
-            head: tableHead,
-            body: tableBody,
-            startY: 26,
-            theme: 'grid',
-            styles: { fontSize: 8, cellPadding: 2 },
-            headStyles: { fillColor: [198, 0, 22], textColor: 255 },
-          })
+          // Centered Report Title in Title Case
+          doc.setFontSize(13)
+          doc.setFont('helvetica', 'bold')
+          doc.setTextColor(30, 41, 59)
+          const titleY = logoRendered ? (logoBottomY + 4.5) : 14
+          doc.text(displayReportTitle, 148.5, titleY, { align: 'center' })
 
-          doc.save(`${slugify(reportName)}-${new Date().toISOString().slice(0, 10)}.pdf`)
+          // Centered Subtitle Line 1: Owner Scope & Total Owners
+          doc.setFontSize(8)
+          doc.setFont('helvetica', 'normal')
+          doc.setTextColor(71, 85, 105)
+          const sub1Y = titleY + 4.5
+          doc.text(`Owner Scope: ${ownerScopeText}${totalOwnersText}`, 148.5, sub1Y, { align: 'center' })
+
+          // Centered Subtitle Line 2: Date Range, Filters, Records & Generated Date
+          doc.setTextColor(100, 116, 139)
+          const sub2Y = sub1Y + 4.0
+          const line2 = `${dateRangeText}${criteriaText ? ` | ${criteriaText}` : ''} | Total Unique Records: ${totalUniqueRecordsCount} | Generated: ${new Date().toLocaleDateString('en-IN')}`
+          doc.text(line2, 148.5, sub2Y, { align: 'center' })
+
+          // Full-width Divider Line
+          const dividerY = sub2Y + 4.0
+          doc.setDrawColor(226, 232, 240)
+          doc.setLineWidth(0.4)
+          doc.line(14, dividerY, 283, dividerY)
+
+          let currentY = dividerY + 5.5
+
+          if (isMultiOwner && sortedOwnerNames.length > 1) {
+            // Multi-Owner: Render styled Owner-Wise grouped sections in PDF
+            sortedOwnerNames.forEach((ownerName) => {
+              const groupRows = ownerGroups[ownerName] || []
+              if (currentY > 165) {
+                doc.addPage()
+                currentY = 16
+              }
+
+              const isReassigned = Boolean(
+                primaryTargetOwner &&
+                primaryTargetOwner !== 'all' &&
+                ownerName.toLowerCase() !== primaryTargetOwner
+              )
+
+              doc.setFontSize(10)
+              doc.setFont('helvetica', 'bold')
+
+              if (isReassigned) {
+                doc.setTextColor(180, 83, 9) // Amber / Orange for Re-assigned
+                doc.text(`Re-assigned Account Owner: ${ownerName} (${groupRows.length} Accounts)`, 14, currentY)
+              } else {
+                doc.setTextColor(198, 0, 22) // Swati Brand Red for Primary Owner
+                doc.text(`Account Owner: ${ownerName} (${groupRows.length} Accounts)`, 14, currentY)
+              }
+
+              currentY += 4
+
+              const tableHead = [columns.map((c) => c.label)]
+              const tableBody = groupRows.map((row) => columns.map((c) => resolveExportCell(row, c)))
+
+              autoTable(doc, {
+                head: tableHead,
+                body: tableBody,
+                startY: currentY,
+                theme: 'grid',
+                styles: { fontSize: 7.5, cellPadding: 2, overflow: 'linebreak' },
+                headStyles: {
+                  fillColor: isReassigned ? [71, 85, 105] : [45, 55, 72],
+                  textColor: 255,
+                  fontStyle: 'bold',
+                },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                margin: { left: 14, right: 14 },
+              })
+
+              currentY = doc.lastAutoTable.finalY + 8
+            })
+          } else {
+            // Single Owner or default single table
+            const tableHead = [columns.map((c) => c.label)]
+            const tableBody = dedupedDataSets.map((row) => columns.map((c) => resolveExportCell(row, c)))
+
+            autoTable(doc, {
+              head: tableHead,
+              body: tableBody,
+              startY: currentY,
+              theme: 'grid',
+              styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
+              headStyles: { fillColor: [45, 55, 72], textColor: 255, fontStyle: 'bold' },
+              alternateRowStyles: { fillColor: [248, 250, 252] },
+              margin: { left: 14, right: 14 },
+            })
+          }
+
+          // Universal footer on all pages
+          const totalPages = doc.internal.getNumberOfPages()
+          for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i)
+            doc.setFontSize(7.5)
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(148, 163, 184)
+            doc.text('Swati Switchgears CRM — Confidential & Proprietary Report', 14, 203)
+            doc.text(`Page ${i} of ${totalPages}`, 283, 203, { align: 'right' })
+          }
+
+          doc.save(`${slugify(displayReportTitle)}-${new Date().toISOString().slice(0, 10)}.pdf`)
         } else {
+          // Format rows for Excel: Owner-Wise grouped with styled section divider rows
+          const excelRows = []
+          if (isMultiOwner && sortedOwnerNames.length > 1) {
+            sortedOwnerNames.forEach((ownerName) => {
+              const groupRows = ownerGroups[ownerName] || []
+              const isReassigned = Boolean(
+                primaryTargetOwner &&
+                primaryTargetOwner !== 'all' &&
+                ownerName.toLowerCase() !== primaryTargetOwner
+              )
+              const ownerHeaderRow = {}
+              columns.forEach((c, idx) => {
+                if (idx === 0) {
+                  ownerHeaderRow[c.key] = isReassigned
+                    ? `▶ Re-assigned Account Owner: ${ownerName} (${groupRows.length} Accounts)`
+                    : `▶ Account Owner: ${ownerName} (${groupRows.length} Accounts)`
+                  ownerHeaderRow[c.label] = ownerHeaderRow[c.key]
+                } else {
+                  ownerHeaderRow[c.key] = ''
+                  ownerHeaderRow[c.label] = ''
+                }
+              })
+              excelRows.push(ownerHeaderRow)
+
+              groupRows.forEach((row) => {
+                const excelRow = { ...row }
+                columns.forEach((c) => {
+                  excelRow[c.key] = resolveExportCell(row, c)
+                  excelRow[c.label] = excelRow[c.key]
+                })
+                excelRows.push(excelRow)
+              })
+            })
+          } else {
+            dedupedDataSets.forEach((row) => {
+              const excelRow = { ...row }
+              columns.forEach((c) => {
+                excelRow[c.key] = resolveExportCell(row, c)
+                excelRow[c.label] = excelRow[c.key]
+              })
+              excelRows.push(excelRow)
+            })
+          }
+
           exportExcelWorkbook({
-            filename: `${slugify(reportName)}-${new Date().toISOString().slice(0, 10)}.xlsx`,
-            title: reportName,
+            filename: `${slugify(displayReportTitle)}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+            title: displayReportTitle,
+            subtitle: `${filterSummaryText} | Generated: ${new Date().toLocaleDateString('en-IN')}`,
             sheetName: 'Report Data',
-            columns,
-            rows: dedupedDataSets,
+            columns: columns.map(c => ({
+              ...c,
+              formatter: (val, row) => resolveExportCell(row, c),
+            })),
+            rows: excelRows,
           })
         }
         return
@@ -2184,29 +2562,79 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
 
     if (format === 'pdf') {
       const doc = new jsPDF({ orientation: 'landscape' })
-      doc.setFontSize(14)
-      doc.text(reportName, 14, 15)
-      doc.setFontSize(9)
-      doc.setTextColor(100)
-      doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')} | Records: ${dedupedDataSets.length}`, 14, 22)
+      const displayReportTitle = formatTitleCase(reportName)
+
+      let logoRendered = false
+      let logoBottomY = 8
+      try {
+        const logoImg = await loadLogoImage(swatiLogo)
+        if (logoImg) {
+          const naturalWidth = logoImg.naturalWidth || logoImg.width || 412
+          const naturalHeight = logoImg.naturalHeight || logoImg.height || 413
+          const aspectRatio = naturalHeight > 0 ? (naturalWidth / naturalHeight) : 1
+          const logoHeight = 22
+          const logoWidth = Number((logoHeight * aspectRatio).toFixed(2))
+          const logoX = (297 - logoWidth) / 2
+          const logoY = 6.0
+          doc.addImage(logoImg, 'PNG', logoX, logoY, logoWidth, logoHeight)
+          logoRendered = true
+          logoBottomY = logoY + logoHeight
+        }
+      } catch (e) {
+        console.warn('[PDF Export] Logo load fallback:', e)
+      }
+
+      const titleY = logoRendered ? (logoBottomY + 4.5) : 14
+      doc.setFontSize(13)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(30, 41, 59)
+      doc.text(displayReportTitle, 148.5, titleY, { align: 'center' })
+
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 116, 139)
+      doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')} | Records: ${dedupedDataSets.length}`, 148.5, titleY + 4.5, { align: 'center' })
+
+      doc.setDrawColor(226, 232, 240)
+      doc.setLineWidth(0.4)
+      doc.line(14, titleY + 8.5, 283, titleY + 8.5)
 
       const tableHead = [columns.map((c) => c.label)]
-      const tableBody = dedupedDataSets.map((row) => columns.map((c) => String(row[c.key] ?? '-')))
+      const tableBody = dedupedDataSets.map((row) => columns.map((c) => {
+        const val = row[c.key] ?? '-'
+        const isOwnerCol = /owner|assigned|createdby|addedby/i.test(String(c.label || c.key || ''))
+        if (isOwnerCol && val && val !== '-' && String(val).toLowerCase() !== 'unassigned') {
+          return formatTitleCase(String(val))
+        }
+        return String(val)
+      }))
 
       autoTable(doc, {
         head: tableHead,
         body: tableBody,
-        startY: 26,
+        startY: titleY + 13.5,
         theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [198, 0, 22], textColor: 255 },
+        styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
+        headStyles: { fillColor: [45, 55, 72], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        margin: { left: 14, right: 14 },
       })
 
-      doc.save(`${slugify(reportName)}-${new Date().toISOString().slice(0, 10)}.pdf`)
+      const totalPages = doc.internal.getNumberOfPages()
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i)
+        doc.setFontSize(7.5)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(148, 163, 184)
+        doc.text('Swati Switchgears CRM — Confidential & Proprietary Report', 14, 203)
+        doc.text(`Page ${i} of ${totalPages}`, 283, 203, { align: 'right' })
+      }
+
+      doc.save(`${slugify(displayReportTitle)}-${new Date().toISOString().slice(0, 10)}.pdf`)
     } else {
       exportExcelWorkbook({
-        filename: `${reportName}-${activeFilter}-${new Date().toISOString().slice(0, 10)}.xlsx`,
-        title: `${reportName} - ${activeFilter.toUpperCase()}`,
+        filename: `${slugify(formatTitleCase(reportName))}-${activeFilter}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        title: `${formatTitleCase(reportName)} - ${activeFilter.toUpperCase()}`,
         sheetName: 'Custom Report',
         columns,
         rows: dedupedDataSets,
