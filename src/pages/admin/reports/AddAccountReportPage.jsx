@@ -90,6 +90,10 @@ const AddAccountReportPage = () => {
   const [groupSearchText, setGroupSearchText] = useState('')
   const groupDropdownRef = useRef(null)
 
+  const [isOwnerDropdownOpen, setIsOwnerDropdownOpen] = useState(false)
+  const [ownerSearchText, setOwnerSearchText] = useState('')
+  const ownerDropdownRef = useRef(null)
+
   // Drag and Drop & Field Builder State
   const [fieldSearchQuery, setFieldSearchQuery] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -188,11 +192,14 @@ const AddAccountReportPage = () => {
     }
   }, [selectedUserGroups, allDirectoryUsers])
 
-  // Click outside listener for user group dropdown
+  // Click outside listener for user group & owner dropdowns
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (groupDropdownRef.current && !groupDropdownRef.current.contains(event.target)) {
         setIsGroupDropdownOpen(false)
+      }
+      if (ownerDropdownRef.current && !ownerDropdownRef.current.contains(event.target)) {
+        setIsOwnerDropdownOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -405,6 +412,9 @@ const AddAccountReportPage = () => {
           reportName: reportTitle,
           accountOwner: formState.accountOwner || 'all',
           owner: formState.accountOwner || 'all',
+          userGroups: selectedUserGroups,
+          selectedUserGroups: selectedUserGroups,
+          userGroupMembers: selectedGroupMembers,
           recordDateFrom: formState.recordDateFrom || undefined,
           recordDateTo: formState.recordDateTo || undefined,
           selectedFields: selectedKeys,
@@ -661,7 +671,7 @@ const AddAccountReportPage = () => {
 
       <form id="account-report-builder-form" className="account-report-builder-form" onSubmit={handleSubmit}>
         {/* SECTION A: REPORT DETAILS */}
-        <section className="account-report-builder-panel">
+        <section className="account-report-builder-panel account-report-panel-meta">
           <div className="account-report-builder-section-heading">Section A — Report Details</div>
           <div className="account-report-builder-meta-grid">
             <div className="account-report-builder-field">
@@ -791,22 +801,69 @@ const AddAccountReportPage = () => {
         </section>
 
         {/* SECTION B: REPORT FILTERS */}
-        <section className="account-report-builder-panel">
+        <section className="account-report-builder-panel account-report-panel-filters">
           <div className="account-report-builder-section-heading">Section B — Report Filters (Owner Name & Dates)</div>
           <div className="account-report-builder-filters-grid">
-            <div className="account-report-builder-field">
+            <div className="account-report-builder-field" ref={ownerDropdownRef}>
               <label>Owner Name</label>
-              <select
-                value={formState.accountOwner}
-                onChange={(event) => setFormState((prev) => ({ ...prev, accountOwner: event.target.value }))}
-              >
-                <option value="">{selectedUserGroups.length > 0 ? 'All Group Members' : 'All Owners'}</option>
-                {ownerOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <div className="account-report-builder-searchable-select">
+                <div
+                  className="account-report-builder-searchable-trigger"
+                  onClick={() => setIsOwnerDropdownOpen((prev) => !prev)}
+                >
+                  <span className="account-report-builder-searchable-value">
+                    {formState.accountOwner
+                      ? (ownerOptions.find((o) => o.value === formState.accountOwner)?.label || formState.accountOwner)
+                      : (selectedUserGroups.length > 0 ? 'All Group Members' : 'All Owners')}
+                  </span>
+                  <span className="account-report-builder-caret">▾</span>
+                </div>
+
+                {isOwnerDropdownOpen && (
+                  <div className="account-report-builder-searchable-dropdown">
+                    <div className="account-report-builder-dropdown-search">
+                      <input
+                        type="text"
+                        placeholder="Search Owners..."
+                        value={ownerSearchText}
+                        onChange={(e) => setOwnerSearchText(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        autoFocus
+                      />
+                    </div>
+                    <div className="account-report-builder-dropdown-options">
+                      <div
+                        className={`account-report-builder-searchable-option ${!formState.accountOwner ? 'is-selected' : ''}`}
+                        onClick={() => {
+                          setFormState((prev) => ({ ...prev, accountOwner: '' }))
+                          setIsOwnerDropdownOpen(false)
+                          setOwnerSearchText('')
+                        }}
+                      >
+                        {selectedUserGroups.length > 0 ? 'All Group Members' : 'All Owners'}
+                      </div>
+                      {ownerOptions
+                        .filter((opt) => !ownerSearchText.trim() || (opt.label || opt.name || opt.value || '').toLowerCase().includes(ownerSearchText.toLowerCase()))
+                        .map((option) => (
+                          <div
+                            key={option.value}
+                            className={`account-report-builder-searchable-option ${formState.accountOwner === option.value ? 'is-selected' : ''}`}
+                            onClick={() => {
+                              setFormState((prev) => ({ ...prev, accountOwner: option.value }))
+                              setIsOwnerDropdownOpen(false)
+                              setOwnerSearchText('')
+                            }}
+                          >
+                            {option.label}
+                          </div>
+                        ))}
+                      {ownerOptions.length > 0 && ownerOptions.filter((opt) => !ownerSearchText.trim() || (opt.label || opt.name || opt.value || '').toLowerCase().includes(ownerSearchText.toLowerCase())).length === 0 && (
+                        <div className="account-report-builder-no-options">No owners found</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="account-report-builder-field">
@@ -856,7 +913,7 @@ const AddAccountReportPage = () => {
         </section>
 
         {/* SECTION C: FIELD BUILDER */}
-        <section className="account-report-builder-panel">
+        <section className="account-report-builder-panel account-report-panel-fields">
           <div className="account-report-builder-section-heading">
             <span>Section C — Field Builder</span>
             <span className="account-report-selected-count-badge">

@@ -1,26 +1,27 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   FaBell,
   FaCalendarAlt,
-  FaCaretDown,
+  FaComments,
   FaEnvelope,
   FaExchangeAlt,
   FaFileAlt,
   FaFileUpload,
+  FaHistory,
   FaMapMarkerAlt,
-  FaPencilAlt,
   FaPhone,
   FaTimes,
-  FaTrash,
   FaUser,
   FaUserCog,
-  FaEllipsisV,
-  FaComments,
-  FaHistory,
+  FaInfoCircle,
+  FaBuilding,
+  FaClock,
+  FaSyncAlt,
+  FaCommentDots,
 } from 'react-icons/fa'
-import { FiEdit2 } from 'react-icons/fi'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import AddReminderModal from '../../../components/common/AddReminderModal'
+import AddRemarksModal from '../../../components/common/AddRemarksModal'
 import Button from '../../../components/common/Button'
 import Modal from '../../../components/common/Modal'
 import Quotations from '../../quotations/Quotations'
@@ -32,7 +33,10 @@ import { authService } from '../../../services/authService'
 import { customerService } from '../../../services/customerService'
 import { remarkApi } from '../../../services/remarkApi'
 import { getCrmOwnerDisplay } from '../../../features/users/crmUserDirectory'
-import { ACCOUNT_CHANGE_STATUS_OPTIONS } from '../../../features/adminAccounts/config/accountStages'
+import {
+  ACCOUNT_CHANGE_STATUS_OPTIONS,
+  getAccountChangeStatusOption,
+} from '../../../features/adminAccounts/config/accountStages'
 import {
   ACCOUNT_CATEGORY_OPTIONS,
   ACCOUNT_SOURCE_OPTIONS,
@@ -42,6 +46,15 @@ import {
   DEAL_LIFECYCLE_STATUS_OPTIONS,
 } from '../../../features/adminDeals/config/dealUtils'
 import { formatCurrency, formatDate, formatNumber } from '../../../utils/helpers'
+
+import DealHeader from './components/DealHeader'
+import DealSummaryStrip from './components/DealSummaryStrip'
+import DealStageTimeline from './components/DealStageTimeline'
+import InfoCard from './components/InfoCard'
+import InfoFieldItem from './components/InfoFieldItem'
+import DealQuickActionsCard from './components/DealQuickActionsCard'
+import DealActivityUpdatesCard from './components/DealActivityUpdatesCard'
+
 import './AdminDealDetailPage.css'
 
 const normalizeSearchValue = (value) => String(value || '').trim().toLowerCase()
@@ -62,21 +75,6 @@ const MANAGE_DEAL_LIFECYCLE_STATUS_OPTIONS = DEAL_LIFECYCLE_STATUS_OPTIONS.map((
   label: option.value === 'Convert To PO' ? 'PO Converted' : option.label,
 }))
 
-const hasDisplayValue = (value) => {
-  if (typeof value === 'number') return true
-  return String(value || '').trim() !== ''
-}
-
-const renderDisplayValue = (value, options = null, fallback = 'Not Available') => {
-  if (!hasDisplayValue(value)) return fallback
-  if (options && Array.isArray(options)) {
-    const opt = options.find((o) => String(o.value) === String(value))
-    if (opt && opt.label) return opt.label
-  }
-  return value
-}
-
-
 const HIDDEN_MANAGE_DEAL_STATUS_VALUES = new Set(['converted', 'closed', 'contacted', 'order_lost'])
 const STATUS_OPTIONS = ACCOUNT_CHANGE_STATUS_OPTIONS.filter((option) => (
   !HIDDEN_MANAGE_DEAL_STATUS_VALUES.has(option.value)
@@ -96,6 +94,24 @@ const clampProbability = (value) => {
   const numericValue = Number(value)
   if (!Number.isFinite(numericValue)) return 0
   return Math.max(0, Math.min(100, numericValue))
+}
+
+const calculateAging = (dateString) => {
+  if (!dateString) return 'Not Available'
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return 'Not Available'
+  const now = new Date()
+  const diffTime = Math.max(0, now - date)
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+  if (diffDays < 30) {
+    return `${diffDays} day${diffDays === 1 ? '' : 's'}`
+  }
+  const diffMonths = Math.floor(diffDays / 30)
+  if (diffMonths < 12) {
+    return `${diffMonths} month${diffMonths === 1 ? '' : 's'}`
+  }
+  const diffYears = Math.floor(diffDays / 365)
+  return `${diffYears} year${diffYears === 1 ? '' : 's'}`
 }
 
 const buildNormalizedDeal = ({ deal, accounts, customers, users, currentUser }) => {
@@ -196,10 +212,12 @@ const AdminDealDetailPage = () => {
   const { dealId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const { deals, convertedDeals, accounts, addNotification, updateDeal, updateAccount } = useData()
+  const { deals, convertedDeals, accounts, addNotification, updateDeal, updateAccount, reminders, updateReminder, deleteReminder } = useData()
   const { user } = useAuth()
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false)
   const [isReminderOpen, setIsReminderOpen] = useState(false)
+  const [isRemarksOpen, setIsRemarksOpen] = useState(false)
+  const [isSavingRemark, setIsSavingRemark] = useState(false)
   const [probabilityDraft, setProbabilityDraft] = useState(0)
   const [isSavingProbability, setIsSavingProbability] = useState(false)
 
@@ -211,6 +229,327 @@ const AdminDealDetailPage = () => {
   const [dealHistoryRemarks, setDealHistoryRemarks] = useState([])
   const [isLoadingDealHistory, setIsLoadingHistory] = useState(false)
   const [historyModalTitle, setHistoryModalTitle] = useState('')
+
+  const availableUsers = useMemo(
+    () => authService.getAvailableUsers().filter((entry) => entry.name !== 'System Administrator'),
+    []
+  )
+  const customers = useMemo(() => customerService.getCustomers(), [])
+  const sourceDeal = useMemo(() => {
+    const foundInDeals = deals.find((entry) => (
+      String(entry.id) === String(dealId)
+      || String(entry.sourceDealId) === String(dealId)
+      || String(entry.dealId) === String(dealId)
+    ))
+    if (foundInDeals) return foundInDeals
+
+    const foundInConverted = (convertedDeals || []).find((entry) => (
+      String(entry.id) === String(dealId)
+      || String(entry.sourceDealId) === String(dealId)
+      || String(entry.dealId) === String(dealId)
+    ))
+    if (foundInConverted) return foundInConverted
+
+    const stateDeal = location.state?.dealSnapshot
+    if (stateDeal && (
+      String(stateDeal.id) === String(dealId)
+      || String(stateDeal.sourceDealId) === String(dealId)
+      || String(stateDeal.dealId) === String(dealId)
+    )) {
+      return stateDeal
+    }
+
+    return null
+  }, [dealId, deals, convertedDeals, location.state])
+
+  const deal = useMemo(
+    () => buildNormalizedDeal({
+      deal: sourceDeal,
+      accounts,
+      customers,
+      users: availableUsers,
+      currentUser: user,
+    }),
+    [accounts, availableUsers, customers, sourceDeal, user]
+  )
+
+  useEffect(() => {
+    setProbabilityDraft(clampProbability(deal?.probability || 0))
+  }, [deal?.id, deal?.probability])
+
+  const fromPath = location.state?.fromPath || (user?.role === 'admin' ? '/admin/deals/view' : '/deals/view')
+
+  const handleClose = () => {
+    navigate(fromPath)
+  }
+
+  const handleOpenDealActionPage = (actionKey) => {
+    if (!deal?.id) return
+    const routeActionUrl = user?.role === 'admin' 
+      ? buildCrmDealActionUrl(actionKey, deal.id, fromPath) 
+      : `/crm-actions/${actionKey}?module=deal&dealId=${deal.id}&returnTo=${encodeURIComponent(fromPath)}`
+    navigate(routeActionUrl)
+  }
+
+  const handleSendMail = () => handleOpenDealActionPage('send-mail')
+  const handleUploadQuotation = () => handleOpenDealActionPage('upload-deal-quotation')
+  const handleReassignDeal = () => handleOpenDealActionPage('re-assign-deal')
+
+  const handleGenerateQuotation = () => {
+    if (!deal) return
+    const targetDeal = sourceDeal || deal
+    const isAdminPortal = window.location.pathname.startsWith('/admin')
+    navigate(isAdminPortal ? '/admin/quotations' : '/quotations', {
+      state: {
+        openGenerator: true,
+        preselectedDeal: targetDeal,
+        activeTab: 'deal',
+        quotationContext: 'deal',
+      },
+    })
+  }
+
+  const handleSavedReminder = async (reminderData) => {
+    await updateDeal(deal.sourceDealId || deal.source_deal_id || deal.id, {
+      reminderDate: reminderData.reminderDate,
+      reminderTime: reminderData.reminderTime,
+      reminderMode: reminderData.reminderMode,
+      reminderNote: reminderData.note.trim(),
+    })
+    setIsReminderOpen(false)
+  }
+
+  const [isChangeTypeOpen, setIsChangeTypeOpen] = useState(false)
+  const [changeTypeValue, setChangeTypeValue] = useState('')
+
+  const handleOpenChangeType = () => {
+    if (!deal) return
+    setChangeTypeValue(deal.dealType || '')
+    setIsChangeTypeOpen(true)
+  }
+
+  const handleCloseChangeType = () => {
+    setIsChangeTypeOpen(false)
+    setChangeTypeValue('')
+  }
+
+  const handleSaveDealType = async (event) => {
+    event.preventDefault()
+    if (!deal?.id) return
+
+    const nextDealType = String(changeTypeValue || '').trim()
+    if (!nextDealType) {
+      addNotification('error', 'Change Type', 'Please select a deal type.')
+      return
+    }
+
+    setIsSavingProbability(true)
+    const result = await updateDeal(deal.sourceDealId || deal.source_deal_id || deal.id, {
+      dealType: nextDealType,
+      customerCategory: nextDealType,
+      updatedAt: new Date().toISOString(),
+    })
+    setIsSavingProbability(false)
+
+    if (!result.success) {
+      addNotification('error', 'Change Type', result.message || 'Unable to change deal type.')
+      return
+    }
+
+    handleCloseChangeType()
+    addNotification('success', 'Change Type', `Deal type changed to ${nextDealType}.`)
+  }
+
+  const fetchDealRemarks = useCallback(async () => {
+    const targetDealId = deal?.sourceDealId || deal?.source_deal_id || deal?.dealId || deal?.id
+    if (!targetDealId) return
+    setIsLoadingDealHistory(true)
+    try {
+      const response = await remarkApi.getRemarks({ relatedEntityId: targetDealId, relatedEntityType: 'deal' })
+      const rawApiRemarks = Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : []
+
+      const merged = [...rawApiRemarks]
+      const singleRemark = deal.remark || deal.notes || deal.description || deal.data?.remark
+      if (singleRemark && typeof singleRemark === 'string' && singleRemark.trim()) {
+        const text = singleRemark.trim()
+        if (!merged.some((r) => String(r.content || r.remark || '').trim() === text)) {
+          merged.push({
+            id: `deal-remark-single-${targetDealId}`,
+            content: text,
+            category: 'general',
+            createdByName: deal.addedBy || deal.dealOwner || deal.ownerName || 'User',
+            createdAt: deal.lastUpdated || deal.dealDate || deal.createdAt || new Date().toISOString(),
+          })
+        }
+      }
+
+      const embeddedList = Array.isArray(deal.remarks)
+        ? deal.remarks
+        : Array.isArray(deal.data?.remarks)
+          ? deal.data.remarks
+          : Array.isArray(deal.history)
+            ? deal.history
+            : []
+
+      embeddedList.forEach((item, idx) => {
+        const text = typeof item === 'string' ? item : item.content || item.remark || item.note || item.text || ''
+        if (text && text.trim()) {
+          const cleanText = text.trim()
+          if (!merged.some((r) => String(r.content || r.remark || '').trim() === cleanText)) {
+            merged.push({
+              id: item.id || item._id || `deal-embedded-${idx}`,
+              content: cleanText,
+              category: item.category || 'general',
+              createdByName: item.createdByName || item.userName || item.addedBy || deal.dealOwner || 'User',
+              createdAt: item.createdAt || item.date || deal.createdAt || new Date().toISOString(),
+              startTime: item.startTime || null,
+              endTime: item.endTime || null,
+            })
+          }
+        }
+      })
+
+      merged.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      setDealHistoryRemarks(merged)
+    } catch (error) {
+      console.error('Failed to fetch deal history remarks:', error)
+    } finally {
+      setIsLoadingDealHistory(false)
+    }
+  }, [deal])
+
+  useEffect(() => {
+    if (deal?.id) {
+      fetchDealRemarks()
+    }
+  }, [deal?.id, fetchDealRemarks])
+
+  const dealReminders = useMemo(() => {
+    const dId = String(deal?.id || deal?.sourceDealId || deal?.dealId || '')
+    const dName = String(deal?.dealName || deal?.projectName || '').toLowerCase().trim()
+    if (!dId && !dName) return []
+    return (Array.isArray(reminders) ? reminders : [])
+      .filter((r) => {
+        const matchesId = (r.dealId && String(r.dealId) === dId) || (r.relatedEntityId && String(r.relatedEntityId) === dId)
+        const matchesEntity = String(r.relatedEntityType || '').toLowerCase() === 'deal' && String(r.relatedEntityId || '') === dId
+        const matchesName = dName && (
+          (r.dealName && String(r.dealName).toLowerCase().trim() === dName) ||
+          (r.contextLabel && String(r.contextLabel).toLowerCase().includes(dName))
+        )
+        return matchesId || matchesEntity || matchesName
+      })
+  }, [deal?.id, deal?.sourceDealId, deal?.dealId, deal?.dealName, deal?.projectName, reminders])
+
+  const handleSaveRemark = async (remarkData) => {
+    setIsSavingRemark(true)
+    try {
+      const targetDealId = deal.sourceDealId || deal.source_deal_id || deal.dealId || deal.id
+      const payload = {
+        ...remarkData,
+        relatedEntityId: targetDealId,
+        relatedEntityType: 'deal',
+        accountId: deal.linkedAccountId || deal.accountId,
+        dealId: targetDealId,
+      }
+      await remarkApi.createRemark(payload)
+
+      // Also update latestRemark and remark in MongoDB deals and leads collections
+      const remarkText = remarkData.content || remarkData.remark || ''
+      if (remarkText) {
+        await updateDeal(targetDealId, { latestRemark: remarkText, remark: remarkText })
+        if (deal.linkedAccountId && updateAccount) {
+          try {
+            await updateAccount(deal.linkedAccountId, { latestRemark: remarkText, remark: remarkText })
+          } catch (err) {
+            console.warn('Sync remark to account error:', err)
+          }
+        }
+      }
+
+      addNotification('success', 'Remark added', 'Remark saved successfully in MongoDB.')
+      setIsRemarksOpen(false)
+      fetchDealRemarks()
+    } catch (error) {
+      addNotification('error', 'Remark not saved', error.response?.data?.message || error.message)
+    } finally {
+      setIsSavingRemark(false)
+    }
+  }
+
+  const handleSaveRemarkField = async (fieldKey, value) => {
+    const targetDealId = deal.sourceDealId || deal.source_deal_id || deal.dealId || deal.id
+    const result = await updateDeal(targetDealId, { [fieldKey]: value })
+    if (deal.linkedAccountId && updateAccount) {
+      try {
+        await updateAccount(deal.linkedAccountId, { [fieldKey]: value })
+      } catch (err) {
+        console.warn('Sync field error:', err)
+      }
+    }
+    if (!result.success) {
+      addNotification('error', 'Update Failed', result.message || 'Unable to update deal field.')
+      throw new Error(result.message)
+    }
+    addNotification('success', 'Deal Updated', 'Field saved successfully in MongoDB.')
+    return result
+  }
+
+  const handleQuickAction = (actionKey, item) => {
+    if (actionKey === 'email') {
+      handleSendMail()
+    } else if (actionKey === 'callLog') {
+      setIsRemarksOpen(true)
+    } else if (actionKey === 'whatsapp') {
+      const phoneClean = String(deal.phone || '').replace(/[^0-9]/g, '')
+      if (phoneClean) {
+        window.open(`https://wa.me/${phoneClean}`, '_blank', 'noopener,noreferrer')
+      } else {
+        addNotification('info', 'WhatsApp', 'No contact phone number available for this deal.')
+      }
+    } else if (actionKey === 'add-note-remarks') {
+      setIsRemarksOpen(true)
+    } else if (actionKey === 'add-reminder') {
+      setIsReminderOpen(true)
+    } else if (actionKey === 'change-status' || actionKey === 'converted-deal') {
+      handleOpenDealActionPage('change-status')
+    } else if (actionKey === 'add-document') {
+      handleUploadQuotation()
+    } else if (actionKey === 'acknowledge') {
+      if (item?.id && updateReminder) {
+        updateReminder(item.id, { isActivated: true, status: 'activated', activatedAt: new Date().toISOString() })
+          .then(() => addNotification('success', 'Reminder Acknowledged', 'Reminder marked as reviewed.'))
+          .catch((err) => console.error(err))
+      }
+    }
+  }
+
+  const handleViewQuotation = () => {
+    const basePath = location.pathname.startsWith('/admin') ? '/admin/quotation-manager/view' : '/quotation-manager/view'
+    const query = new URLSearchParams({
+      tab: 'deals',
+      accountId: deal.accountId || deal.id || '',
+      accountName: deal.accountName || deal.linkedAccountName || deal.customerName || deal.data?.accountName || deal.data?.linkedAccountName || deal.data?.data?.accountName || '',
+      accountNo: deal.accountNumber || deal.dealNumber || '',
+    })
+    navigate(`${basePath}?${query.toString()}`)
+  }
+
+  const actionsMenuItems = [
+    { key: 'reminder', label: 'Add Reminder', icon: <FaBell />, accent: 'orange', onSelect: () => setIsReminderOpen(true) },
+    { key: 'generateQuotation', label: 'Generate Quotation', icon: <FaFileAlt />, accent: 'green', onSelect: handleGenerateQuotation },
+    { key: 'addRemarks', label: 'Add Notes/Remarks', icon: <FaCommentDots />, accent: 'purple', onSelect: () => setIsRemarksOpen(true) },
+    { key: 'changeStatus', label: 'Change Status', icon: <FaSyncAlt />, accent: 'red', onSelect: () => handleOpenDealActionPage('change-status') },
+    { key: 'viewQuotation', label: 'View Quotation', icon: <FaFileAlt />, accent: 'red', onSelect: handleViewQuotation },
+    { key: 'uploadQuotation', label: 'Upload Quotation', icon: <FaFileUpload />, accent: 'red', onSelect: handleUploadQuotation },
+    { key: 'changeType', label: 'Change Type', icon: <FaExchangeAlt />, accent: 'green', onSelect: handleOpenChangeType },
+    { key: 'reassign', label: 'Re-Assign Deal', icon: <FaUserCog />, accent: 'slate', onSelect: handleReassignDeal },
+    { key: 'sendMail', label: 'Send Mail', icon: <FaEnvelope />, accent: 'red', onSelect: handleSendMail },
+  ]
+
+  const handleActionsItemClick = (item) => {
+    setIsActionsMenuOpen(false)
+    item.onSelect()
+  }
 
   const handleOpenDealHistory = async () => {
     const targetDealId = deal?.sourceDealId || deal?.source_deal_id || deal?.dealId || deal?.id
@@ -275,7 +614,7 @@ const AdminDealDetailPage = () => {
 
   const handleStartEditing = (key, initialValue) => {
     setEditingFieldKey(key)
-    setEditValue(initialValue || '')
+    setEditValue(initialValue !== undefined && initialValue !== null ? initialValue : '')
   }
 
   const handleCancelEditing = () => {
@@ -296,6 +635,9 @@ const AdminDealDetailPage = () => {
       updatePayload = { dealValue: val, value: val, amount: val }
     } else if (key === 'dealScore' || key === 'poValue') {
       updatePayload[key] = editValue ? Number(editValue) : 0
+    } else if (key === 'probability') {
+      const prob = clampProbability(editValue)
+      updatePayload = { probability: prob }
     } else if (key === 'dealDate') {
       updatePayload = { dealDate: editValue }
     } else if (key === 'expectedClosureDate') {
@@ -316,12 +658,28 @@ const AdminDealDetailPage = () => {
       updatePayload = { phone: editValue, contactPhone: editValue, contactMobile: editValue }
     } else if (key === 'email') {
       updatePayload = { email: editValue, contactEmail: editValue }
+    } else if (key === 'address') {
+      updatePayload = { address: editValue }
     } else if (key === 'customerReferenceDate') {
       updatePayload = { customerReferenceDate: editValue, customerRefDate: editValue }
     } else if (key === 'customerReferenceNumber') {
       updatePayload = { customerReferenceNumber: editValue, customerRefNo: editValue }
-    } else if (key === 'reasonForLostOrder') {
-      updatePayload = { reasonForLostOrder: editValue, reasonForLost: editValue }
+    } else if (key === 'productCategory') {
+      updatePayload = { productCategory: editValue }
+    } else if (key === 'projectName') {
+      updatePayload = { projectName: editValue }
+    } else if (key === 'jobNo') {
+      updatePayload = { jobNo: editValue }
+    } else if (key === 'consultantName') {
+      updatePayload = { consultantName: editValue }
+    } else if (key === 'gstin') {
+      updatePayload = { gstin: editValue }
+    } else if (key === 'orderCustomerStatus') {
+      updatePayload = { orderCustomerStatus: editValue }
+    } else if (key === 'quotationCustomerStatus') {
+      updatePayload = { quotationCustomerStatus: editValue }
+    } else if (key === 'description') {
+      updatePayload = { description: editValue, remark: editValue }
     }
 
     const targetDealId = deal.sourceDealId || deal.source_deal_id || deal.dealId || deal.id
@@ -336,228 +694,6 @@ const AdminDealDetailPage = () => {
     addNotification('success', 'Update Deal', 'Deal updated successfully.')
     setEditingFieldKey('')
     setEditValue('')
-  }
-
-  const renderInlineEditor = (item) => {
-    const isSelect = item.options && item.options.length > 0
-    return (
-      <div className="admin-deal-detail-inline-editor">
-        {isSelect ? (
-          <select value={editValue} onChange={(e) => setEditValue(e.target.value)} disabled={isSavingField}>
-            <option value="">Select...</option>
-            {item.options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-          </select>
-        ) : item.type === 'date' ? (
-          <input type="date" value={editValue} onChange={(e) => setEditValue(e.target.value)} disabled={isSavingField} />
-        ) : (
-          <input type={item.type || 'text'} value={editValue} onChange={(e) => setEditValue(e.target.value)} disabled={isSavingField} />
-        )}
-        <div className="admin-deal-detail-inline-actions">
-          <button type="button" onClick={() => handleSaveField(item.key)} disabled={isSavingField}>{isSavingField ? 'Saving...' : 'Save'}</button>
-          <button type="button" onClick={handleCancelEditing} disabled={isSavingField}>Cancel</button>
-        </div>
-      </div>
-    )
-  }
-
-  const [isChangeTypeOpen, setIsChangeTypeOpen] = useState(false)
-  const [changeTypeValue, setChangeTypeValue] = useState('')
-  const actionsMenuRef = useRef(null)
-
-  useEffect(() => {
-    if (!isActionsMenuOpen) return undefined
-
-    const handlePointerDown = (event) => {
-      if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target)) {
-        setIsActionsMenuOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handlePointerDown)
-    document.addEventListener('touchstart', handlePointerDown)
-
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown)
-      document.removeEventListener('touchstart', handlePointerDown)
-    }
-  }, [isActionsMenuOpen])
-
-  const availableUsers = useMemo(
-    () => authService.getAvailableUsers().filter((entry) => entry.name !== 'System Administrator'),
-    []
-  )
-  const customers = useMemo(() => customerService.getCustomers(), [])
-  const sourceDeal = useMemo(() => {
-    const foundInDeals = deals.find((entry) => (
-      String(entry.id) === String(dealId)
-      || String(entry.sourceDealId) === String(dealId)
-      || String(entry.dealId) === String(dealId)
-    ))
-    if (foundInDeals) return foundInDeals
-
-    const foundInConverted = (convertedDeals || []).find((entry) => (
-      String(entry.id) === String(dealId)
-      || String(entry.sourceDealId) === String(dealId)
-      || String(entry.dealId) === String(dealId)
-    ))
-    if (foundInConverted) return foundInConverted
-
-    const stateDeal = location.state?.dealSnapshot
-    if (stateDeal && (
-      String(stateDeal.id) === String(dealId)
-      || String(stateDeal.sourceDealId) === String(dealId)
-      || String(stateDeal.dealId) === String(dealId)
-    )) {
-      return stateDeal
-    }
-
-    return null
-  }, [dealId, deals, convertedDeals, location.state])
-  const deal = useMemo(
-    () => buildNormalizedDeal({
-      deal: sourceDeal,
-      accounts,
-      customers,
-      users: availableUsers,
-      currentUser: user,
-    }),
-    [accounts, availableUsers, customers, sourceDeal, user]
-  )
-
-  useEffect(() => {
-    setProbabilityDraft(clampProbability(deal?.probability || 0))
-  }, [deal?.id, deal?.probability])
-
-  const fromPath = location.state?.fromPath || (user?.role === 'admin' ? '/admin/deals/view' : '/deals/view')
-
-  const handleClose = () => {
-    navigate(fromPath)
-  }
-
-  const navigateBackWithAction = (actionKey) => {
-    if (!deal?.id) return
-    navigate(fromPath, { state: { dealActionKey: actionKey, dealActionId: deal.id } })
-  }
-
-  const handleOpenDealActionPage = (actionKey) => {
-    if (!deal?.id) return
-    const routeActionUrl = user?.role === 'admin' 
-      ? buildCrmDealActionUrl(actionKey, deal.id, fromPath) 
-      : `/crm-actions/${actionKey}?module=deal&dealId=${deal.id}&returnTo=${encodeURIComponent(fromPath)}`
-    navigate(routeActionUrl)
-  }
-
-  const handleSendMail = () => handleOpenDealActionPage('send-mail')
-  const handleUploadQuotation = () => handleOpenDealActionPage('upload-deal-quotation')
-  const handleReassignDeal = () => handleOpenDealActionPage('re-assign-deal')
-
-  const handleGenerateQuotation = () => {
-    if (!deal) return
-    const targetDeal = sourceDeal || deal
-    const isAdminPortal = window.location.pathname.startsWith('/admin')
-    navigate(isAdminPortal ? '/admin/quotations' : '/quotations', {
-      state: {
-        openGenerator: true,
-        preselectedDeal: targetDeal,
-        activeTab: 'deal',
-        quotationContext: 'deal',
-      },
-    })
-  }
-
-  const handleSavedReminder = async (reminderData) => {
-    await updateDeal(deal.sourceDealId || deal.source_deal_id || deal.id, {
-      reminderDate: reminderData.reminderDate,
-      reminderTime: reminderData.reminderTime,
-      reminderMode: reminderData.reminderMode,
-      reminderNote: reminderData.note.trim(),
-    })
-    setIsReminderOpen(false)
-  }
-
-  const handleOpenChangeType = () => {
-    if (!deal) return
-    setChangeTypeValue(deal.dealType || '')
-    setIsChangeTypeOpen(true)
-  }
-
-  const handleCloseChangeType = () => {
-    setIsChangeTypeOpen(false)
-    setChangeTypeValue('')
-  }
-
-  const handleSaveDealType = async (event) => {
-    event.preventDefault()
-    if (!deal?.id) return
-
-    const nextDealType = String(changeTypeValue || '').trim()
-    if (!nextDealType) {
-      addNotification('error', 'Change Type', 'Please select a deal type.')
-      return
-    }
-
-    setIsSavingProbability(true)
-    const result = await updateDeal(deal.sourceDealId || deal.source_deal_id || deal.id, {
-      dealType: nextDealType,
-      customerCategory: nextDealType,
-      updatedAt: new Date().toISOString(),
-    })
-    setIsSavingProbability(false)
-
-    if (!result.success) {
-      addNotification('error', 'Change Type', result.message || 'Unable to change deal type.')
-      return
-    }
-
-    handleCloseChangeType()
-    addNotification('success', 'Change Type', `Deal type changed to ${nextDealType}.`)
-  }
-
-  const handleViewQuotation = () => {
-    const basePath = location.pathname.startsWith('/admin') ? '/admin/quotation-manager/view' : '/quotation-manager/view'
-    const query = new URLSearchParams({
-      tab: 'deals',
-      accountId: deal.accountId || deal.id || '',
-      accountName: deal.accountName || deal.linkedAccountName || deal.customerName || deal.data?.accountName || deal.data?.linkedAccountName || deal.data?.data?.accountName || '',
-      accountNo: deal.accountNumber || deal.dealNumber || '',
-    })
-    navigate(`${basePath}?${query.toString()}`)
-  }
-
-  const actionsMenuItems = [
-    { key: 'reminder', label: 'Add Reminder', icon: <FaBell />, accent: 'orange', onSelect: () => setIsReminderOpen(true) },
-    { key: 'generateQuotation', label: 'Generate Quotation', icon: <FaFileAlt />, accent: 'green', onSelect: handleGenerateQuotation },
-    { key: 'uploadQuotation', label: 'Upload Quotation', icon: <FaFileUpload />, accent: 'blue', onSelect: handleUploadQuotation },
-    { key: 'viewQuotation', label: 'View Quotation', icon: <FaFileAlt />, accent: 'blue', onSelect: handleViewQuotation },
-    { key: 'changeType', label: 'Change Type', icon: <FaExchangeAlt />, accent: 'green', onSelect: handleOpenChangeType },
-    { key: 'reassign', label: 'Re-Assign Deal', icon: <FaUserCog />, accent: 'slate', onSelect: handleReassignDeal },
-    { key: 'sendMail', label: 'Send Mail', icon: <FaEnvelope />, accent: 'blue', onSelect: handleSendMail },
-  ]
-
-  const handleActionsItemClick = (item) => {
-    setIsActionsMenuOpen(false)
-    item.onSelect()
-  }
-
-  const handleSaveProbability = async () => {
-    if (!deal?.id) return
-
-    const nextProbability = clampProbability(probabilityDraft)
-    setIsSavingProbability(true)
-
-    const result = await updateDeal(deal.sourceDealId || deal.source_deal_id || deal.id, {
-      probability: nextProbability,
-      updatedAt: new Date().toISOString(),
-    })
-
-    setIsSavingProbability(false)
-
-    if (!result.success) {
-      addNotification('error', 'Probability', result.message || 'Unable to update probability.')
-      return
-    }
-
-    addNotification('success', 'Probability', `Probability updated to ${nextProbability}%.`)
   }
 
   if (!deal) {
@@ -585,219 +721,305 @@ const AdminDealDetailPage = () => {
     )
   }
 
-  const probabilityValue = clampProbability(probabilityDraft)
-  const savedProbabilityValue = clampProbability(deal.probability || 0)
   const customerLabel = [deal.customerName, deal.customerNumber ? `[${deal.customerNumber}]` : ''].filter(Boolean).join(' ')
-  const overviewItems = [
-    { key: 'dealName', label: 'Deal Name', value: deal.dealName || deal.dealNumber, rawValue: deal.dealName, type: 'text', icon: <FaUser /> },
-    { key: 'dealDate', label: 'Deal Date', value: renderDisplayValue(deal.dealDate ? formatDate(deal.dealDate) : '', null), rawValue: toDateInputValue(deal.dealDate), type: 'date', icon: <FaCalendarAlt /> },
-    { key: 'dealValue', label: 'Deal Value', value: formatCurrency(deal.dealValue || 0), rawValue: deal.dealValue, type: 'number', icon: <FaUser /> },
-    { key: 'addedBy', label: 'Added By', value: renderDisplayValue(deal.addedBy, null), readonly: true, icon: <FaUser /> },
-    { key: 'lastUpdated', label: 'Last Updated', value: renderDisplayValue(deal.lastUpdated ? formatDate(deal.lastUpdated, 'long') : '', null), readonly: true, icon: <FaCalendarAlt /> },
-    { key: 'customerName', label: 'Customer', value: renderDisplayValue(customerLabel, null), readonly: true, icon: <FaUser /> },
-    { key: 'expectedClosureDate', label: 'Expected Closure Date', value: renderDisplayValue(deal.expectedClosureDate ? formatDate(deal.expectedClosureDate) : '', null), rawValue: toDateInputValue(deal.expectedClosureDate), type: 'date', icon: <FaCalendarAlt /> },
-    { key: 'actualClosureDate', label: 'Actual Closure Date', value: renderDisplayValue(deal.actualClosureDate ? formatDate(deal.actualClosureDate) : '', null), rawValue: toDateInputValue(deal.actualClosureDate), type: 'date', icon: <FaCalendarAlt /> },
-  ]
-  const detailItems = [
-    { key: 'dealType', label: 'Deal Type', value: deal.dealType, rawValue: deal.dealType, type: 'text' },
-    { key: 'dealStatus', label: 'Deal Status', value: deal.dealStatus, rawValue: deal.dealStatus, type: 'select', options: STATUS_OPTIONS },
-    { key: 'dealOwner', label: 'Deal Owner', value: deal.dealOwner, readonly: true },
-  ]
+  const computedAging = calculateAging(deal.dealDate || deal.createdAt)
+
+  // Card 1 — Contact Information Items
   const contactItems = [
     { key: 'contactName', label: 'Contact Name', value: deal.contactName, rawValue: deal.contactName, type: 'text', icon: <FaUser /> },
     { key: 'phone', label: 'Phone', value: deal.phone, rawValue: deal.phone, type: 'text', icon: <FaPhone /> },
     { key: 'email', label: 'Email', value: deal.email, rawValue: deal.email, type: 'text', icon: <FaEnvelope /> },
     { key: 'address', label: 'Address', value: deal.address, rawValue: deal.address, type: 'text', icon: <FaMapMarkerAlt /> },
   ]
-  const otherItems = [
-    { key: 'poValue', label: 'PO Value', value: hasDisplayValue(deal.poValue) ? formatCurrency(deal.poValue) : renderDisplayValue(deal.poValue, null), rawValue: deal.poValue, type: 'number' },
-    { key: 'customerReferenceDate', label: 'Customer Ref. Date', value: deal.customerReferenceDate ? formatDate(deal.customerReferenceDate) : '', rawValue: toDateInputValue(deal.customerReferenceDate), type: 'date' },
+
+  // Card 2 — Deal Information Items
+  const dealInfoItems = [
+    { key: 'actualClosureDate', label: 'Actual Closure Date', value: deal.actualClosureDate ? formatDate(deal.actualClosureDate) : '', rawValue: toDateInputValue(deal.actualClosureDate), type: 'date' },
+    { key: 'description', label: 'Description', value: deal.description, rawValue: deal.description, type: 'text' },
     { key: 'productCategory', label: 'Product Category', value: deal.productCategory, rawValue: deal.productCategory, type: 'select', options: PRODUCT_CATEGORY_SELECT_OPTIONS },
+    { key: 'projectName', label: 'Project Name', value: deal.projectName, rawValue: deal.projectName, type: 'text' },
+    { key: 'jobNo', label: 'Job No.', value: deal.jobNo, rawValue: deal.jobNo, type: 'text' },
+  ]
+
+  // Card 3 — Tracking Information Items
+  const trackingItems = [
+    { key: 'lastUpdated', label: 'Last Updated', value: deal.lastUpdated ? formatDate(deal.lastUpdated, 'long') : '', readonly: true },
+    { key: 'addedBy', label: 'Added By', value: deal.addedBy, readonly: true },
+    { key: 'aging', label: 'Aging', value: computedAging, readonly: true },
+    { key: 'dealSource', label: 'Deal Source', value: deal.dealSource, rawValue: deal.dealSource, type: 'select', options: DEAL_SOURCE_SELECT_OPTIONS },
+    { key: 'dealSubsource', label: 'Deal Subsource', value: deal.dealSubsource, rawValue: deal.dealSubsource, type: 'select', options: DEAL_SUBSOURCE_SELECT_OPTIONS },
+  ]
+
+  // Section 5 — Other Details Items (Structured in 3 Columns)
+  const otherDetailsCol1 = [
+    { key: 'poValue', label: 'PO Value', value: deal.poValue !== undefined && deal.poValue !== null ? formatCurrency(deal.poValue) : '', rawValue: deal.poValue, type: 'number' },
+    { key: 'customerReferenceDate', label: 'Customer Ref. Date', value: deal.customerReferenceDate ? formatDate(deal.customerReferenceDate) : '', rawValue: toDateInputValue(deal.customerReferenceDate), type: 'date' },
+    { key: 'projectNameOther', label: 'Project Name', value: deal.projectName, rawValue: deal.projectName, type: 'text', mappingKey: 'projectName' },
+    { key: 'orderCustomerStatus', label: 'Status of Customer as per Order Received', value: deal.orderCustomerStatus, rawValue: deal.orderCustomerStatus, type: 'select', options: MANAGE_DEAL_LIFECYCLE_STATUS_OPTIONS },
+  ]
+
+  const otherDetailsCol2 = [
+    { key: 'productCategoryOther', label: 'Product Category', value: deal.productCategory, rawValue: deal.productCategory, type: 'select', options: PRODUCT_CATEGORY_SELECT_OPTIONS, mappingKey: 'productCategory' },
     { key: 'customerReferenceNumber', label: 'Customer Ref. No.', value: deal.customerReferenceNumber, rawValue: deal.customerReferenceNumber, type: 'text' },
+    { key: 'jobNoOther', label: 'Job No.', value: deal.jobNo, rawValue: deal.jobNo, type: 'text', mappingKey: 'jobNo' },
+    { key: 'quotationCustomerStatus', label: 'Status of Customer as per Quotation Given', value: deal.quotationCustomerStatus, rawValue: deal.quotationCustomerStatus, type: 'select', options: CUSTOMER_QUOTATION_STATUS_OPTIONS },
+  ]
+
+  const otherDetailsCol3 = [
     { key: 'consultantName', label: 'Consultant Name', value: deal.consultantName, rawValue: deal.consultantName, type: 'text' },
     { key: 'gstin', label: 'GSTIN', value: deal.gstin, rawValue: deal.gstin, type: 'text' },
-    { key: 'projectName', label: 'Project Name', value: deal.projectName, rawValue: deal.projectName, type: 'text' },
-    { key: 'orderCustomerStatus', label: 'Status Of Customer as per Order Received', value: deal.orderCustomerStatus, rawValue: deal.orderCustomerStatus, type: 'select', options: MANAGE_DEAL_LIFECYCLE_STATUS_OPTIONS },
-    { key: 'jobNo', label: 'Job No', value: deal.jobNo, rawValue: deal.jobNo, type: 'text' },
-    { key: 'quotationCustomerStatus', label: 'Status Of Customer as per quotation Given', value: deal.quotationCustomerStatus, rawValue: deal.quotationCustomerStatus, type: 'select', options: CUSTOMER_QUOTATION_STATUS_OPTIONS },
+    { key: 'dealStatusOther', label: 'Customer Status', value: deal.dealStatus || 'NEW', rawValue: deal.dealStatus || 'new', type: 'select', options: STATUS_OPTIONS, mappingKey: 'dealStatus' },
   ]
 
   return (
     <>
-      <div className="admin-deal-detail-page">
-        <div className="admin-deal-detail-shell">
-          <article className="admin-deal-detail-card">
-            <header className="admin-deal-detail-toolbar">
-              <div className="admin-deal-detail-heading">
-                <h1>{deal.dealName || deal.dealNumber || 'Deal Details'}</h1>
-              </div>
-              <button type="button" className="admin-deal-detail-close" onClick={handleClose} aria-label="Close deal details">
-                <FaTimes />
-              </button>
-            </header>
+      <div className="admin-deal-detail-page c-deal-detail-page">
+        <div className="admin-deal-detail-shell c-deal-detail-shell">
+          <article className="c-deal-main-container">
+            {/* 1. COMPACT HEADER */}
+            <DealHeader
+              dealName={deal.dealName || deal.projectName || 'Deal Details'}
+              dealNumber={deal.dealNumber}
+              onBack={handleClose}
+              onOpenHistory={handleOpenDealHistory}
+              isActionsMenuOpen={isActionsMenuOpen}
+              setIsActionsMenuOpen={setIsActionsMenuOpen}
+              actionsMenuItems={actionsMenuItems}
+              onActionsItemClick={handleActionsItemClick}
+              onStartEditTitle={() => handleStartEditing('dealName', deal.dealName)}
+              isEditingTitle={editingFieldKey === 'dealName'}
+              titleEditValue={editValue}
+              onChangeTitleEditValue={setEditValue}
+              onSaveTitle={() => handleSaveField('dealName')}
+              onCancelTitle={handleCancelEditing}
+              isSavingTitle={isSavingField}
+            />
 
-            <div className="admin-deal-detail-meta">
-              <div className="admin-deal-detail-meta-copy">
-                <span className="admin-deal-detail-meta-label">Deal No.</span>
-                <strong>{renderDisplayValue(deal.dealNumber, null)}</strong>
-              </div>
+            {/* 2. DEAL SUMMARY STRIP */}
+            <DealSummaryStrip
+              deal={deal}
+              customerLabel={customerLabel}
+              editingFieldKey={editingFieldKey}
+              editValue={editValue}
+              isSavingField={isSavingField}
+              onStartEdit={handleStartEditing}
+              onChangeEditValue={setEditValue}
+              onSaveField={handleSaveField}
+              onCancelEdit={handleCancelEditing}
+              dealTypeOptions={DEAL_TYPE_OPTIONS}
+              statusOptions={STATUS_OPTIONS}
+              toDateInputValue={toDateInputValue}
+            />
 
-              <div className="admin-deal-detail-meta-actions" style={{ display: 'flex', alignItems: 'center' }}>
-                <button
-                  type="button"
-                  className="admin-deal-detail-history-trigger"
-                  onClick={handleOpenDealHistory}
-                  title="View History"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justify: 'center',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid #cbd5e1',
-                    background: '#ffffff',
-                    color: '#2563eb',
-                    cursor: 'pointer',
-                    marginRight: '8px',
-                    fontSize: '16px',
-                  }}
-                >
-                  <FaHistory />
-                </button>
-                <div className="admin-deal-detail-actions-menu" ref={actionsMenuRef}>
-                  <button
-                    type="button"
-                    className="admin-deal-detail-actions-trigger"
-                    onClick={() => setIsActionsMenuOpen((value) => !value)}
-                    aria-haspopup="menu"
-                    aria-expanded={isActionsMenuOpen}
-                    title="Actions"
-                    aria-label="Actions"
-                  >
-                    <FaEllipsisV />
-                  </button>
+            {/* 3. DEAL SUMMARY / STAGE TIMELINE */}
+            <DealStageTimeline deal={deal} />
 
-                  {isActionsMenuOpen ? (
-                    <div className="admin-deal-detail-actions-popup" role="menu">
-                      {actionsMenuItems.map((item) => (
-                        <button
-                          key={item.key}
-                          type="button"
-                          role="menuitem"
-                          className={`admin-deal-detail-actions-item admin-deal-detail-actions-item-${item.accent}`}
-                          onClick={() => handleActionsItemClick(item)}
-                        >
-                          <span className="admin-deal-detail-actions-item-icon">{item.icon}</span>
-                          <span>{item.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
+            {/* 4. THREE-COLUMN INFORMATION AREA */}
+            <section className="c-deal-info-grid" aria-label="Information cards">
+              {/* Card 1: Contact Information */}
+              <InfoCard title="Contact Information" icon={<FaUser />} className="c-deal-info-card-contact">
+                {contactItems.map((item) => (
+                  <InfoFieldItem
+                    key={item.key}
+                    itemKey={item.key}
+                    label={item.label}
+                    value={item.value}
+                    rawValue={item.rawValue}
+                    type={item.type}
+                    icon={item.icon}
+                    isEditing={editingFieldKey === item.key}
+                    editValue={editValue}
+                    isSaving={isSavingField}
+                    onStartEdit={handleStartEditing}
+                    onChangeEditValue={setEditValue}
+                    onSave={handleSaveField}
+                    onCancel={handleCancelEditing}
+                  />
+                ))}
+              </InfoCard>
 
-            <section className="admin-deal-detail-probability">
-              <div className="admin-deal-detail-probability-header">
-                <div className="admin-deal-detail-section-label">Probability</div>
-                <div className="admin-deal-detail-probability-value">{formatNumber(probabilityValue)}%</div>
-              </div>
-              <div className="admin-deal-detail-probability-bar" aria-hidden="true">
-                <span className="admin-deal-detail-probability-fill" style={{ width: `${probabilityValue}%` }} />
-              </div>
-              <div className="admin-deal-detail-probability-controls">
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value={probabilityValue}
-                  onChange={(event) => setProbabilityDraft(clampProbability(event.target.value))}
-                  className="admin-deal-detail-probability-slider"
-                  style={{ '--probability-value': `${probabilityValue}%` }}
-                  aria-label="Deal probability"
-                />
-                <Button
-                  type="button"
-                  size="small"
-                  onClick={handleSaveProbability}
-                  disabled={isSavingProbability || probabilityValue === savedProbabilityValue}
-                >
-                  {isSavingProbability ? 'Saving...' : 'Save'}
-                </Button>
-              </div>
+              {/* Card 2: Deal Information */}
+              <InfoCard title="Deal Information" icon={<FaBuilding />} className="c-deal-info-card-deal">
+                {dealInfoItems.map((item) => (
+                  <InfoFieldItem
+                    key={item.key}
+                    itemKey={item.key}
+                    label={item.label}
+                    value={item.value}
+                    rawValue={item.rawValue}
+                    type={item.type}
+                    options={item.options}
+                    isEditing={editingFieldKey === item.key}
+                    editValue={editValue}
+                    isSaving={isSavingField}
+                    onStartEdit={handleStartEditing}
+                    onChangeEditValue={setEditValue}
+                    onSave={handleSaveField}
+                    onCancel={handleCancelEditing}
+                  />
+                ))}
+              </InfoCard>
+
+              {/* Card 3: Tracking Information */}
+              <InfoCard title="Tracking Information" icon={<FaClock />} className="c-deal-info-card-tracking">
+                {trackingItems.map((item) => (
+                  <InfoFieldItem
+                    key={item.key}
+                    itemKey={item.key}
+                    label={item.label}
+                    value={item.value}
+                    rawValue={item.rawValue}
+                    type={item.type}
+                    options={item.options}
+                    readonly={item.readonly}
+                    isEditing={editingFieldKey === item.key}
+                    editValue={editValue}
+                    isSaving={isSavingField}
+                    onStartEdit={handleStartEditing}
+                    onChangeEditValue={setEditValue}
+                    onSave={handleSaveField}
+                    onCancel={handleCancelEditing}
+                  />
+                ))}
+              </InfoCard>
             </section>
 
-            <div className="admin-deal-detail-flat-fields">
-              {[...overviewItems, ...detailItems, ...contactItems, ...otherItems].map((item, idx) => {
-                const isSingleFieldEditing = editingFieldKey === item.key
-                return (
-                  <label 
-                    key={`${item.key}-${idx}`} 
-                    className={`admin-deal-detail-field admin-deal-detail-field--flat ${isSingleFieldEditing ? 'admin-deal-detail-field--single-editing' : ''}`}
-                    data-field-key={item.key}
-                  >
-                    <span className="admin-deal-detail-field-label">
-                      <span>{item.label}</span>
-                      {!item.readonly ? (
-                        <button
-                          type="button"
-                          className="admin-deal-detail-field-edit-btn"
-                          onClick={(event) => {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            handleStartEditing(item.key, item.rawValue)
-                          }}
-                          aria-label={`Edit ${item.label}`}
-                          title={`Edit ${item.label}`}
-                        >
-                          <FiEdit2 />
-                        </button>
-                      ) : null}
-                    </span>
-                    {isSingleFieldEditing ? (
-                      renderInlineEditor(item)
-                    ) : (
-                      <span className={`admin-deal-detail-info-row-value ${hasDisplayValue(item.value) ? '' : 'admin-deal-detail-item-value-empty'}`}>
-                        {renderDisplayValue(item.value, item.options)}
-                      </span>
-                    )}
-                  </label>
-                )
-              })}
+            {/* 5. OTHER DETAILS SECTION */}
+            <section className="c-deal-other-section" aria-label="Other details">
+              <InfoCard title="Other Details" icon={<FaInfoCircle />} className="c-deal-other-card">
+                <div className="c-deal-other-columns-layout">
+                  {/* Column 1 */}
+                  <div className="c-deal-other-column">
+                    {otherDetailsCol1.map((item) => {
+                      const actualKey = item.mappingKey || item.key
+                      return (
+                        <InfoFieldItem
+                          key={item.key}
+                          itemKey={actualKey}
+                          label={item.label}
+                          value={item.value}
+                          rawValue={item.rawValue}
+                          type={item.type}
+                          options={item.options}
+                          isEditing={editingFieldKey === actualKey}
+                          editValue={editValue}
+                          isSaving={isSavingField}
+                          onStartEdit={handleStartEditing}
+                          onChangeEditValue={setEditValue}
+                          onSave={handleSaveField}
+                          onCancel={handleCancelEditing}
+                        />
+                      )
+                    })}
+                  </div>
 
-              <label 
-                className={`admin-deal-detail-field admin-deal-detail-field--flat admin-deal-detail-field-wide ${editingFieldKey === 'description' ? 'admin-deal-detail-field--single-editing' : ''}`}
-                data-field-key="description"
-              >
-                <span className="admin-deal-detail-field-label">
-                  <span>Description</span>
-                  <button
-                    type="button"
-                    className="admin-deal-detail-field-edit-btn"
-                    onClick={(event) => {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      handleStartEditing('description', deal.description)
-                    }}
-                    aria-label="Edit Description"
-                    title="Edit Description"
-                  >
-                    <FiEdit2 />
-                  </button>
-                </span>
-                {editingFieldKey === 'description' ? (
-                  renderInlineEditor({ key: 'description', type: 'text', rawValue: deal.description })
-                ) : (
-                  <span className={`admin-deal-detail-info-row-value ${hasDisplayValue(deal.description) ? '' : 'admin-deal-detail-item-value-empty'}`}>
-                    {renderDisplayValue(deal.description, null)}
-                  </span>
-                )}
-              </label>
-            </div>
+                  {/* Column 2 */}
+                  <div className="c-deal-other-column">
+                    {otherDetailsCol2.map((item) => {
+                      const actualKey = item.mappingKey || item.key
+                      return (
+                        <InfoFieldItem
+                          key={item.key}
+                          itemKey={actualKey}
+                          label={item.label}
+                          value={item.value}
+                          rawValue={item.rawValue}
+                          type={item.type}
+                          options={item.options}
+                          isEditing={editingFieldKey === actualKey}
+                          editValue={editValue}
+                          isSaving={isSavingField}
+                          onStartEdit={handleStartEditing}
+                          onChangeEditValue={setEditValue}
+                          onSave={handleSaveField}
+                          onCancel={handleCancelEditing}
+                        />
+                      )
+                    })}
+                  </div>
+
+                  {/* Column 3 */}
+                  <div className="c-deal-other-column">
+                    {otherDetailsCol3.map((item) => {
+                      const actualKey = item.mappingKey || item.key
+                      return (
+                        <InfoFieldItem
+                          key={item.key}
+                          itemKey={actualKey}
+                          label={item.label}
+                          value={item.value}
+                          rawValue={item.rawValue}
+                          type={item.type}
+                          options={item.options}
+                          isEditing={editingFieldKey === actualKey}
+                          editValue={editValue}
+                          isSaving={isSavingField}
+                          onStartEdit={handleStartEditing}
+                          onChangeEditValue={setEditValue}
+                          onSave={handleSaveField}
+                          onCancel={handleCancelEditing}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+              </InfoCard>
+            </section>
+
+            {/* 6. QUICK ACTIONS & ACTIVITY UPDATES SECTION */}
+            <section className="c-deal-quick-activity-grid" aria-label="Quick Actions & Activity Updates">
+              <DealQuickActionsCard
+                deal={deal}
+                reminders={dealReminders}
+                onQuickAction={handleQuickAction}
+                onActivateReminder={async (rem) => {
+                  if (!rem?.id) return
+                  try {
+                    if (typeof updateReminder === 'function') {
+                      await updateReminder(rem.id, { isActivated: true, status: 'activated', activatedAt: new Date().toISOString() })
+                    }
+                    addNotification('success', 'Reminder Activated', 'Reminder has been marked as active.')
+                  } catch (err) {
+                    console.error('Failed to activate reminder:', err)
+                  }
+                }}
+                onCloseReminder={async (rem) => {
+                  if (!rem?.id) return
+                  try {
+                    if (typeof updateReminder === 'function') {
+                      await updateReminder(rem.id, { status: 'closed', closedAt: new Date().toISOString() })
+                    } else if (typeof deleteReminder === 'function') {
+                      await deleteReminder(rem.id)
+                    }
+                    addNotification('success', 'Reminder Closed', 'Reminder has been closed.')
+                  } catch (err) {
+                    console.error('Failed to close reminder:', err)
+                  }
+                }}
+                onRefresh={fetchDealRemarks}
+              />
+              <DealActivityUpdatesCard
+                deal={deal}
+                remarks={dealHistoryRemarks}
+                reminders={dealReminders}
+              />
+            </section>
           </article>
         </div>
       </div>
+
+      {/* ADD NOTES / REMARKS MODAL */}
+      <AddRemarksModal
+        isOpen={isRemarksOpen}
+        onClose={() => setIsRemarksOpen(false)}
+        dealData={deal}
+        accountData={deal}
+        onSave={handleSaveRemark}
+        onSaveAccountField={handleSaveRemarkField}
+        isLoading={isSavingRemark}
+      />
+
+      {/* CHANGE TYPE MODAL */}
       <Modal
         isOpen={isChangeTypeOpen}
         onClose={handleCloseChangeType}
@@ -827,6 +1049,7 @@ const AdminDealDetailPage = () => {
         </form>
       </Modal>
 
+      {/* ADD REMINDER MODAL */}
       <AddReminderModal
         isOpen={isReminderOpen}
         onClose={() => setIsReminderOpen(false)}
@@ -838,6 +1061,7 @@ const AdminDealDetailPage = () => {
         onSaved={handleSavedReminder}
       />
 
+      {/* INLINE QUOTATIONS MODAL */}
       {inlineQuotationDeal && (
         <Quotations
           autoOpen={true}
@@ -846,6 +1070,7 @@ const AdminDealDetailPage = () => {
         />
       )}
 
+      {/* REMARKS & COMMUNICATION HISTORY MODAL */}
       {isDealHistoryModalOpen && (
         <Modal
           isOpen={isDealHistoryModalOpen}

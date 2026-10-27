@@ -46,7 +46,8 @@
   width: 2.6rem;
   height: 2.6rem;
   color: #ffffff;
-  background: #2c8ed1;
+  background: #c60016;
+  border-radius: 6px;
   font-size: 1.1rem;
 }
 
@@ -853,5 +854,155 @@
 
   .crm-action-toolbar-select {
     width: 100%;
+  }
+}
+
+/* ==========================================================================
+   Deal Change Status Modern Theme (matching Accounts page)
+   ========================================================================== */
+
+.crm-deal-status-form {
+  gap: 1.25rem;
+}
+
+.crm-deal-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.crm-deal-status-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.crm-deal-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.25rem;
+}
+
+.crm-deal-status-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.crm-deal-status-field-full {
+  grid-column: 1 / -1;
+}
+
+.crm-deal-status-input,
+.crm-deal-status-select,
+.crm-deal-status-textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.88rem;
+  font-weight: 500;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.crm-deal-status-input,
+.crm-deal-status-select {
+  height: 42px;
+  padding: 0 0.85rem;
+}
+
+.crm-deal-status-textarea {
+  padding: 0.75rem 0.85rem;
+  resize: vertical;
+}
+
+.crm-deal-status-input:focus,
+.crm-deal-status-select:focus,
+.crm-deal-status-textarea:focus {
+  outline: none;
+  border-color: #c60016 !important;
+  box-shadow: 0 0 0 3px rgba(198, 0, 22, 0.12) !important;
+}
+
+.crm-deal-status-input-error {
+  border-color: #dc2626 !important;
+}
+
+.crm-deal-status-error {
+  color: #dc2626;
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.crm-deal-po-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1.5px solid #fecdd3;
+  border-radius: 8px;
+  background: #fff1f2;
+}
+
+.crm-deal-po-section-header {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #991b1b;
+}
+
+.crm-deal-save-po-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1rem;
+  height: 42px;
+  border: none;
+  border-radius: 6px;
+  background: #991b1b;
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease;
+}
+
+.crm-deal-save-po-btn:hover:not(:disabled) {
+  background: #7f1d1d;
+}
+
+.crm-deal-save-po-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.crm-deal-status-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .crm-deal-status-grid {
+    grid-template-columns: 1fr;
   }
 }

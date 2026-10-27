@@ -142,6 +142,22 @@
   border-radius: 2px;
 }
 
+/* Hierarchical Section Stacking Contexts (Section A > Section B > Section C) */
+.account-report-panel-meta {
+  position: relative;
+  z-index: 50;
+}
+
+.account-report-panel-filters {
+  position: relative;
+  z-index: 40;
+}
+
+.account-report-panel-fields {
+  position: relative;
+  z-index: 10;
+}
+
 .account-report-builder-section-heading {
   display: flex;
   align-items: center;
@@ -286,16 +302,21 @@
   font-size: 0.72rem;
 }
 
+.account-report-builder-multiselect-container:focus-within {
+  position: relative;
+  z-index: 100;
+}
+
 .account-report-builder-multiselect-dropdown {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 2px);
   left: 0;
   right: 0;
-  z-index: 50;
-  background: var(--surface-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 2px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  z-index: 9999 !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.15);
   margin-top: 2px;
   max-height: 220px;
   display: flex;
@@ -323,15 +344,104 @@
 .account-report-builder-option-item {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.25rem 0.5rem;
+  gap: 0.5rem;
+  padding: 0.3rem 0.55rem;
   cursor: pointer;
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   color: var(--text-primary);
+  white-space: nowrap;
 }
 
 .account-report-builder-option-item:hover {
   background: rgba(56, 189, 248, 0.1);
+}
+
+.account-report-builder-option-item input[type="checkbox"] {
+  width: 14px !important;
+  height: 14px !important;
+  min-height: 14px !important;
+  max-width: 14px !important;
+  flex: 0 0 14px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  cursor: pointer;
+  accent-color: #0284c7;
+}
+
+.account-report-builder-option-item span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Searchable Single Select (Owner Name) */
+.account-report-builder-searchable-select {
+  position: relative;
+  width: 100%;
+}
+
+.account-report-builder-searchable-trigger {
+  min-height: 1.7rem;
+  padding: 0.18rem 0.45rem;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  border-radius: 2px;
+  font-size: 0.73rem;
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+
+.account-report-builder-searchable-trigger:focus-within,
+.account-report-builder-searchable-trigger:hover {
+  border-color: #38bdf8;
+}
+
+.account-report-builder-searchable-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-report-builder-searchable-select:focus-within {
+  position: relative;
+  z-index: 100;
+}
+
+.account-report-builder-searchable-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 9999 !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.15);
+  margin-top: 2px;
+  max-height: 230px;
+  display: flex;
+  flex-direction: column;
+}
+
+.account-report-builder-searchable-option {
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+  font-size: 0.74rem;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-report-builder-searchable-option:hover,
+.account-report-builder-searchable-option.is-selected {
+  background: rgba(56, 189, 248, 0.12);
+  color: #0284c7;
+  font-weight: 600;
 }
 
 /* SECTION C: DRAG AND DROP FIELD BUILDER */

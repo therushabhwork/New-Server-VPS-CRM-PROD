@@ -16,7 +16,27 @@ import {
 } from 'react-icons/fa'
 import { scheduledReportApi } from '../../../services/scheduledReportApi'
 import ScheduleDeliveryHistoryModal from './ScheduleDeliveryHistoryModal'
+import AccountsBoardPagination from '../../../components/admin/accounts/AccountsBoardPagination'
 import '../AdminPanel.css'
+import './EmailSchedulerPage.css'
+
+const ITEMS_PER_PAGE = 10
+
+const formatReportType = (type) => {
+  if (!type) return 'Report'
+  const mapping = {
+    ACCOUNT: 'Account',
+    SALES_PERFORMANCE: 'Sales Performance',
+    CUSTOM_REPORT: 'Custom Report',
+    account: 'Account',
+    sales_performance: 'Sales Performance',
+  }
+  if (mapping[type]) return mapping[type]
+  return String(type)
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
 
 export default function EmailSchedulerPage() {
   const navigate = useNavigate()
@@ -35,6 +55,12 @@ export default function EmailSchedulerPage() {
   const [successBanner, setSuccessBanner] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [currentPage, setCurrentPage] = useState(1)
+
+  // Reset page when search or filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, statusFilter])
 
   // History modal state
   const [selectedScheduleForHistory, setSelectedScheduleForHistory] = useState(null)
@@ -151,6 +177,12 @@ export default function EmailSchedulerPage() {
     return matchesSearch && matchesStatus
   })
 
+  const totalItems = filteredSchedules.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE))
+  const pageStart = totalItems === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1
+  const pageEnd = Math.min(currentPage * ITEMS_PER_PAGE, totalItems)
+  const paginatedSchedules = filteredSchedules.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+
   return (
     <div className="ap-home-layout" style={{ width: '100%' }}>
       {/* Page Header (Exact /admin/monitoring Corporate Block) */}
@@ -182,327 +214,199 @@ export default function EmailSchedulerPage() {
 
       {/* Main Table Card (.ap-card-box) */}
       <div className="ap-card-box">
-        {/* Top Bar of the Table Card - Two-Tier Layout */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            width: '100%',
-            marginBottom: '1rem',
-            gap: '8px',
-          }}
-        >
-          {/* Line 1: Section Title on Top Left */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FaEnvelope style={{ color: '#dc2626', fontSize: '1rem' }} />
-            <span style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-              Report Schedules
+        {/* Section Header & Count */}
+        <div className="es-header-title">
+          <FaEnvelope style={{ color: '#dc2626', fontSize: '1rem' }} />
+          <span>Report Schedules</span>
+          {schedules.length > 0 && (
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+              ({filteredSchedules.length} of {schedules.length})
             </span>
-          </div>
-
-          {/* Line 2: Controls Right-Aligned Directly Below Title */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-end',
-              gap: '6px',
-              width: '100%',
-              flexWrap: 'wrap',
-            }}
-          >
-            {/* Compact Search Input */}
-            <div style={{ position: 'relative', width: '145px' }}>
-              <FaSearch
-                style={{
-                  position: 'absolute',
-                  left: '8px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: 'var(--text-secondary)',
-                  fontSize: '0.7rem',
-                }}
-              />
-              <input
-                type="text"
-                className="ap-input"
-                style={{
-                  paddingLeft: '26px',
-                  paddingRight: '6px',
-                  height: '2rem',
-                  width: '100%',
-                  fontSize: '0.75rem',
-                  borderRadius: '6px',
-                }}
-                placeholder="Search..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-
-            {/* Compact Status Filter Select */}
-            <select
-              className="ap-select"
-              style={{
-                height: '2rem',
-                width: '95px',
-                minWidth: '95px',
-                fontSize: '0.72rem',
-                padding: '0 6px',
-                borderRadius: '6px',
-              }}
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all" style={{ fontSize: '0.72rem' }}>All Statuses</option>
-              <option value="active" style={{ fontSize: '0.72rem' }}>Active</option>
-              <option value="inactive" style={{ fontSize: '0.72rem' }}>Inactive</option>
-            </select>
-
-            {/* Compact Refresh Icon Button */}
-            <button
-              type="button"
-              className="ap-header-item-btn"
-              onClick={loadData}
-              title="Refresh List"
-              disabled={loading}
-              style={{
-                width: '2rem',
-                height: '2rem',
-                minHeight: '2rem',
-                padding: 0,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '6px',
-              }}
-            >
-              <FaSyncAlt className={loading ? 'fa-spin' : ''} style={{ fontSize: '0.75rem' }} />
-            </button>
-
-            {/* Compact Create Schedule Button */}
-            <button
-              type="button"
-              className="ap-tab-add"
-              onClick={() => navigate('/admin/email-scheduler/new')}
-              style={{
-                height: '2rem',
-                minHeight: '2rem',
-                padding: '0 0.75rem',
-                fontSize: '0.75rem',
-                borderRadius: '6px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-              }}
-            >
-              <FaPlus style={{ fontSize: '0.7rem' }} />
-              <span>Create Schedule</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Schedules Table */}
-        <div className="admin-accounts-board-table-wrap" style={{ margin: 0 }}>
-          {loading && schedules.length === 0 ? (
-            <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-              Loading schedules...
-            </div>
-          ) : filteredSchedules.length === 0 ? (
-            <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-              No scheduled reports found matching your criteria. Click <strong>Create Schedule</strong> above to set one up.
-            </div>
-          ) : (
-            <table className="admin-accounts-board-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '44px', minWidth: '44px', textAlign: 'center' }}>No.</th>
-                  <th style={{ minWidth: '170px', textAlign: 'center' }}>Schedule Name</th>
-                  <th style={{ minWidth: '150px', textAlign: 'center' }}>Source Report</th>
-                  <th style={{ minWidth: '120px', textAlign: 'center' }}>Cadence</th>
-                  <th style={{ minWidth: '130px', textAlign: 'center' }}>Next Run (IST)</th>
-                  <th style={{ minWidth: '160px', textAlign: 'center' }}>Recipient</th>
-                  <th style={{ minWidth: '85px', textAlign: 'center' }}>Status</th>
-                  <th style={{ minWidth: '170px', textAlign: 'center' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSchedules.map((schedule, idx) => {
-                  const isActionBusy = actionLoadingId === schedule._id
-                  const isWeekly = schedule.schedule?.frequency === 'weekly_7_days'
-                  const entity = schedule.reportConfig?.entityType || schedule.reportConfig?.dataSource || 'report'
-
-                  return (
-                    <tr key={schedule._id} className="admin-accounts-board-row">
-                      {/* No. */}
-                      <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                        {idx + 1}
-                      </td>
-
-                      {/* Name */}
-                      <td style={{ textAlign: 'left' }}>
-                        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{schedule.name}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                          By: {schedule.creatorName || schedule.creatorEmail || 'Admin'}
-                        </div>
-                      </td>
-
-                      {/* Source Report */}
-                      <td style={{ textAlign: 'left' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {schedule.reportConfig?.reportName || 'Report'}
-                          </span>
-                          <span
-                            className="ap-badge"
-                            style={{
-                              fontSize: '10px',
-                              padding: '1px 5px',
-                              textTransform: 'uppercase',
-                              background: 'rgba(47, 159, 211, 0.1)',
-                              color: '#1c6f9c',
-                              border: '1px solid rgba(47, 159, 211, 0.25)',
-                              borderRadius: '4px',
-                            }}
-                          >
-                            {entity}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Cadence */}
-                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 500 }}>
-                          <FaClock style={{ fontSize: '11px', opacity: 0.6 }} />
-                          <span>{isWeekly ? 'Weekly' : 'Daily'} @ {schedule.schedule?.time || '18:00'} IST</span>
-                        </div>
-                      </td>
-
-                      {/* Next Run */}
-                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        {schedule.isEnabled ? (
-                          <span style={{ fontWeight: 500 }}>{formatIST(schedule.schedule?.nextRunAt)}</span>
-                        ) : (
-                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                            Paused
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Recipient */}
-                      <td style={{ textAlign: 'left' }}>
-                        <div style={{ maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={schedule.recipient?.email}>
-                          {schedule.recipient?.email || '-'}
-                        </div>
-                        {schedule.recipient?.additionalEmails?.length > 0 && (
-                          <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
-                            +{schedule.recipient.additionalEmails.length} CC
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Status */}
-                      <td style={{ textAlign: 'center' }}>
-                        {schedule.isEnabled ? (
-                          <span className="ap-badge ap-badge--success" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '2px 8px' }}>
-                            <FaCheckCircle style={{ fontSize: '10px' }} /> Active
-                          </span>
-                        ) : (
-                          <span className="ap-badge ap-badge--neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '2px 8px' }}>
-                            <FaPause style={{ fontSize: '10px' }} /> Paused
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Actions */}
-                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
-                          <button
-                            type="button"
-                            className={`ap-header-item-btn ${schedule.isEnabled ? '' : 'ap-btn--active'}`}
-                            onClick={() => handleToggleActive(schedule)}
-                            disabled={isActionBusy}
-                            title={schedule.isEnabled ? 'Deactivate this schedule' : 'Activate this schedule'}
-                            style={{
-                              padding: '4px 8px',
-                              borderRadius: '6px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              fontSize: '11px',
-                              minHeight: 'auto',
-                            }}
-                          >
-                            {schedule.isEnabled ? (
-                              <>
-                                <FaPause style={{ fontSize: '9px' }} />
-                                <span>Pause</span>
-                              </>
-                            ) : (
-                              <>
-                                <FaPlay style={{ fontSize: '9px' }} />
-                                <span>Resume</span>
-                              </>
-                            )}
-                          </button>
-
-                          <button
-                            type="button"
-                            className="ap-header-item-btn"
-                            onClick={() => handleRunNow(schedule)}
-                            disabled={isActionBusy}
-                            title="Run Now (Generate & Send Report Immediately)"
-                            style={{
-                              padding: '4px 8px',
-                              borderRadius: '6px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              fontSize: '11px',
-                              minHeight: 'auto',
-                            }}
-                          >
-                            <FaPlay style={{ fontSize: '9px' }} />
-                            <span>Run Now</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            className="ap-header-item-btn"
-                            onClick={() => setSelectedScheduleForHistory(schedule)}
-                            title="View Delivery History"
-                            style={{ padding: '4px 7px', borderRadius: '6px', fontSize: '11px', minHeight: 'auto' }}
-                          >
-                            <FaHistory />
-                          </button>
-
-                          <button
-                            type="button"
-                            className="ap-header-item-btn"
-                            onClick={() => handleDelete(schedule)}
-                            disabled={isActionBusy}
-                            title="Delete Schedule"
-                            style={{
-                              padding: '4px 7px',
-                              borderRadius: '6px',
-                              fontSize: '11px',
-                              minHeight: 'auto',
-                              color: '#dc2626',
-                              borderColor: 'rgba(220, 38, 38, 0.25)',
-                              background: 'rgba(220, 38, 38, 0.05)',
-                            }}
-                          >
-                            <FaTrash />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
           )}
         </div>
+
+        {/* Compact Controls Row (Search, Filter, Refresh, Create) */}
+        <div className="es-controls-row">
+          <div className="es-search-wrap">
+            <FaSearch className="es-search-icon" />
+            <input
+              type="text"
+              className="es-search-input"
+              placeholder="Search schedules, reports, recipients..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <select
+            className="es-filter-select"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+
+          <button
+            type="button"
+            className="es-btn-refresh"
+            onClick={loadData}
+            title="Refresh List"
+            disabled={loading}
+          >
+            <FaSyncAlt className={loading ? 'fa-spin' : ''} style={{ fontSize: '0.75rem' }} />
+          </button>
+
+          <button
+            type="button"
+            className="es-btn-create"
+            onClick={() => navigate('/admin/email-scheduler/new')}
+          >
+            <FaPlus style={{ fontSize: '0.7rem' }} />
+            <span>Create Schedule</span>
+          </button>
+        </div>
+
+        {/* Compact Report Cards List */}
+        {loading && schedules.length === 0 ? (
+          <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+            Loading schedules...
+          </div>
+        ) : filteredSchedules.length === 0 ? (
+          <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+            No scheduled reports found matching your criteria. Click <strong>Create Schedule</strong> above to set one up.
+          </div>
+        ) : (
+          <>
+            <div className="es-report-list">
+              {paginatedSchedules.map((schedule, idx) => {
+                const isActionBusy = actionLoadingId === schedule._id
+                const isWeekly = schedule.schedule?.frequency === 'weekly_7_days'
+                const rawType = schedule.reportConfig?.entityType || schedule.reportConfig?.dataSource || 'report'
+                const formattedType = formatReportType(rawType)
+
+                return (
+                  <div key={schedule._id} className="es-report-card">
+                    {/* Row 1 — Report Identity */}
+                    <div className="es-row-identity">
+                      <div className="es-identity-left">
+                        <span className="es-report-num">{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}</span>
+                        <span className="es-report-name">{schedule.name}</span>
+                        <span className="es-sep-dot">•</span>
+                        <span className="es-source-report">{schedule.reportConfig?.reportName || 'Report'}</span>
+                        <span className="es-sep-dot">•</span>
+                        <span className="es-report-type-plain">{formattedType}</span>
+                      </div>
+                      <div>
+                        {schedule.isEnabled ? (
+                          <span className="es-status-pill es-status-pill--active">
+                            <FaCheckCircle style={{ fontSize: '9px' }} /> Active
+                          </span>
+                        ) : (
+                          <span className="es-status-pill es-status-pill--paused">
+                            <FaPause style={{ fontSize: '8px' }} /> Paused
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Row 2 — Schedule & Recipient Info */}
+                    <div className="es-row-meta">
+                      <span className="es-meta-item">
+                        <FaClock className="es-meta-icon" />
+                        <span>{isWeekly ? 'Weekly' : 'Daily'} @ {schedule.schedule?.time || '18:00'} IST</span>
+                      </span>
+                      <span className="es-sep-dot">•</span>
+                      <span className="es-meta-item">
+                        <span>Next: {schedule.isEnabled ? formatIST(schedule.schedule?.nextRunAt) : 'Paused'}</span>
+                      </span>
+                      <span className="es-sep-dot">•</span>
+                      <span className="es-meta-item">
+                        <FaEnvelope className="es-meta-icon" />
+                        <span>{schedule.recipient?.email || '-'}</span>
+                      </span>
+                      {schedule.recipient?.additionalEmails?.length > 0 && (
+                        <span className="es-cc-tag">
+                          +{schedule.recipient.additionalEmails.length} CC
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Row 3 — Creator & Action Buttons */}
+                    <div className="es-row-actions">
+                      <div className="es-creator-text">
+                        Created by: {schedule.creatorName || schedule.creatorEmail || 'Admin'}
+                      </div>
+                      <div className="es-action-group">
+                        <button
+                          type="button"
+                          className="es-btn-equal es-btn-pause-resume"
+                          onClick={() => handleToggleActive(schedule)}
+                          disabled={isActionBusy}
+                          title={schedule.isEnabled ? 'Pause schedule' : 'Resume schedule'}
+                        >
+                          {schedule.isEnabled ? (
+                            <>
+                              <FaPause style={{ fontSize: '9px' }} />
+                              <span>Pause</span>
+                            </>
+                          ) : (
+                            <>
+                              <FaPlay style={{ fontSize: '9px' }} />
+                              <span>Resume</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="es-btn-equal es-btn-run-now"
+                          onClick={() => handleRunNow(schedule)}
+                          disabled={isActionBusy}
+                          title="Run Now (Generate & Send Report Immediately)"
+                        >
+                          <FaPlay style={{ fontSize: '9px' }} />
+                          <span>Run Now</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className="es-btn-icon-sq"
+                          onClick={() => setSelectedScheduleForHistory(schedule)}
+                          title="View Delivery History"
+                        >
+                          <FaHistory />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="es-btn-icon-sq es-btn-icon-sq--delete"
+                          onClick={() => handleDelete(schedule)}
+                          disabled={isActionBusy}
+                          title="Delete Schedule"
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {totalItems > 0 && (
+              <AccountsBoardPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageStart={pageStart}
+                pageEnd={pageEnd}
+                totalItems={totalItems}
+                onPageChange={(page) => setCurrentPage(page)}
+              />
+            )}
+          </>
+        )}
       </div>
 
       {/* Delivery History Modal */}

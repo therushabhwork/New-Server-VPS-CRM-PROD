@@ -412,8 +412,8 @@ const UserDashboardPage = () => {
           <div className="ud-card ud-todo-card ud-todo-card--expansive" style={{ margin: 0 }}>
             <div className="ud-card-header ud-todo-header-expansive" style={{ padding: '0.85rem 1.15rem' }}>
               <div className="ud-card-header-left">
-                <div className="ud-todo-header-icon-box" style={{ width: '2.3rem', height: '2.3rem', fontSize: '1.1rem' }}>
-                  <FaClipboardList className="ud-card-header-icon" />
+                <div className="ud-todo-header-icon-box" style={{ width: '2.3rem', height: '2.3rem', fontSize: '1.1rem', background: '#fff1f2', color: '#c60016', borderRadius: '10px' }}>
+                  <FaClipboardList className="ud-card-header-icon" style={{ color: '#c60016' }} />
                 </div>
                 <div>
                   <div className="ud-todo-title-row">
@@ -534,7 +534,7 @@ const UserDashboardPage = () => {
                         width: '16px',
                         height: '16px',
                         borderRadius: '50%',
-                        border: '2px solid #3b82f6',
+                        border: '2px solid #dc2626',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -700,11 +700,11 @@ const UserDashboardPage = () => {
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
                         <FaBell style={{ color: isActivated ? '#16a34a' : '#dc2626', fontSize: '1.15rem', flexShrink: 0 }} />
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', minWidth: 0, flex: 1 }}>
-                          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: isActivated ? '#15803d' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.12rem', minWidth: 0, flex: 1 }}>
+                          <span className="ud-reminder-card-meta" style={{ fontSize: '0.70rem', fontWeight: 600, color: isActivated ? '#15803d' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {item.reminder?.accountName || item.reminder?.dealName ? `${item.reminder.accountName || item.reminder.dealName} | ` : ''}{item.meta || 'Follow up'} {item.reminder?.ownerName ? `| ${item.reminder.ownerName}` : ''}
                           </span>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title || item.message}>
+                          <span className="ud-reminder-card-title" style={{ fontSize: '0.77rem', fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title || item.message}>
                             {item.title || item.message}
                           </span>
                         </div>

@@ -24,6 +24,7 @@ import { exportExcelWorkbook } from '../../../utils/excelExport'
 import { userGroupApi } from '../../../services/userGroupApi'
 import apiClient from '../../../services/apiClient'
 import { useAuth } from '../../../context/AuthContext'
+import AccountsBoardPagination from '../../../components/admin/accounts/AccountsBoardPagination'
 import './TeamViewPage.css'
 
 const TOP_TABS = [
@@ -289,13 +290,56 @@ const TeamViewPage = ({ isAdminView = true }) => {
     return `${mins}m`
   }
 
+  const resolveGroupName = useCallback((rawGroup, userEmail = '', userId = '') => {
+    const str = rawGroup ? String(rawGroup).trim() : ''
+
+    // 1. Check against MongoDB user_groups (apiUserGroups) and teamGroups
+    const match = (apiUserGroups || []).find(
+      (g) =>
+        (str && (
+          String(g._id || '') === str ||
+          String(g.id || '') === str ||
+          String(g.legacyId || '') === str ||
+          String(g.groupName || '').toLowerCase() === str.toLowerCase() ||
+          String(g.name || '').toLowerCase() === str.toLowerCase()
+        ))
+    ) || (teamGroups || []).find(
+      (g) =>
+        (str && (
+          String(g.id || '') === str ||
+          String(g.label || '').toLowerCase() === str.toLowerCase()
+        ))
+    )
+
+    if (match?.groupName || match?.label || match?.name) {
+      return match.groupName || match.label || match.name
+    }
+
+    // 2. Lookup user in teamUsers by email or id
+    const userMatch = (teamUsers || []).find(
+      (u) =>
+        (userEmail && String(u.email || '').toLowerCase() === String(userEmail).toLowerCase()) ||
+        (userId && String(u.id || '') === String(userId))
+    )
+    if (userMatch?.userGroup && !/^[0-9a-fA-F]{24}$/.test(String(userMatch.userGroup))) {
+      return userMatch.userGroup
+    }
+
+    // 3. Fallback: if rawGroup is an unmapped 24-character MongoDB hex ID, do not display raw hex ID
+    if (/^[0-9a-fA-F]{24}$/.test(str)) {
+      return 'General'
+    }
+
+    return str || 'General'
+  }, [apiUserGroups, teamGroups, teamUsers])
+
   const loggedInTodayUsers = useMemo(() => {
     if (liveSessions.length > 0) {
       return liveSessions.map((s) => ({
         id: s.sessionId || s.userId,
         loginName: s.userName || s.userEmail,
         userEmail: s.userEmail,
-        userGroup: s.userGroup || 'General',
+        userGroup: resolveGroupName(s.userGroup, s.userEmail, s.userId),
         userType: s.portalRole || 'User',
         loginTime: s.loginAt ? new Date(s.loginAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-',
         logoutTime: s.logoutAt ? new Date(s.logoutAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : (s.status === 'active' ? 'Active Now 🟢' : '-'),
@@ -312,7 +356,7 @@ const TeamViewPage = ({ isAdminView = true }) => {
         id: u.id,
         loginName: u.name,
         userEmail: u.email,
-        userGroup: u.userGroup,
+        userGroup: resolveGroupName(u.userGroup, u.email, u.id),
         userType: u.userType,
         loginTime: u.punchIn,
         logoutTime: u.punchOut !== '-' ? u.punchOut : 'Active Now 🟢',
@@ -322,15 +366,16 @@ const TeamViewPage = ({ isAdminView = true }) => {
         status: 'active',
         logoutReason: null,
       }))
-  }, [liveSessions, groupUsers])
+  }, [liveSessions, groupUsers, resolveGroupName])
 
   const displayedLoggedInUsers = useMemo(() => {
     let list = loggedInTodayUsers
     if (selectedGroup) {
-      const sel = String(selectedGroup).toLowerCase()
+      const selLabel = String(selectedGroupLabel || selectedGroup).toLowerCase()
+      const selId = String(selectedGroup).toLowerCase()
       list = list.filter((u) => {
         const g = String(u.userGroup || '').toLowerCase()
-        return g.includes(sel) || sel.includes(g)
+        return g === selLabel || g.includes(selLabel) || selLabel.includes(g) || g.includes(selId)
       })
     }
     if (ugSearchTerm.trim()) {
@@ -343,7 +388,7 @@ const TeamViewPage = ({ isAdminView = true }) => {
       )
     }
     return list
-  }, [loggedInTodayUsers, selectedGroup, ugSearchTerm])
+  }, [loggedInTodayUsers, selectedGroup, selectedGroupLabel, ugSearchTerm])
 
   const activeUsers = useMemo(() => {
     if (liveSessions.length > 0) {
@@ -354,12 +399,49 @@ const TeamViewPage = ({ isAdminView = true }) => {
           name: s.userName || s.userEmail,
           email: s.userEmail,
           userType: s.portalRole || 'User',
-          userGroup: s.userGroup || 'General',
+          userGroup: resolveGroupName(s.userGroup, s.userEmail, s.userId),
+          loginTime: s.loginAt ? new Date(s.loginAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-',
+          activeWorkTime: formatSec(s.totalActiveSeconds),
+          device: s.deviceName || 'Desktop',
+          status: s.status,
         }))
       }
     }
     return groupUsers.filter((u) => u.attendanceStatus === 'Present' && u.punchOut === '-')
-  }, [liveSessions, groupUsers])
+      .map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        userType: u.userType || u.role || 'User',
+        userGroup: resolveGroupName(u.userGroup, u.email, u.id),
+        loginTime: u.punchIn || '-',
+        activeWorkTime: '-',
+        device: 'Desktop',
+        status: 'active',
+      }))
+  }, [liveSessions, groupUsers, resolveGroupName])
+
+  const displayedActiveUsers = useMemo(() => {
+    let list = activeUsers
+    if (selectedGroup) {
+      const selLabel = String(selectedGroupLabel || selectedGroup).toLowerCase()
+      const selId = String(selectedGroup).toLowerCase()
+      list = list.filter((u) => {
+        const g = String(u.userGroup || '').toLowerCase()
+        return g === selLabel || g.includes(selLabel) || selLabel.includes(g) || g.includes(selId)
+      })
+    }
+    if (ugSearchTerm.trim()) {
+      const q = ugSearchTerm.toLowerCase().trim()
+      list = list.filter((u) =>
+        String(u.name || '').toLowerCase().includes(q) ||
+        String(u.email || '').toLowerCase().includes(q) ||
+        String(u.userGroup || '').toLowerCase().includes(q) ||
+        String(u.userType || '').toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [activeUsers, selectedGroup, selectedGroupLabel, ugSearchTerm])
 
   const idleUsers10 = useMemo(() => {
     const now = Date.now()
@@ -628,7 +710,7 @@ const TeamViewPage = ({ isAdminView = true }) => {
               ) : null}
 
               {/* ── UG action buttons ── */}
-              {selectedGroup ? (
+              {selectedGroup && ugActiveView !== 'active-users' ? (
                 <div className="ug-panel">
                   <div className="ug-panel-titlebar">
                     <h3 className="ug-panel-title">Users in {selectedGroupLabel || 'Selected Group'}</h3>
@@ -844,50 +926,72 @@ const TeamViewPage = ({ isAdminView = true }) => {
                     </table>
                   </div>
 
-                  <div className="ug-table-footer">
-                    <span>
-                      Showing {displayedLoggedInUsers.length === 0 ? 0 : (ugPage - 1) * ugPerPage + 1} to {Math.min(ugPage * ugPerPage, displayedLoggedInUsers.length)} of {displayedLoggedInUsers.length} entries
-                    </span>
-                    <div className="ug-pagination">
-                      <button
-                        type="button"
-                        disabled={ugPage <= 1}
-                        onClick={() => setUgPage((p) => Math.max(1, p - 1))}
-                      >
-                        ← Previous
-                      </button>
-                      <button type="button" className="ug-page-active">{ugPage}</button>
-                      <button
-                        type="button"
-                        disabled={ugPage * ugPerPage >= displayedLoggedInUsers.length}
-                        onClick={() => setUgPage((p) => p + 1)}
-                      >
-                        Next →
-                      </button>
-                    </div>
-                  </div>
+                  <AccountsBoardPagination
+                    currentPage={ugPage}
+                    totalPages={Math.max(1, Math.ceil(displayedLoggedInUsers.length / ugPerPage))}
+                    pageStart={displayedLoggedInUsers.length === 0 ? 0 : (ugPage - 1) * ugPerPage + 1}
+                    pageEnd={Math.min(ugPage * ugPerPage, displayedLoggedInUsers.length)}
+                    totalItems={displayedLoggedInUsers.length}
+                    onPageChange={(p) => setUgPage(p)}
+                  />
                 </div>
               ) : null}
 
               {ugActiveView === 'active-users' ? (
                 <div className="ug-panel">
                   <div className="ug-panel-titlebar">
-                    <h3 className="ug-panel-title">Active Users ({activeUsers.length})</h3>
-                    <button type="button" className="ug-refresh-btn" title="Refresh"><FaSyncAlt /></button>
+                    <h3 className="ug-panel-title">
+                      Active Users ({displayedActiveUsers.length}) {selectedGroup ? `(${selectedGroupLabel || selectedGroup})` : '(All Groups)'}
+                    </h3>
+                    <button
+                      type="button"
+                      className="ug-refresh-btn"
+                      onClick={fetchLiveSessionData}
+                      title="Refresh Active Users"
+                    >
+                      <FaSyncAlt />
+                    </button>
                   </div>
-                  {!selectedGroup ? (
-                    <p className="ug-info">Select a user group to view active users.</p>
-                  ) : activeUsers.length === 0 ? (
-                    <div className="ug-alert ug-alert--danger">No active users found.</div>
+
+                  {displayedActiveUsers.length === 0 ? (
+                    <div className="ug-alert ug-alert--danger" style={{ margin: '1rem 0' }}>
+                      No active users found{selectedGroup ? ` for group "${selectedGroupLabel || selectedGroup}"` : ''}.
+                    </div>
                   ) : (
-                    <div className="ug-active-users-grid">
-                      {activeUsers.map((u) => (
-                        <div key={u.id} className="ug-active-user-card">
-                          <strong>{u.name}</strong>
-                          <span>{u.userType}</span>
-                          <span className="ug-active-badge"><FaCheckCircle /> Online</span>
-                        </div>
-                      ))}
+                    <div style={{ overflowX: 'auto', marginTop: '0.5rem' }}>
+                      <table className="ug-table">
+                        <thead>
+                          <tr>
+                            <th>User Name</th>
+                            <th>Email</th>
+                            <th>User Group</th>
+                            <th>User Type</th>
+                            <th>Login Time</th>
+                            <th>Active Work Time</th>
+                            <th>Device</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {displayedActiveUsers.map((u) => (
+                            <tr key={u.id || u.email}>
+                              <td><strong>{u.name || '-'}</strong></td>
+                              <td>{u.email || '-'}</td>
+                              <td>{u.userGroup || 'General'}</td>
+                              <td>{u.userType || 'User'}</td>
+                              <td>{u.loginTime || '-'}</td>
+                              <td>{u.activeWorkTime || '-'}</td>
+                              <td>{u.device || 'Desktop'}</td>
+                              <td>
+                                <span className="ug-status-badge ug-status-badge--active">
+                                  <FaCheckCircle style={{ marginRight: '4px', fontSize: '10px' }} />
+                                  Active Now 🟢
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>

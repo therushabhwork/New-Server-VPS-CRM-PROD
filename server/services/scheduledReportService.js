@@ -169,7 +169,7 @@ async function generateReportExcelBuffer(scheduledReport) {
  * Executes a single schedule (run now or scheduled cron trigger)
  */
 async function executeSchedule(scheduleId, options = {}) {
-  const executionType = options.executionType || 'scheduled'
+  const executionType = options.executionType === 'manual_run_now' ? 'manual_run_now' : 'scheduled'
   let actor = options.actor || null
 
   const schedule = await ScheduledReport.findById(scheduleId)
@@ -238,8 +238,14 @@ async function executeSchedule(scheduleId, options = {}) {
     throw new Error('No recipient email specified')
   }
 
-  // Build Excel Attachment
-  const { buffer, recordCount, fileName, perfData } = await generateReportExcelBuffer(schedule)
+  // Build Attachments (Both Excel and PDF)
+  const reportFiles = await generateReportExcelBuffer(schedule)
+  const excelBuffer = reportFiles.excelBuffer || reportFiles.buffer
+  const excelFileName = reportFiles.excelFileName || reportFiles.fileName
+  const pdfBuffer = reportFiles.pdfBuffer
+  const pdfFileName = reportFiles.pdfFileName
+  const recordCount = reportFiles.recordCount || 0
+  const perfData = reportFiles.perfData
 
   // Re-verify enabled status and database existence right before external send (Halt Microsoft Graph if deleted or paused)
   if (executionType === 'scheduled') {
@@ -272,7 +278,7 @@ async function executeSchedule(scheduleId, options = {}) {
       <p style="margin-top: 0; color: #666; font-size: 13px;">Frequency: <strong>${frequencyLabel}</strong> | Report: <strong>${schedule.reportConfig?.reportName || schedule.name}</strong></p>
       <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;" />
       <p>Hello,</p>
-      <p>Please find attached the latest automated report <strong>${schedule.name}</strong> generated on <strong>${istDateStr} at ${istTimeStr} (IST)</strong>.</p>
+      <p>Please find attached the latest automated report <strong>${schedule.name}</strong> generated on <strong>${istDateStr} at ${istTimeStr} (IST)</strong> in both Excel (.xlsx) and PDF (.pdf) formats.</p>
       <table style="border-collapse: collapse; margin: 16px 0; font-size: 13px;">
         <tr><td style="padding: 4px 12px 4px 0; color: #666;">Data Source:</td><td style="font-weight: 600;">${schedule.reportConfig?.dataSource || 'Deal'}</td></tr>
         <tr><td style="padding: 4px 12px 4px 0; color: #666;">Date Range:</td><td style="font-weight: 600;">${schedule.reportConfig?.dateRangeType || 'All time'}</td></tr>
@@ -281,17 +287,29 @@ async function executeSchedule(scheduleId, options = {}) {
       <p style="font-size: 12px; color: #888; margin-top: 24px;">This is an automated delivery from your Swati CRM Automated Email Reporting Scheduler. Ref: #${runTag}</p>
     </div>`
 
+  const attachments = []
+  if (excelBuffer) {
+    attachments.push({
+      name: excelFileName,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      contentBytes: excelBuffer.toString('base64'),
+    })
+  }
+  if (pdfBuffer) {
+    attachments.push({
+      name: pdfFileName || `${(schedule.name || 'CRM_Report').replace(/[^a-zA-Z0-9_-]/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`,
+      contentType: 'application/pdf',
+      contentBytes: pdfBuffer.toString('base64'),
+    })
+  }
+
   const emailPayload = {
     to: recipientEmail,
     cc: (schedule.recipient?.additionalEmails || []).join(','),
     subject: emailSubject,
     message: emailMessage,
     isHtml: true,
-    attachments: [{
-      name: fileName,
-      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      contentBytes: buffer.toString('base64'),
-    }],
+    attachments,
   }
 
   let sendResult = null
@@ -320,6 +338,16 @@ async function executeSchedule(scheduleId, options = {}) {
     schedule.reportConfig?.customEndDate
   )
 
+  // Resolve attachment metadata safely (supporting both Excel and PDF)
+  const primaryAttachmentName =
+    excelFileName && pdfFileName
+      ? `${excelFileName} + ${pdfFileName}`
+      : excelFileName || pdfFileName || `${(schedule.name || 'CRM_Report').replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx`
+  const totalAttachmentBytes =
+    (excelBuffer && excelBuffer.length ? excelBuffer.length : 0) +
+    (pdfBuffer && pdfBuffer.length ? pdfBuffer.length : 0)
+  const attachmentSizeKB = Math.round(totalAttachmentBytes / 1024)
+
   // Create Delivery Log with explicit scheduled time, date range, and next run timestamp
   const log = await ReportDeliveryLog.create({
     scheduleId: schedule._id,
@@ -333,8 +361,8 @@ async function executeSchedule(scheduleId, options = {}) {
     dateRangeTo: toDate,
     nextScheduledRunAt: nextRunAt,
     recordCount,
-    attachmentName: fileName,
-    attachmentSizeKB: Math.round(buffer.length / 1024),
+    attachmentName: primaryAttachmentName,
+    attachmentSizeKB,
     status: deliveryStatus,
     deliveryMethod: 'outlook_graph',
     errorMessage: deliveryError,

@@ -128,7 +128,10 @@ const Sidebar = ({ isAdmin = false }) => {
     navigate(path)
   }
 
-  const isAccountsRoute = isAdmin && location.pathname.startsWith('/admin/accounts')
+  const isAccountsRoute = isAdmin && (
+    location.pathname.startsWith('/admin/accounts')
+    || location.pathname.startsWith('/admin/deals')
+  )
   const isCustomersRoute = isAdmin && location.pathname.startsWith('/admin/customers')
   const isDealsRoute = isAdmin && location.pathname.startsWith('/admin/deals')
   const isSupportRequestsRoute = isAdmin && location.pathname.startsWith('/admin/support-requests')
@@ -146,7 +149,13 @@ const Sidebar = ({ isAdmin = false }) => {
     location.pathname.startsWith('/admin/quotation-manager')
     || location.pathname === '/admin/reports/quotation-summary'
   )
-  const isUserAccountsRoute = !isAdmin && location.pathname.startsWith('/accounts')
+  const isCommunicationActivitiesRoute = location.pathname.startsWith('/admin/communication-activities') || location.pathname.startsWith('/communication-activities')
+  const isChartsRoute = location.pathname.startsWith('/admin/charts') || location.pathname.startsWith('/charts')
+
+  const isUserAccountsRoute = !isAdmin && (
+    location.pathname.startsWith('/accounts')
+    || location.pathname.startsWith('/deals')
+  )
   const isUserCustomersRoute = !isAdmin && location.pathname.startsWith('/customers')
   const isUserDealsRoute = !isAdmin && location.pathname.startsWith('/deals')
   const isUserSupportRequestsRoute = !isAdmin && location.pathname.startsWith('/support-requests')
@@ -157,6 +166,7 @@ const Sidebar = ({ isAdmin = false }) => {
     location.pathname.startsWith('/quotation-manager')
     || location.pathname.startsWith('/quotations')
   )
+
 
   const [accountsOpen, setAccountsOpen] = useState(isAccountsRoute)
   const [customersOpen, setCustomersOpen] = useState(isCustomersRoute)
@@ -458,10 +468,10 @@ const Sidebar = ({ isAdmin = false }) => {
                 <NavLink
                   key={link.key}
                   to={link.to}
-                  className={({ isActive }) => `sb-plain-link ${isActive ? 'sb-plain-link--active' : ''}`}
+                  className={({ isActive }) => `sb-plain-link sb-link--team ${isActive ? 'sb-plain-link--active sb-link--active' : ''}`}
                   title={link.label}
                 >
-                  <span className="sb-plain-icon"><Icon /></span>
+                  <span className="sb-plain-icon sb-link-icon"><Icon /></span>
                   <span>{link.label}</span>
                 </NavLink>
               )
@@ -501,7 +511,7 @@ const Sidebar = ({ isAdmin = false }) => {
 
           <NavLink
             to="/admin/communication-activities"
-            className={({ isActive }) => `sb-link ${isActive || location.pathname === '/admin/communication-activities' ? 'sb-link--active' : ''}`}
+            className={({ isActive }) => `sb-link sb-link--team ${isActive || isCommunicationActivitiesRoute ? 'sb-link--active' : ''}`}
             title="Communication Activities"
           >
             <span className="sb-link-icon"><FaComments /></span>
@@ -623,7 +633,7 @@ const Sidebar = ({ isAdmin = false }) => {
 
           <NavLink
             to="/admin/charts"
-            className={({ isActive }) => `sb-link sb-workspace-tool-link ${isActive ? 'sb-link--active' : ''}`}
+            className={({ isActive }) => `sb-link sb-link--team sb-workspace-tool-link ${isActive || isChartsRoute ? 'sb-link--active' : ''}`}
             title="Charts"
           >
             <span className="sb-link-icon"><FaChartPie /></span>
@@ -645,10 +655,10 @@ const Sidebar = ({ isAdmin = false }) => {
           {(user?.role === 'super_admin' || user?.actualRole === 'super_admin') ? (
             <NavLink
               to="/admin/password-reset-requests"
-              className={({ isActive }) => `sb-plain-link ${isActive || isPasswordResetRoute ? 'sb-plain-link--active' : ''}`}
+              className={({ isActive }) => `sb-plain-link sb-link--team ${isActive || isPasswordResetRoute ? 'sb-plain-link--active sb-link--active' : ''}`}
               title="Password Reset Requests"
             >
-              <span className="sb-plain-icon"><FaKey /></span>
+              <span className="sb-plain-icon sb-link-icon"><FaKey /></span>
               <span>Password Reset Requests</span>
             </NavLink>
           ) : null}

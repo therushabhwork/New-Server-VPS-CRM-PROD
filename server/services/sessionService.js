@@ -42,6 +42,19 @@ const recordLoginSession = async ({ user = {}, sessionId = '', deviceName = 'Des
       // Non-critical fallback
     }
   }
+
+  if (userGroup && (/^[a-f\d]{24}$/i.test(userGroup) || /^\d+$/.test(userGroup))) {
+    try {
+      const groupDoc = await UserGroup.findOne({
+        $or: [{ _id: userGroup }, { legacyId: userGroup }]
+      }).lean()
+      if (groupDoc?.groupName) {
+        userGroup = String(groupDoc.groupName).trim()
+      }
+    } catch {
+      // Non-critical fallback
+    }
+  }
   if (!userGroup) userGroup = 'General'
 
   const effectiveSessionId = sessionId || `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`

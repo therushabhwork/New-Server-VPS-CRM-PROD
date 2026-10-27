@@ -8,6 +8,11 @@ const {
 } = require('../utils/universalFieldResolver');
 const mongoose = require('mongoose');
 const XLSX = require('xlsx');
+const path = require('path');
+const fs = require('fs');
+const { jsPDF } = require('jspdf');
+const autoTable = require('jspdf-autotable').default || require('jspdf-autotable').autoTable || require('jspdf-autotable');
+const { buildXlsxBytes } = require('../utils/excelExportHelper');
 
 // Collection mapping
 const COLLECTION_MAP = {
@@ -404,22 +409,16 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
   if (config.templateId) {
     try {
       const templateCol = mongoose.connection.db.collection('reporttemplates');
-      template = await templateCol.findOne({
-        $or: [
-          { _id: new mongoose.Types.ObjectId(String(config.templateId)) },
-          { id: String(config.templateId) },
-        ],
-      }).catch(() => null);
+      const orConditions = [{ id: String(config.templateId) }];
+      if (mongoose.Types.ObjectId.isValid(String(config.templateId))) {
+        orConditions.unshift({ _id: new mongoose.Types.ObjectId(String(config.templateId)) });
+      }
+      template = await templateCol.findOne({ $or: orConditions }).catch(() => null);
 
       if (!template) {
         // Fallback to generated reports collection
         const reportsCol = mongoose.connection.db.collection('reports');
-        template = await reportsCol.findOne({
-          $or: [
-            { _id: new mongoose.Types.ObjectId(String(config.templateId)) },
-            { id: String(config.templateId) },
-          ],
-        }).catch(() => null);
+        template = await reportsCol.findOne({ $or: orConditions }).catch(() => null);
       }
     } catch (_) {
       // Ignore lookup errors
@@ -440,9 +439,7 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
   if (rawEntity === 'deals') rawEntity = 'deal';
   if (rawEntity === 'customers') rawEntity = 'customer';
   if (rawEntity === 'quotations') rawEntity = 'quotation';
-
   const entityType = rawEntity;
-  const collectionName = COLLECTION_MAP[entityType] || 'leads';
 
   // 3. Resolve Display Fields
   let fields = [];
@@ -458,115 +455,304 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
 
   // 4. Resolve Field Label Mapping Dictionary
   let labelDict = ACCOUNT_FIELD_LABELS;
-  let mapper = mapAccountDoc;
-  if (entityType === 'deal') {
-    labelDict = DEAL_FIELD_LABELS;
-    mapper = mapDealDoc;
-  } else if (entityType === 'customer') {
-    labelDict = CUSTOMER_FIELD_LABELS;
-    mapper = mapCustomerDoc;
-  } else if (entityType === 'quotation') {
-    labelDict = QUOTATION_FIELD_LABELS;
-    mapper = mapQuotationDoc;
-  }
+  if (entityType === 'deal') labelDict = DEAL_FIELD_LABELS;
+  else if (entityType === 'customer') labelDict = CUSTOMER_FIELD_LABELS;
+  else if (entityType === 'quotation') labelDict = QUOTATION_FIELD_LABELS;
 
-  // 5. Query MongoDB Collection
-  const col = mongoose.connection.db.collection(collectionName);
-  const rawDocs = await col.find({}).sort({ createdAt: -1 }).toArray();
-
-  // 6. Apply Date Range Filter
-  const dateRangeType = config.dateRangeType || 'all_time';
-  const { fromTime, toTime } = resolveDateBounds(dateRangeType, config.customStartDate, config.customEndDate);
-
-  let filteredDocs = rawDocs;
-  if (fromTime || toTime) {
-    filteredDocs = filteredDocs.filter((doc) => {
-      let candidateDate = null;
-      if (entityType === 'account') {
-        candidateDate = doc.accountDate || doc.date || doc.createdAt;
-      } else if (entityType === 'deal') {
-        candidateDate = doc.dealDate || doc.quotationDate || doc.createdAt;
-      } else if (entityType === 'customer') {
-        candidateDate = doc.createdAt || doc.addedDate;
-      } else if (entityType === 'quotation') {
-        candidateDate = doc.date || doc.quotationDate || doc.createdAt;
-      }
-      const ts = parseDateTimestamp(candidateDate);
-      if (ts === null) return false;
-      if (fromTime && ts < fromTime) return false;
-      if (toTime && ts > toTime) return false;
-      return true;
-    });
-  }
-
-  // 7. Apply Owner Scoping Filter
-  const ownerFilter = String(template?.accountOwner || config.accountOwner || 'all').trim().toLowerCase();
-  if (ownerFilter && ownerFilter !== 'all') {
-    filteredDocs = filteredDocs.filter((doc) => {
-      const docOwners = [
-        doc.accountOwnerName,
-        doc.accountOwner,
-        doc.ownerName,
-        doc.owner,
-        doc.dealOwnerName,
-        doc.dealOwner,
-        doc.assignedToName,
-        doc.assignedTo,
-        doc.customerOwner,
-        doc.quotationOwner,
-        doc.ownerCode,
-      ].filter(Boolean).map((o) => String(o).trim().toLowerCase());
-
-      return docOwners.some((o) => o === ownerFilter || o.includes(ownerFilter) || ownerFilter.includes(o));
-    });
-  }
-
-  // 8. Transform to Clean Rows with Human-Readable Labels
-  const finalRows = filteredDocs.map((doc) => {
-    const mapped = mapper(doc);
-    const rowObj = {};
-
-    fields.forEach((fieldKey) => {
-      const label = labelDict[fieldKey] || fieldKey;
-      const val = mapped[fieldKey] !== undefined && mapped[fieldKey] !== null
-        ? mapped[fieldKey]
-        : (doc[fieldKey] != null ? doc[fieldKey] : '-');
-      rowObj[label] = val;
-    });
-
-    return rowObj;
-  });
-
-  // 9. Build Excel Workbook
-  const workbook = XLSX.utils.book_new();
-  const rowsForSheet = finalRows.length > 0
-    ? finalRows
-    : [{ 'Report Status': 'No records found matching report criteria' }];
-
-  const worksheet = XLSX.utils.json_to_sheet(rowsForSheet);
-
-  // Auto-fit column widths
-  const columnKeys = Object.keys(rowsForSheet[0] || {});
-  worksheet['!cols'] = columnKeys.map((key) => {
-    let maxLen = key.length;
-    rowsForSheet.slice(0, 100).forEach((r) => {
-      const val = String(r[key] ?? '');
-      if (val.length > maxLen) maxLen = val.length;
-    });
-    return { wch: Math.min(Math.max(maxLen + 3, 12), 40) };
-  });
-
+  // 5. Construct fullTemplate combining template and schedule config
   const reportTitle = template?.reportName || template?.name || config.reportName || scheduledReport.name || 'Report';
-  const cleanSheetName = String(reportTitle).substring(0, 31).replace(/[:\\\/\?\*\[\]]/g, '_');
-  XLSX.utils.book_append_sheet(workbook, worksheet, cleanSheetName);
+  const fullTemplate = {
+    ...template,
+    ...config,
+    entityType,
+    reportName: reportTitle,
+    userGroups: (Array.isArray(config.userGroups) && config.userGroups.length > 0)
+      ? config.userGroups
+      : (Array.isArray(template?.userGroups) ? template.userGroups : (template?.selectedUserGroups || [])),
+    selectedUserGroups: (Array.isArray(config.selectedUserGroups) && config.selectedUserGroups.length > 0)
+      ? config.selectedUserGroups
+      : (Array.isArray(template?.selectedUserGroups) ? template.selectedUserGroups : (template?.userGroups || [])),
+    userGroupMembers: (Array.isArray(config.userGroupMembers) && config.userGroupMembers.length > 0)
+      ? config.userGroupMembers
+      : (Array.isArray(template?.userGroupMembers) ? template.userGroupMembers : []),
+    accountOwner: config.accountOwner || template?.accountOwner || 'all',
+    recordDateFrom: config.recordDateFrom || template?.recordDateFrom || config.customStartDate || '',
+    recordDateTo: config.recordDateTo || template?.recordDateTo || config.customEndDate || '',
+    displayFields: fields,
+    selectedFields: fields,
+  };
 
-  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-  const fileName = `${reportTitle.replace(/[^a-zA-Z0-9_-]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  // 6. Execute report using executeTemplateReport for 100% parity with /admin/reports/custom
+  let reportResult = null;
+  try {
+    reportResult = await executeTemplateReport({ template: fullTemplate });
+  } catch (err) {
+    console.error('[customReportEngine] executeTemplateReport error in schedule:', err);
+  }
+
+  const rawRows = reportResult?.rows || [];
+  const fieldLabels = reportResult?.fieldLabels || labelDict;
+  const selectedFields = (reportResult?.selectedFields && reportResult.selectedFields.length > 0)
+    ? reportResult.selectedFields
+    : fields;
+
+  const columns = selectedFields.map((k) => ({
+    key: k,
+    label: fieldLabels[k] || labelDict[k] || k,
+  }));
+
+  // 7. Group rows owner-wise
+  const targetOwner = String(fullTemplate.accountOwner || 'all').trim().toLowerCase();
+  const ownerGroups = {};
+  rawRows.forEach((r) => {
+    const o = r.accountOwner || r.owner || r.accountOwnerName || r.ownerName || 'Unassigned';
+    if (!ownerGroups[o]) ownerGroups[o] = [];
+    ownerGroups[o].push(r);
+  });
+
+  const checkIsReassigned = (ownerName) => {
+    if (fullTemplate.userGroups && fullTemplate.userGroups.length > 0) {
+      const groupRows = ownerGroups[ownerName] || [];
+      const hasReassignedFlag = groupRows.some((r) => r._isReassigned || r.isReassigned);
+      if (hasReassignedFlag) return true;
+    }
+    if (targetOwner && targetOwner !== 'all' && ownerName.toLowerCase() !== targetOwner) {
+      return true;
+    }
+    return false;
+  };
+
+  const sortedOwnerNames = Object.keys(ownerGroups).sort((a, b) => {
+    if (targetOwner && targetOwner !== 'all') {
+      if (a.toLowerCase() === targetOwner) return -1;
+      if (b.toLowerCase() === targetOwner) return 1;
+    }
+    return a.localeCompare(b);
+  });
+
+  const filterSummary = `Total Unique Records: ${rawRows.length} | Generated: ${new Date().toLocaleDateString('en-IN')}`;
+
+  // 8. Generate PDF Buffer with Centered Swati Logo and Grouped Tables
+  let pdfBuffer = null;
+  try {
+    const doc = new jsPDF('landscape');
+    let logoPath = path.resolve(__dirname, '../../src/assets/swati-logo.png');
+    if (!fs.existsSync(logoPath)) {
+      logoPath = path.resolve(__dirname, '../../public/swati-logo.png');
+    }
+
+    let logoRendered = false;
+    let logoBottomY = 8;
+    if (fs.existsSync(logoPath)) {
+      const logoBuffer = fs.readFileSync(logoPath);
+      let naturalWidth = 412;
+      let naturalHeight = 413;
+      if (logoBuffer.length >= 24 && logoBuffer.toString('ascii', 12, 16) === 'IHDR') {
+        naturalWidth = logoBuffer.readUInt32BE(16) || 412;
+        naturalHeight = logoBuffer.readUInt32BE(20) || 413;
+      }
+      const aspectRatio = naturalHeight > 0 ? (naturalWidth / naturalHeight) : 1;
+      const logoHeight = 22;
+      const logoWidth = Number((logoHeight * aspectRatio).toFixed(2));
+      const logoX = (297 - logoWidth) / 2;
+      const logoY = 6.0;
+      doc.addImage('data:image/png;base64,' + logoBuffer.toString('base64'), 'PNG', logoX, logoY, logoWidth, logoHeight);
+      logoRendered = true;
+      logoBottomY = logoY + logoHeight;
+    }
+
+    const titleY = logoRendered ? (logoBottomY + 4.5) : 14;
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text(reportTitle, 148.5, titleY, { align: 'center' });
+
+    const subY = titleY + 4.5;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text(filterSummary, 148.5, subY, { align: 'center' });
+
+    const dividerY = subY + 4.0;
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.4);
+    doc.line(14, dividerY, 283, dividerY);
+
+    let currentY = dividerY + 5.5;
+    const colKeys = columns.map(c => c.key);
+    const colLabels = columns.map(c => c.label);
+
+    sortedOwnerNames.forEach((ownerName) => {
+      const groupRows = ownerGroups[ownerName] || [];
+      const isReassigned = checkIsReassigned(ownerName);
+
+      const distinctFromNames = Array.from(
+        new Set(
+          groupRows
+            .map((r) => r._createdByUserName || r.createdByUserName || r.addedBy || '')
+            .filter((n) => n && n.toLowerCase() !== ownerName.toLowerCase())
+        )
+      );
+
+      const fromSuffix = isReassigned
+        ? (distinctFromNames.length > 0
+          ? ` From ${distinctFromNames.join(', ')}`
+          : (targetOwner && targetOwner !== 'all' && targetOwner !== ownerName.toLowerCase()
+            ? ` From ${targetOwner}`
+            : ''))
+        : '';
+
+      const headerLabel = isReassigned
+        ? `Re-assigned Account Owner: ${ownerName} (${groupRows.length} Accounts)${fromSuffix}`
+        : `Account Owner: ${ownerName} (${groupRows.length} Accounts)`;
+
+      if (currentY > 185) {
+        doc.addPage();
+        currentY = 16;
+      }
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      if (isReassigned) {
+        doc.setTextColor(180, 83, 9);
+      } else {
+        doc.setTextColor(198, 0, 22);
+      }
+      doc.text(headerLabel, 14, currentY);
+      currentY += 4;
+
+      const tableHead = [colLabels];
+      const tableBody = groupRows.map((row) =>
+        colKeys.map((k) => (row[k] != null && row[k] !== '' ? String(row[k]) : '-'))
+      );
+
+      autoTable(doc, {
+        head: tableHead,
+        body: tableBody,
+        startY: currentY,
+        theme: 'grid',
+        styles: { fontSize: 7.5, cellPadding: 2, overflow: 'linebreak' },
+        headStyles: {
+          fillColor: isReassigned ? [71, 85, 105] : [198, 0, 22],
+          textColor: 255,
+          fontStyle: 'bold',
+        },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        margin: { left: 14, right: 14 },
+      });
+
+      currentY = (doc.lastAutoTable?.finalY || currentY + 25) + 8;
+    });
+
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(148, 163, 184);
+      doc.text('Swati Switchgears CRM — Confidential & Proprietary Report', 14, 203);
+      doc.text(`Page ${i} of ${totalPages}`, 283, 203, { align: 'right' });
+    }
+
+    pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+  } catch (pdfErr) {
+    console.error('[customReportEngine] PDF generation error:', pdfErr);
+  }
+
+  // 9. Generate Excel Workbook Buffer with Top Bar & Spaced Owner Headers matching CustomReportsPage.jsx
+  const excelRows = [];
+  sortedOwnerNames.forEach((ownerName) => {
+    const groupRows = ownerGroups[ownerName] || [];
+    const isReassigned = checkIsReassigned(ownerName);
+
+    const distinctFromNames = Array.from(
+      new Set(
+        groupRows
+          .map((r) => r._createdByUserName || r.createdByUserName || r.addedBy || '')
+          .filter((n) => n && n.toLowerCase() !== ownerName.toLowerCase())
+      )
+    );
+
+    const fromSuffix = isReassigned
+      ? (distinctFromNames.length > 0
+        ? ` From ${distinctFromNames.join(', ')}`
+        : (targetOwner && targetOwner !== 'all' && targetOwner !== ownerName.toLowerCase()
+          ? ` From ${targetOwner}`
+          : ''))
+      : '';
+
+    // Insert empty spacer row before subsequent owner sections
+    if (excelRows.length > 0) {
+      const spacerRow = {};
+      columns.forEach((c) => {
+        spacerRow[c.key] = '';
+        spacerRow[c.label] = '';
+      });
+      excelRows.push(spacerRow);
+    }
+
+    const ownerHeaderRow = {};
+    columns.forEach((c, idx) => {
+      if (idx === 0) {
+        ownerHeaderRow[c.key] = isReassigned
+          ? `▶ Re-assigned Account Owner: ${ownerName} (${groupRows.length} Accounts)${fromSuffix}`
+          : `▶ Account Owner: ${ownerName} (${groupRows.length} Accounts)`;
+        ownerHeaderRow[c.label] = ownerHeaderRow[c.key];
+      } else {
+        ownerHeaderRow[c.key] = '';
+        ownerHeaderRow[c.label] = '';
+      }
+    });
+    excelRows.push(ownerHeaderRow);
+
+    groupRows.forEach((r) => {
+      const excelRow = { ...r };
+      columns.forEach((c) => {
+        const val = r[c.key];
+        excelRow[c.key] = val != null && val !== '' ? val : '-';
+        excelRow[c.label] = excelRow[c.key];
+      });
+      excelRows.push(excelRow);
+    });
+  });
+
+  let logoBytes = null;
+  let logoFile = path.resolve(__dirname, '../../src/assets/swati-logo.png');
+  if (!fs.existsSync(logoFile)) {
+    logoFile = path.resolve(__dirname, '../../public/swati-logo.png');
+  }
+  if (fs.existsSync(logoFile)) {
+    logoBytes = fs.readFileSync(logoFile);
+  }
+
+  const excelBytes = buildXlsxBytes({
+    title: reportTitle,
+    subtitle: `${filterSummary} | Generated: ${new Date().toLocaleDateString('en-IN')}`,
+    companyName: 'SWATI SWITCHGEARS INDIA PVT. LTD.',
+    logoBytes,
+    sheetName: 'Report Data',
+    columns: columns.map((c) => ({
+      key: c.key,
+      label: c.label || c.key,
+    })),
+    rows: excelRows,
+  });
+
+  const excelBuffer = Buffer.from(excelBytes);
+  const sanitizedTitle = reportTitle.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const excelFileName = `${sanitizedTitle}_${dateStr}.xlsx`;
+  const pdfFileName = `${sanitizedTitle}_${dateStr}.pdf`;
 
   return {
-    buffer,
-    recordCount: finalRows.length,
-    fileName,
+    buffer: excelBuffer,
+    excelBuffer,
+    fileName: excelFileName,
+    excelFileName,
+    pdfBuffer,
+    pdfFileName,
+    recordCount: rawRows.length,
+    reportTitle,
   };
 }
 
@@ -936,6 +1122,80 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
 
       return false;
     });
+  } else {
+    // If ownerFilter is 'all' or empty, check if report template has User Group(s) configured
+    const tplUserGroups = (
+      Array.isArray(tpl?.userGroups) && tpl.userGroups.length > 0
+        ? tpl.userGroups
+        : (Array.isArray(tpl?.selectedUserGroups) ? tpl.selectedUserGroups : [])
+    ).filter(Boolean);
+
+    if (tplUserGroups.length > 0) {
+      try {
+        const { listMembersByGroupIds } = require('../repositories/userGroupRepository');
+        const groupMembers = await listMembersByGroupIds(tplUserGroups);
+        const embeddedMembers = Array.isArray(tpl?.userGroupMembers) ? tpl.userGroupMembers : [];
+        const allMembers = [...(groupMembers || []), ...embeddedMembers];
+
+        if (allMembers.length > 0) {
+          const groupMemberEmails = new Set(
+            allMembers.map(m => String(m.email || m.member?.email || '').toLowerCase().trim()).filter(Boolean)
+          );
+          const groupMemberNames = new Set(
+            allMembers.map(m => String(m.name || m.member?.name || '').toLowerCase().trim()).filter(Boolean)
+          );
+          const groupMemberUserIds = new Set(
+            allMembers.map(m => String(m.userId || m.id || '').trim()).filter(Boolean)
+          );
+          const groupMemberCodes = new Set();
+          allMembers.forEach(m => {
+            const email = String(m.email || '').toLowerCase().trim();
+            const name = String(m.name || '').toLowerCase().trim();
+            const uid = String(m.userId || '').trim();
+            if (usersMap._codes && usersMap._codes[email]) groupMemberCodes.add(String(usersMap._codes[email]).toLowerCase().trim());
+            if (usersMap._codes && usersMap._codes[name]) groupMemberCodes.add(String(usersMap._codes[name]).toLowerCase().trim());
+            if (usersMap._codes && usersMap._codes[uid]) groupMemberCodes.add(String(usersMap._codes[uid]).toLowerCase().trim());
+          });
+
+          filteredDocs = filteredDocs.filter((doc) => {
+            const docOwnerName = String(
+              doc.accountOwner || doc.formData?.accountOwner || doc.formData?.formData?.accountOwner ||
+              doc.ownerName || doc.formData?.ownerName || doc.owner || doc.formData?.owner || ''
+            ).trim().toLowerCase();
+
+            const docOwnerEmail = String(
+              doc.accountOwnerEmail || doc.formData?.accountOwnerEmail || doc.ownerEmail || doc.formData?.ownerEmail ||
+              (usersMap._emails && usersMap._emails[docOwnerName]) || ''
+            ).trim().toLowerCase();
+
+            const docOwnerCode = String(
+              doc.accountOwnerCode || doc.formData?.accountOwnerCode || doc.ownerCode || doc.formData?.ownerCode || ''
+            ).trim().toLowerCase();
+
+            // 1. Primary Match: Account Owner belongs to the User Group
+            if (docOwnerName && groupMemberNames.has(docOwnerName)) return true;
+            if (docOwnerEmail && groupMemberEmails.has(docOwnerEmail)) return true;
+            if (docOwnerCode && groupMemberCodes.has(docOwnerCode)) return true;
+
+            // 2. Re-assigned Match: Account was created by a User Group member, but current Account Owner is outside the group
+            const docCreatorEmail = String(
+              doc.userEmail || doc.createdUserBy || doc.formData?.userEmail || doc.formData?.createdUserBy || ''
+            ).trim().toLowerCase();
+
+            const docCreatorUserId = String(
+              doc.createdByUserId || doc.formData?.createdByUserId || doc.userId || ''
+            ).trim();
+
+            if (docCreatorEmail && groupMemberEmails.has(docCreatorEmail)) return true;
+            if (docCreatorUserId && groupMemberUserIds.has(docCreatorUserId)) return true;
+
+            return false;
+          });
+        }
+      } catch (grpErr) {
+        console.warn('[customReportEngine] Error resolving user group members:', grpErr);
+      }
+    }
   }
 
   // Keep reference of records that matched owner and filters before applying date window
@@ -1023,6 +1283,15 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
     rowObj['Deal No.'] = rowObj['Deal No.'] || rowObj['Deal No'] || doc.dealNumber || doc.data?.dealNumber;
     rowObj['Quotation No.'] = rowObj['Quotation No.'] || rowObj['Quotation No'] || doc.quotationNumber || doc.data?.quotationNumber;
     rowObj['Customer No.'] = rowObj['Customer No.'] || rowObj['Customer No'] || doc.customerNumber || doc.formData?.customerNumber;
+
+    // Dynamic creator / original owner for Reassigned Accounts
+    const rawCreatorName = doc.createdByUserName || doc.formData?.createdByUserName || doc.addedBy || doc.formData?.addedBy || doc.formData?.formData?.addedBy || '';
+    const rawCreatorEmail = String(doc.createdUserBy || doc.formData?.createdUserBy || doc.userEmail || '').trim().toLowerCase();
+    const resolvedCreatorName = rawCreatorName || (rawCreatorEmail && usersMap._emails && Object.keys(usersMap._emails).find(n => usersMap._emails[n] === rawCreatorEmail)) || '';
+    rowObj._createdByUserName = resolvedCreatorName
+      ? String(resolvedCreatorName).toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+      : '';
+    rowObj._createdUserBy = rawCreatorEmail;
 
     return rowObj;
   });

@@ -57,6 +57,22 @@ const scheduledReportSchema = new mongoose.Schema({
       type: [String],
       default: [],
     },
+    selectedUserGroups: {
+      type: [String],
+      default: [],
+    },
+    userGroupMembers: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+    recordDateFrom: {
+      type: String,
+      default: '',
+    },
+    recordDateTo: {
+      type: String,
+      default: '',
+    },
     accountOwner: {
       type: String,
       default: 'all',

@@ -62,9 +62,6 @@ export const SessionExpiryModal = ({
         </div>
         <div className="crm-session-timer-label">Minutes : Seconds</div>
 
-        <p className="crm-session-prompt">
-          Click <strong>Continue</strong> to keep your session active, or <strong>Log Out</strong> to safely exit.
-        </p>
 
         <div className="crm-session-actions-row">
           <button

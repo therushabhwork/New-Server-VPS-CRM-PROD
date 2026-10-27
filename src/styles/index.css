@@ -135,23 +135,41 @@ html.is-admin .layout--admin .header-panel::after {
   visibility: visible !important;
 }
 
-/* 4. Sidebar Link Active State (Brand Red Icon & Brand Red Text) */
+/* 4. Sidebar Link Active State (Brand Red Icon Container & Pure White SVG) */
 .sidebar--admin .sb-link--active,
-.sidebar--admin .sb-group-trigger--route-active {
-  background: #fdebec !important;
-  border-color: #fca5a5 !important;
+.sidebar--admin .sb-group-trigger--route-active,
+.sidebar--admin .sb-plain-link--active,
+.sidebar--user .sb-link--active,
+.sidebar--user .sb-group-trigger--route-active,
+.sidebar--user .sb-plain-link--active {
+  background: linear-gradient(135deg, rgba(255, 240, 242, 0.98) 0%, rgba(255, 228, 231, 0.95) 100%) !important;
+  border-color: rgba(198, 0, 22, 0.35) !important;
   color: #c60016 !important;
+  font-weight: 800 !important;
 }
 
-.sidebar--admin .sb-link--active :where(svg, svg *, .sb-link-icon *, .sb-group-icon *),
-.sidebar--admin .sb-group-trigger--route-active :where(svg, svg *, .sb-link-icon *, .sb-group-icon *) {
-  color: #c60016 !important;
-  fill: currentColor !important;
-  stroke: currentColor !important;
-  -webkit-text-fill-color: #c60016 !important;
+.sidebar--admin .sb-link--active :where(.sb-link-icon, .sb-group-icon, .sb-plain-icon),
+.sidebar--admin .sb-group-trigger--route-active :where(.sb-link-icon, .sb-group-icon, .sb-plain-icon),
+.sidebar--user .sb-link--active :where(.sb-link-icon, .sb-group-icon, .sb-plain-icon),
+.sidebar--user .sb-group-trigger--route-active :where(.sb-link-icon, .sb-group-icon, .sb-plain-icon) {
+  background: linear-gradient(135deg, #c60016 0%, #9e0012 100%) !important;
+  color: #ffffff !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 12px rgba(198, 0, 22, 0.3) !important;
+}
+
+.sidebar--admin .sb-link--active :where(.sb-link-icon svg, .sb-group-icon svg, .sb-plain-icon svg, svg, svg *),
+.sidebar--admin .sb-group-trigger--route-active :where(.sb-link-icon svg, .sb-group-icon svg, .sb-plain-icon svg, svg, svg *),
+.sidebar--user .sb-link--active :where(.sb-link-icon svg, .sb-group-icon svg, .sb-plain-icon svg, svg, svg *),
+.sidebar--user .sb-group-trigger--route-active :where(.sb-link-icon svg, .sb-group-icon svg, .sb-plain-icon svg, svg, svg *) {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+  stroke: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
   opacity: 1 !important;
   visibility: visible !important;
 }
+
 
 /* Keep the sidebar focused on navigation; hide the auxiliary Today widget. */
 html.is-admin .sidebar--admin .sb-today-section {
@@ -2867,8 +2885,33 @@ html:not([data-theme="dark"]) :where(.layout--user, .layout--admin) :where(.side
   box-shadow: 0 4px 12px rgba(220, 38, 38, 0.12) !important;
 }
 
+/* Active Sidebar Item Icon Container & SVG Color (Exact Same as Dashboard) */
+html:not([data-theme="dark"]) :where(.layout--user, .layout--admin) :where(.sidebar--user, .sidebar--admin) :where(
+  .sb-link--active,
+  .sb-link--team.sb-link--active,
+  .sb-plain-link--active,
+  .sb-group-trigger--route-active
+) :where(.sb-link-icon, .sb-plain-icon, .sb-group-icon) {
+  background: linear-gradient(135deg, #c60016 0%, #9e0012 100%) !important;
+  color: #ffffff !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 12px rgba(198, 0, 22, 0.3) !important;
+}
+
+html:not([data-theme="dark"]) :where(.layout--user, .layout--admin) :where(.sidebar--user, .sidebar--admin) :where(
+  .sb-link--active,
+  .sb-link--team.sb-link--active,
+  .sb-plain-link--active,
+  .sb-group-trigger--route-active
+) :where(.sb-link-icon svg, .sb-plain-icon svg, .sb-group-icon svg, svg, svg *) {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+  stroke: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
 
 /* Top View Toolbar Buttons Contrast */
+
 html.is-user:not([data-theme="dark"]) .layout--user .sidebar--user .sb-view-toolbar-button:not(.sb-view-toolbar-button--route-active):not(.active) {
   background: #f8fafc !important;
   border: 1px solid #e2e8f0 !important;

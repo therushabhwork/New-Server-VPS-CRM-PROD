@@ -212,17 +212,48 @@
   width: 2.6rem;
   height: 2.6rem;
   border-radius: 10px;
-  background: #2563eb !important;
-  color: #ffffff !important;
+  background: #fff1f2 !important;
+  color: #c60016 !important;
+  border: 1px solid #fecdd3 !important;
   font-size: 1.25rem;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2) !important;
+  box-shadow: 0 2px 8px rgba(198, 0, 22, 0.08) !important;
 }
 
 .ud-todo-header-icon-box svg {
-  color: #ffffff !important;
-  fill: #ffffff !important;
+  color: #c60016 !important;
+  fill: #c60016 !important;
 }
+
+/* Reminders Card Text Optimization for Laptops & Tablets */
+.ud-reminder-card-meta {
+  font-size: 0.70rem !important;
+  line-height: 1.25 !important;
+}
+
+.ud-reminder-card-title {
+  font-size: 0.77rem !important;
+  line-height: 1.3 !important;
+}
+
+@media (max-width: 1200px) {
+  .ud-reminder-card-meta {
+    font-size: 0.66rem !important;
+  }
+  .ud-reminder-card-title {
+    font-size: 0.73rem !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .ud-reminder-card-meta {
+    font-size: 0.64rem !important;
+  }
+  .ud-reminder-card-title {
+    font-size: 0.70rem !important;
+  }
+}
+
 
 .ud-todo-title-row {
   display: flex;

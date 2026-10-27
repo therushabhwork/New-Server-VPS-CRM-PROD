@@ -98,6 +98,11 @@ export default function CreateEmailScheduleModal({ isOpen, onClose, onCreated, c
         selectedFields: selectedReport.selectedFields || [],
         filters: selectedReport.filters || [],
         accountOwner: selectedReport.accountOwner || 'all',
+        userGroups: selectedReport.userGroups || selectedReport.selectedUserGroups || [],
+        selectedUserGroups: selectedReport.selectedUserGroups || selectedReport.userGroups || [],
+        userGroupMembers: selectedReport.userGroupMembers || [],
+        recordDateFrom: selectedReport.recordDateFrom || '',
+        recordDateTo: selectedReport.recordDateTo || '',
         dateRangeType: form.dateRangeType,
       },
       schedule: {

@@ -9,6 +9,8 @@ import {
   FaCalendarAlt,
   FaTag,
   FaPaperPlane,
+  FaClock,
+  FaChevronRight,
 } from 'react-icons/fa'
 import Modal from '../../components/common/Modal'
 import Badge from '../../components/common/Badge'
@@ -34,6 +36,44 @@ const ENTITY_OPTIONS = [
   { value: 'account', label: 'Account' },
   { value: 'deal', label: 'Deal' },
 ]
+
+const groupActivitiesByDate = (items) => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const groups = {
+    today: [],
+    older: [],
+  }
+
+  items.forEach((item) => {
+    const rawDate = item.createdAt || item.remarkDate
+    if (!rawDate) {
+      groups.older.push(item)
+      return
+    }
+    const d = new Date(rawDate)
+    if (isNaN(d.getTime())) {
+      groups.older.push(item)
+      return
+    }
+    d.setHours(0, 0, 0, 0)
+    if (d.getTime() >= today.getTime()) {
+      groups.today.push(item)
+    } else {
+      groups.older.push(item)
+    }
+  })
+
+  const result = []
+  if (groups.today.length > 0) {
+    result.push({ key: 'today', label: 'Today', count: groups.today.length, items: groups.today })
+  }
+  if (groups.older.length > 0) {
+    result.push({ key: 'older', label: 'Older', count: groups.older.length, items: groups.older })
+  }
+  return result
+}
 
 const CommunicationActivitiesPage = ({ isAdmin = false }) => {
   const { user } = useAuth()
@@ -139,6 +179,10 @@ const CommunicationActivitiesPage = ({ isAdmin = false }) => {
     return filteredRemarks.slice(start, start + pageSize)
   }, [filteredRemarks, currentPage, pageSize])
 
+  const groupedActivities = useMemo(() => {
+    return groupActivitiesByDate(paginatedRemarks)
+  }, [paginatedRemarks])
+
   const handleRowClick = (remark) => {
     setSelectedRemark(remark)
     const thread = remarks.filter((r) => {
@@ -191,15 +235,18 @@ const CommunicationActivitiesPage = ({ isAdmin = false }) => {
   return (
     <div className="comm-activities-page">
       <div className="comm-activities-shell">
-        {/* Header Banner */}
+        {/* Page Header */}
         <div className="comm-activities-header">
-          <div>
-            <h1 className="comm-activities-title">
-              <FaComments className="comm-activities-title-icon" /> Communication Activities
-            </h1>
-            <p className="comm-activities-subtitle">
-              Track and monitor all client remarks, call logs, feedback, and discussion threads across accounts and deals.
-            </p>
+          <div className="comm-activities-header-left">
+            <div className="comm-activities-title-icon-wrap">
+              <FaComments />
+            </div>
+            <div>
+              <h1 className="comm-activities-title">Communication Activities</h1>
+              <p className="comm-activities-subtitle">
+                Track and monitor all client remarks, calls, logs, feedback, and discussion threads across accounts and deals.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -216,7 +263,7 @@ const CommunicationActivitiesPage = ({ isAdmin = false }) => {
             />
           </div>
 
-          <div className="comm-activities-filter-group">
+          <div className="comm-activities-filters-right">
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
@@ -226,9 +273,7 @@ const CommunicationActivitiesPage = ({ isAdmin = false }) => {
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
-          </div>
 
-          <div className="comm-activities-filter-group">
             <select
               value={selectedEntityType}
               onChange={(e) => setSelectedEntityType(e.target.value)}
@@ -241,128 +286,107 @@ const CommunicationActivitiesPage = ({ isAdmin = false }) => {
           </div>
         </div>
 
-        {/* Main Table */}
-        <div className="comm-activities-table-card">
+        {/* Main Activity Cards Section */}
+        <div className="comm-activities-list-card">
           {loading ? (
             <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Loading communication activities...</div>
           ) : filteredRemarks.length === 0 ? (
             <div style={{ padding: '40px', textAlign: 'center', color: '#475569', fontWeight: 500 }}>No communication activities found</div>
           ) : (
             <>
-              <div className="comm-activities-table-responsive">
-                <table className="comm-activities-table">
-                  <thead>
-                    <tr className="comm-activities-thead-tr">
-                      <th style={{ padding: '14px 16px', width: '40px', background: '#c60016', color: '#ffffff' }}></th>
-                      <th style={{ padding: '14px 16px', background: '#c60016', color: '#ffffff' }}>Type</th>
-                      <th style={{ padding: '14px 16px', background: '#c60016', color: '#ffffff' }}>Name</th>
-                      <th style={{ padding: '14px 16px', background: '#c60016', color: '#ffffff' }}>Category</th>
-                      <th style={{ padding: '14px 16px', background: '#c60016', color: '#ffffff' }}>Remark / Note</th>
-                      <th style={{ padding: '14px 16px', background: '#c60016', color: '#ffffff' }}>Record Owner</th>
-                      <th style={{ padding: '14px 16px', background: '#c60016', color: '#ffffff' }}>Activity By</th>
-                      <th style={{ padding: '14px 16px', background: '#c60016', color: '#ffffff' }}>Start Time</th>
-                      <th style={{ padding: '14px 16px', background: '#c60016', color: '#ffffff' }}>End Time</th>
-                      <th style={{ padding: '14px 16px', background: '#c60016', color: '#ffffff' }}>Date & Time</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedRemarks.map((rem, idx) => {
-                      const isDeal = rem.relatedEntityType === 'deal' || Boolean(rem.dealId)
-                      const recordName = rem.dealName || rem.accountName || 'Record'
-                      const ownerName = rem.recordOwnerName || rem.accountOwnerName || rem.dealOwnerName || '-'
-                      const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc'
+              <div className="comm-activities-groups-wrap">
+                {groupedActivities.map((group) => (
+                  <section key={group.key} className="comm-date-group-section">
+                    <div className="comm-date-group-header">
+                      <div className="comm-date-group-title">
+                        <FaCalendarAlt className="comm-date-group-icon" />
+                        <span>{group.label}</span>
+                      </div>
+                      <span className="comm-date-group-badge">
+                        {group.count} {group.count === 1 ? 'Activity' : 'Activities'}
+                      </span>
+                    </div>
 
-                      return (
-                        <tr
-                          key={rem.id || rem._id || idx}
-                          style={{ background: rowBg, borderBottom: '1px solid #e2e8f0', cursor: 'pointer', transition: 'background-color 0.15s' }}
-                          onClick={() => handleRowClick(rem)}
-                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9' }}
-                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = rowBg }}
-                        >
-                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                            {rem.category === 'call-log' ? (
-                              <FaPhoneAlt style={{ color: '#0284c7' }} />
-                            ) : (
-                              <FaComments style={{ color: '#2563eb' }} />
-                            )}
-                          </td>
-                          <td style={{ padding: '12px 16px' }}>
-                            <Badge variant={isDeal ? 'info' : 'success'}>
-                              {isDeal ? 'Deal' : 'Account'}
-                            </Badge>
-                          </td>
-                          <td style={{ padding: '12px 16px', fontWeight: 600, color: '#0f172a' }}>
-                            {recordName}
-                          </td>
-                          <td style={{ padding: '12px 16px' }}>
-                            <span style={{
-                              padding: '3px 8px',
-                              borderRadius: '4px',
-                              background: rem.category === 'call-log' ? '#fef3c7' : '#e2e8f0',
-                              color: rem.category === 'call-log' ? '#92400e' : '#1e293b',
-                              fontSize: '12px',
-                              fontWeight: 600,
-                              textTransform: 'capitalize',
-                            }}>
-                              {rem.category || 'general'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '12px 16px', color: '#1e293b', maxWidth: '320px', fontWeight: 500 }}>
-                            <div>{rem.content || '-'}</div>
-                          </td>
-                          <td style={{ padding: '12px 16px', color: '#334155', fontWeight: 500 }}>
-                            {ownerName}
-                          </td>
-                          <td style={{ padding: '12px 16px', color: '#334155', fontWeight: 500 }}>
-                            {rem.createdByName || rem.authorName || 'User'}
-                          </td>
-                          <td style={{ padding: '12px 16px', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                            {rem.startTime || (rem.category === 'call-log' ? (rem.callLogTime || '-') : '-')}
-                          </td>
-                          <td style={{ padding: '12px 16px', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                            {rem.endTime || '-'}
-                          </td>
-                          <td style={{ padding: '12px 16px', color: '#475569', whiteSpace: 'nowrap', fontWeight: 500 }}>
-                            {rem.remarkDate ? formatDate(rem.remarkDate, 'long') : (rem.createdAt ? formatDate(rem.createdAt, 'long') : '-')}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                    <div className="comm-activities-cards-list">
+                      {group.items.map((rem, idx) => {
+                        const isCallLog = rem.category === 'call-log'
+                        const isDeal = rem.relatedEntityType === 'deal' || Boolean(rem.dealId)
+                        const recordName = rem.dealName || rem.accountName || 'Record'
+                        const ownerName = rem.recordOwnerName || rem.accountOwnerName || rem.dealOwnerName || 'Owner'
+                        const authorName = rem.createdByName || rem.authorName || 'User'
+                        const dateFormatted = rem.remarkDate ? formatDate(rem.remarkDate, 'long') : (rem.createdAt ? formatDate(rem.createdAt, 'long') : '-')
+                        const timeSlot = rem.startTime || rem.endTime || rem.callLogTime
+
+                        return (
+                          <div
+                            key={rem.id || rem._id || `${group.key}-${idx}`}
+                            className="comm-activity-row-card"
+                            onClick={() => handleRowClick(rem)}
+                          >
+                            {/* Left Circular Activity Icon */}
+                            <div className={`comm-activity-icon-bubble ${isCallLog ? 'comm-activity-icon-bubble--call' : 'comm-activity-icon-bubble--general'}`}>
+                              {isCallLog ? <FaPhoneAlt /> : <FaComments />}
+                            </div>
+
+                            {/* Middle Details */}
+                            <div className="comm-activity-main-info">
+                              <div className="comm-activity-top-line">
+                                <span className="comm-activity-name">{recordName}</span>
+                                <span className={`comm-activity-type-tag comm-activity-type-tag--${isDeal ? 'deal' : 'account'}`}>
+                                  {isDeal ? 'Deal' : 'Account'}
+                                </span>
+                              </div>
+                              <div className="comm-activity-remark-text">
+                                {rem.content || rem.remark || rem.note || '-'}
+                              </div>
+                              <div className="comm-activity-attribution">
+                                <span className="comm-activity-owner">{ownerName}</span>
+                                <span className="comm-activity-arrow-sep">→</span>
+                                <span className="comm-activity-author">{authorName}</span>
+                              </div>
+                            </div>
+
+                            {/* Right Metadata */}
+                            <div className="comm-activity-side-meta">
+                              <div className="comm-activity-side-top">
+                                <span className={`comm-activity-category-tag comm-activity-category-tag--${rem.category || 'general'}`}>
+                                  {isCallLog ? 'Call-Log' : (rem.category ? rem.category.charAt(0).toUpperCase() + rem.category.slice(1) : 'General')}
+                                </span>
+                                <FaChevronRight className="comm-activity-chevron" />
+                              </div>
+
+                              <div className="comm-activity-side-bottom">
+                                {isCallLog && timeSlot ? (
+                                  <span className="comm-activity-time-slot">
+                                    <FaClock style={{ fontSize: '0.72rem', marginRight: '4px' }} />
+                                    {rem.startTime || rem.callLogTime || '09:00'} – {rem.endTime || '09:30'}
+                                  </span>
+                                ) : null}
+                                <span className="comm-activity-date-text">
+                                  {dateFormatted}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </section>
+                ))}
               </div>
 
-              {/* Pagination Controls (First, 1, 2, 3..., Last) */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justify: 'space-between',
-                padding: '12px 20px',
-                borderTop: '1px solid #e2e8f0',
-                background: '#ffffff',
-                flexWrap: 'wrap',
-                gap: '10px'
-              }}>
-                <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>
+              {/* Pagination Controls */}
+              <div className="comm-activities-pagination">
+                <div className="comm-activities-pagination-info">
                   Showing <strong>{Math.min((currentPage - 1) * pageSize + 1, filteredRemarks.length)}</strong> to <strong>{Math.min(currentPage * pageSize, filteredRemarks.length)}</strong> of <strong>{filteredRemarks.length}</strong> records
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div className="comm-activities-pagination-btns">
                   <button
                     type="button"
                     onClick={() => setCurrentPage(1)}
                     disabled={currentPage === 1}
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: '6px',
-                      border: '1px solid #cbd5e1',
-                      background: currentPage === 1 ? '#f1f5f9' : '#ffffff',
-                      color: currentPage === 1 ? '#94a3b8' : '#740a03',
-                      fontWeight: 700,
-                      fontSize: '13px',
-                      cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                    }}
+                    className="comm-pagination-btn comm-pagination-btn--nav"
                   >
                     First
                   </button>
@@ -372,16 +396,7 @@ const CommunicationActivitiesPage = ({ isAdmin = false }) => {
                       key={pageNum}
                       type="button"
                       onClick={() => setCurrentPage(pageNum)}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        border: pageNum === currentPage ? '1px solid #740a03' : '1px solid #cbd5e1',
-                        background: pageNum === currentPage ? '#740a03' : '#ffffff',
-                        color: pageNum === currentPage ? '#ffffff' : '#0f172a',
-                        fontWeight: pageNum === currentPage ? 800 : 600,
-                        fontSize: '13px',
-                        cursor: 'pointer',
-                      }}
+                      className={`comm-pagination-btn ${pageNum === currentPage ? 'comm-pagination-btn--active' : ''}`}
                     >
                       {pageNum}
                     </button>
@@ -391,16 +406,7 @@ const CommunicationActivitiesPage = ({ isAdmin = false }) => {
                     type="button"
                     onClick={() => setCurrentPage(totalPages)}
                     disabled={currentPage === totalPages}
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: '6px',
-                      border: '1px solid #cbd5e1',
-                      background: currentPage === totalPages ? '#f1f5f9' : '#ffffff',
-                      color: currentPage === totalPages ? '#94a3b8' : '#740a03',
-                      fontWeight: 700,
-                      fontSize: '13px',
-                      cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                    }}
+                    className="comm-pagination-btn comm-pagination-btn--nav"
                   >
                     Last
                   </button>

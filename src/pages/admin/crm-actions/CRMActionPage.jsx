@@ -18,6 +18,7 @@ import {
   FaUnderline,
   FaUndo,
   FaUserCog,
+  FaSyncAlt,
 } from 'react-icons/fa'
 import { FiEdit2 } from 'react-icons/fi'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -941,6 +942,34 @@ const CRMActionPage = () => {
     setSuccessMessage(`Deal status changed to ${statusLabel}.`)
   }
 
+  const [isSavingPoValue, setIsSavingPoValue] = useState(false)
+
+  const handleSavePoValueOnly = async () => {
+    if (!selectedDeal?.id) return
+    const numericPoValue = String(statusForm.poValue ?? '').trim()
+    if (!numericPoValue) {
+      addNotification('error', 'PO Value', 'Please enter a valid PO value.')
+      return
+    }
+    setIsSavingPoValue(true)
+    try {
+      const result = await updateDeal(selectedDeal.id, {
+        poValue: Number(numericPoValue) || numericPoValue,
+        dealValue: Number(numericPoValue) || numericPoValue,
+        updatedAt: new Date().toISOString(),
+      })
+      if (result.success) {
+        addNotification('success', 'PO Value Saved', 'PO Value saved successfully in MongoDB.')
+      } else {
+        addNotification('error', 'PO Value', result.message || 'Unable to save PO Value.')
+      }
+    } catch (err) {
+      addNotification('error', 'PO Value', err.message || 'Failed to save PO Value.')
+    } finally {
+      setIsSavingPoValue(false)
+    }
+  }
+
   const validateQuoteFile = (file) => {
     if (!file) return 'Upload Quote File is required.'
     const extension = String(file.name || '').split('.').pop().toLowerCase()
@@ -1152,16 +1181,20 @@ const CRMActionPage = () => {
     const isRejected = statusForm.status === 'rejected'
 
     return (
-      <form className="crm-action-form" onSubmit={handleSaveDealStatus}>
+      <form className="crm-action-form crm-deal-status-form" onSubmit={handleSaveDealStatus}>
         {renderContext(true)}
 
-        <section className="crm-action-section">
-          <h2>Change Status</h2>
-          <div className="crm-action-grid">
-            <label className="crm-action-field">
-              <span>Deal Status<em>*</em></span>
+        <div className="crm-deal-status-card">
+          <h2 className="crm-deal-status-heading">
+            <FaSyncAlt style={{ color: '#c60016', fontSize: '1rem' }} />
+            <span>Change Status</span>
+          </h2>
+
+          <div className="crm-deal-status-grid">
+            <label className="crm-deal-status-field">
+              <span>Deal Status <em style={{ color: '#c60016' }}>*</em></span>
               <select
-                className={`crm-action-input crm-action-select${errors.status ? ' crm-action-input-error' : ''}`}
+                className={`crm-deal-status-select${errors.status ? ' crm-deal-status-input-error' : ''}`}
                 value={statusForm.status}
                 onChange={(event) => setStatusForm({ ...statusForm, status: event.target.value })}
               >
@@ -1172,14 +1205,14 @@ const CRMActionPage = () => {
                   </option>
                 ))}
               </select>
-              {errors.status ? <small className="crm-action-error-text">{errors.status}</small> : null}
+              {errors.status ? <small className="crm-deal-status-error">{errors.status}</small> : null}
             </label>
 
             {isRejected ? (
-              <label className="crm-action-field">
+              <label className="crm-deal-status-field">
                 <span>Reason For Lost</span>
                 <select
-                  className="crm-action-input crm-action-select"
+                  className="crm-deal-status-select"
                   value={statusForm.reasonForLost}
                   onChange={(event) => setStatusForm({ ...statusForm, reasonForLost: event.target.value })}
                 >
@@ -1197,27 +1230,55 @@ const CRMActionPage = () => {
               </label>
             ) : null}
 
-            {isPoConversion ? (
-              <>
-                <div className="crm-action-field crm-action-field-full" style={{ fontWeight: 600, fontSize: '0.95rem', color: '#1e293b', marginTop: '8px' }}>
-                  Please fill in the PO Converted details below
-                </div>
-                <label className="crm-action-field">
-                  <span>PO Value <em style={{ color: '#dc2626' }}>*</em></span>
-                  <input
-                    type="number"
-                    min="0"
-                    className={`crm-action-input${errors.poValue ? ' crm-action-input-error' : ''}`}
-                    value={statusForm.poValue}
-                    onChange={(event) => setStatusForm({ ...statusForm, poValue: event.target.value })}
-                    placeholder="Enter PO value"
-                  />
-                  {errors.poValue ? <span className="crm-action-error-text" style={{ color: '#dc2626', fontSize: '12px' }}>{errors.poValue}</span> : null}
+            <label className="crm-deal-status-field crm-deal-status-field-full">
+              <span>Status Note</span>
+              <textarea
+                className="crm-deal-status-textarea"
+                value={statusForm.note}
+                onChange={(event) => setStatusForm({ ...statusForm, note: event.target.value })}
+                placeholder="Add status note..."
+                rows={3}
+              />
+            </label>
+          </div>
+
+          {isPoConversion ? (
+            <div className="crm-deal-po-section">
+              <div className="crm-deal-po-section-header">
+                Please fill in the PO Converted details below
+              </div>
+              <div className="crm-deal-status-grid">
+                <label className="crm-deal-status-field">
+                  <span>PO Value <em style={{ color: '#c60016' }}>*</em></span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      className={`crm-deal-status-input${errors.poValue ? ' crm-deal-status-input-error' : ''}`}
+                      value={statusForm.poValue}
+                      onChange={(event) => setStatusForm({ ...statusForm, poValue: event.target.value })}
+                      placeholder="Enter PO value"
+                      style={{ flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      title="Save PO Value only"
+                      aria-label="Save PO Value"
+                      onClick={handleSavePoValueOnly}
+                      disabled={isSavingPoValue}
+                      className="crm-deal-save-po-btn"
+                    >
+                      <FaSave style={{ marginRight: '6px' }} />
+                      {isSavingPoValue ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                  {errors.poValue ? <small className="crm-deal-status-error">{errors.poValue}</small> : null}
                 </label>
-                <label className="crm-action-field">
+
+                <label className="crm-deal-status-field">
                   <span>Status Of Customer As Per Order Received</span>
                   <select
-                    className="crm-action-input crm-action-select"
+                    className="crm-deal-status-select"
                     value={statusForm.orderReceivedStatus}
                     onChange={(event) => setStatusForm({ ...statusForm, orderReceivedStatus: event.target.value })}
                   >
@@ -1227,10 +1288,11 @@ const CRMActionPage = () => {
                     ))}
                   </select>
                 </label>
-                <label className="crm-action-field">
+
+                <label className="crm-deal-status-field">
                   <span>Status Of Customer As Per Quotation Given</span>
                   <select
-                    className="crm-action-input crm-action-select"
+                    className="crm-deal-status-select"
                     value={statusForm.quotationGivenStatus}
                     onChange={(event) => setStatusForm({ ...statusForm, quotationGivenStatus: event.target.value })}
                   >
@@ -1240,47 +1302,39 @@ const CRMActionPage = () => {
                     ))}
                   </select>
                 </label>
-                <label className="crm-action-field">
+
+                <label className="crm-deal-status-field">
                   <span>GSTIN</span>
                   <input
                     type="text"
-                    className="crm-action-input"
+                    className="crm-deal-status-input"
                     value={statusForm.gstin}
                     onChange={(event) => setStatusForm({ ...statusForm, gstin: event.target.value })}
                     placeholder="Enter GSTIN"
                   />
                 </label>
-                <label className="crm-action-field">
+
+                <label className="crm-deal-status-field">
                   <span>Job No</span>
                   <input
                     type="text"
-                    className="crm-action-input"
+                    className="crm-deal-status-input"
                     value={statusForm.jobNo}
                     onChange={(event) => setStatusForm({ ...statusForm, jobNo: event.target.value })}
                     placeholder="Enter Job No"
                   />
                 </label>
-              </>
-            ) : null}
+              </div>
+            </div>
+          ) : null}
+        </div>
 
-            <label className="crm-action-field crm-action-field-full">
-              <span>Status Note</span>
-              <textarea
-                className="crm-action-input crm-action-textarea"
-                value={statusForm.note}
-                onChange={(event) => setStatusForm({ ...statusForm, note: event.target.value })}
-                placeholder="Add status note"
-              />
-            </label>
-          </div>
-        </section>
-
-        <div className="crm-action-reassign-footer">
-          <Button type="button" variant="outline" onClick={() => navigate(returnTo)}>
-            <FaTimes /> Close
+        <div className="crm-deal-status-footer">
+          <Button type="button" variant="outline" className="btn-red-theme" onClick={() => navigate(returnTo)}>
+            <FaTimes style={{ marginRight: '6px' }} /> Close
           </Button>
-          <Button type="submit">
-            <FaSave /> Save
+          <Button type="submit" className="btn-red-theme">
+            <FaSave style={{ marginRight: '6px' }} /> Save
           </Button>
         </div>
       </form>
@@ -1699,7 +1753,7 @@ const CRMActionPage = () => {
             <h1>{pageTitle}</h1>
           </div>
           <div className="crm-action-header-icon">
-            {actionKey === 'change-status' ? null : actionKey === 'send-mail' ? <FaEnvelope /> : actionKey === 're-assign-deal' ? <FaUserCog /> : actionKey === 'upload-deal-quotation' ? <FaFileAlt /> : <FaCalendarAlt />}
+            {actionKey === 'change-status' ? <FaSyncAlt /> : actionKey === 'send-mail' ? <FaEnvelope /> : actionKey === 're-assign-deal' ? <FaUserCog /> : actionKey === 'upload-deal-quotation' ? <FaFileAlt /> : <FaCalendarAlt />}
           </div>
         </div>
 

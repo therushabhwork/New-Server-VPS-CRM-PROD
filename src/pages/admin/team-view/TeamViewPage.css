@@ -623,3 +623,87 @@
   color: #b91c1c;
 }
 
+/* Pagination Styling (Exact match to /admin/accounts/my-accounts) */
+.admin-accounts-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  padding: 0.5rem 0.75rem;
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+  margin-top: 12px;
+  border-radius: 0 0 8px 8px;
+}
+
+.admin-accounts-pagination-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-accounts-pagination-rows-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  padding: 0 0.35rem;
+  border: 1px solid #b91c1c;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 0.2rem;
+}
+
+.admin-accounts-pagination-total {
+  font-size: 0.78rem;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.admin-accounts-pagination-pages {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.admin-accounts-pag-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.65rem;
+  height: 1.65rem;
+  padding: 0 0.35rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.2rem;
+  background: #ffffff;
+  color: #1e293b;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.admin-accounts-pag-btn:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.08);
+  border-color: #b91c1c;
+  color: #b91c1c;
+}
+
+.admin-accounts-pag-btn--active {
+  background: #dc2626 !important;
+  border-color: #b91c1c !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25);
+}
+
+.admin-accounts-pag-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+

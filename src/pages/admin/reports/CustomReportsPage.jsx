@@ -1668,9 +1668,16 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         const templateId = report._id || report.id
 
         const hasDateFilter = Boolean(report.recordDateFrom || report.dateRange?.fromDate || report.recordDateTo || report.dateRange?.toDate)
+        const reportUserGroups = Array.isArray(report.userGroups) ? report.userGroups : (Array.isArray(report.selectedUserGroups) ? report.selectedUserGroups : [])
         const payload = {
           templateId,
-          template: report,
+          template: {
+            ...report,
+            userGroups: reportUserGroups,
+            selectedUserGroups: reportUserGroups,
+            userGroupMembers: Array.isArray(report.userGroupMembers) ? report.userGroupMembers : [],
+          },
+          userGroups: reportUserGroups,
           dataSource: targetCategory === 'all' ? 'account' : targetCategory,
           reportContext: targetCategory === 'all' ? 'account' : targetCategory,
           selectedFields: selectedFieldKeys,
@@ -1716,7 +1723,6 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           key: lbl,
           label: lbl,
           rawKey: rawFields[idx] || lbl,
-          width: Math.min(36, Math.max(14, lbl.length + 5)),
         }))
 
         // Helper to resolve cell values case-insensitively and normalize dates & numbers
@@ -1793,16 +1799,42 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           return trimmed.toLowerCase() === 'unassigned' ? 'Unassigned' : formatTitleCase(trimmed)
         }
 
+        const reportGroups = (
+          Array.isArray(report.userGroups) && report.userGroups.length > 0
+            ? report.userGroups
+            : (Array.isArray(report.selectedUserGroups) ? report.selectedUserGroups : [])
+        ).filter(Boolean)
+
         const rawOwner = report.accountOwner || report.owner || exportPayload.ownerName || ''
         const rawOwnerEmail = report.accountOwnerEmail || report.ownerEmail || exportPayload.ownerEmail || ''
         const formattedRawOwner = rawOwner && rawOwner.toLowerCase() !== 'all' ? formatTitleCase(rawOwner) : ''
         let ownerScopeText = 'All Owners'
-        if (formattedRawOwner) {
+
+        if (reportGroups.length > 0) {
+          const groupNamesStr = reportGroups.join(', ')
+          if (formattedRawOwner) {
+            ownerScopeText = `${formattedRawOwner} [User Group: ${groupNamesStr}]`
+          } else {
+            ownerScopeText = `User Group: ${groupNamesStr}`
+          }
+        } else if (formattedRawOwner) {
           ownerScopeText = rawOwnerEmail ? `${formattedRawOwner} (${rawOwnerEmail})` : formattedRawOwner
         } else if (rawOwnerEmail) {
           ownerScopeText = rawOwnerEmail
         }
         const primaryTargetOwner = formattedRawOwner.toLowerCase()
+        const groupMemberNamesLower = new Set(
+          (report.userGroupMembers || []).map((m) => String(m.name || m.member?.name || '').toLowerCase().trim()).filter(Boolean)
+        )
+
+        // Canonical Reassigned Identification (for both User Group reports and single owner reports)
+        const checkIsReassigned = (name) => {
+          const lower = String(name || '').toLowerCase().trim()
+          if (reportGroups.length > 0 && groupMemberNamesLower.size > 0) {
+            return !groupMemberNamesLower.has(lower)
+          }
+          return Boolean(primaryTargetOwner && primaryTargetOwner !== 'all' && lower !== primaryTargetOwner)
+        }
 
         // Group unique records by Account Owner
         const ownerGroups = {}
@@ -1814,17 +1846,24 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           ownerGroups[ownerName].push(row)
         })
 
-        // Sort owner groups: Primary Target Owner first, then remaining owners alphabetically
+        // Sort owner groups: Primary owners first, then Reassigned owners
         const sortedOwnerNames = Object.keys(ownerGroups).sort((a, b) => {
           const aLower = a.toLowerCase()
           const bLower = b.toLowerCase()
+
+          const aIsReassigned = checkIsReassigned(a)
+          const bIsReassigned = checkIsReassigned(b)
+
+          if (!aIsReassigned && bIsReassigned) return -1
+          if (aIsReassigned && !bIsReassigned) return 1
+
           if (primaryTargetOwner && primaryTargetOwner !== 'all') {
             if (aLower === primaryTargetOwner) return -1
             if (bLower === primaryTargetOwner) return 1
           }
           return a.localeCompare(b, undefined, { sensitivity: 'base' })
         })
-        const isMultiOwner = sortedOwnerNames.length > 1 || (ownerScopeText && ownerScopeText.toLowerCase().includes('all'))
+        const isMultiOwner = sortedOwnerNames.length > 1 || (ownerScopeText && (ownerScopeText.toLowerCase().includes('all') || ownerScopeText.toLowerCase().includes('group')))
 
         const rawFrom = report.recordDateFrom || report.dateRange?.fromDate || report.fromDate || ''
         const rawTo = report.recordDateTo || report.dateRange?.toDate || report.toDate || ''
@@ -1930,18 +1969,31 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
                 currentY = 16
               }
 
-              const isReassigned = Boolean(
-                primaryTargetOwner &&
-                primaryTargetOwner !== 'all' &&
-                ownerName.toLowerCase() !== primaryTargetOwner
+              const isReassigned = checkIsReassigned(ownerName)
+
+              // Dynamically resolve "From" creator name as per MongoDB collections
+              const distinctFromNames = Array.from(
+                new Set(
+                  groupRows
+                    .map((r) => r._createdByUserName || r.createdByUserName || r.addedBy || '')
+                    .filter((n) => n && n.toLowerCase() !== ownerName.toLowerCase())
+                )
               )
+
+              const fromSuffix = isReassigned
+                ? (distinctFromNames.length > 0
+                  ? ` From ${distinctFromNames.join(', ')}`
+                  : (primaryTargetOwner && primaryTargetOwner !== 'all' && primaryTargetOwner !== ownerName.toLowerCase()
+                    ? ` From ${formatTitleCase(primaryTargetOwner)}`
+                    : ''))
+                : ''
 
               doc.setFontSize(10)
               doc.setFont('helvetica', 'bold')
 
               if (isReassigned) {
                 doc.setTextColor(180, 83, 9) // Amber / Orange for Re-assigned
-                doc.text(`Re-assigned Account Owner: ${ownerName} (${groupRows.length} Accounts)`, 14, currentY)
+                doc.text(`Re-assigned Account Owner: ${ownerName} (${groupRows.length} Accounts)${fromSuffix}`, 14, currentY)
               } else {
                 doc.setTextColor(198, 0, 22) // Swati Brand Red for Primary Owner
                 doc.text(`Account Owner: ${ownerName} (${groupRows.length} Accounts)`, 14, currentY)
@@ -2004,16 +2056,40 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           if (isMultiOwner && sortedOwnerNames.length > 1) {
             sortedOwnerNames.forEach((ownerName) => {
               const groupRows = ownerGroups[ownerName] || []
-              const isReassigned = Boolean(
-                primaryTargetOwner &&
-                primaryTargetOwner !== 'all' &&
-                ownerName.toLowerCase() !== primaryTargetOwner
+              const isReassigned = checkIsReassigned(ownerName)
+
+              // Dynamically resolve "From" creator name as per MongoDB collections
+              const distinctFromNames = Array.from(
+                new Set(
+                  groupRows
+                    .map((r) => r._createdByUserName || r.createdByUserName || r.addedBy || '')
+                    .filter((n) => n && n.toLowerCase() !== ownerName.toLowerCase())
+                )
               )
+
+              const fromSuffix = isReassigned
+                ? (distinctFromNames.length > 0
+                  ? ` From ${distinctFromNames.join(', ')}`
+                  : (primaryTargetOwner && primaryTargetOwner !== 'all' && primaryTargetOwner !== ownerName.toLowerCase()
+                    ? ` From ${formatTitleCase(primaryTargetOwner)}`
+                    : ''))
+                : ''
+
+              // Insert empty spacer row before each owner section header
+              if (excelRows.length > 0) {
+                const spacerRow = {}
+                columns.forEach((c) => {
+                  spacerRow[c.key] = ''
+                  spacerRow[c.label] = ''
+                })
+                excelRows.push(spacerRow)
+              }
+
               const ownerHeaderRow = {}
               columns.forEach((c, idx) => {
                 if (idx === 0) {
                   ownerHeaderRow[c.key] = isReassigned
-                    ? `▶ Re-assigned Account Owner: ${ownerName} (${groupRows.length} Accounts)`
+                    ? `▶ Re-assigned Account Owner: ${ownerName} (${groupRows.length} Accounts)${fromSuffix}`
                     : `▶ Account Owner: ${ownerName} (${groupRows.length} Accounts)`
                   ownerHeaderRow[c.label] = ownerHeaderRow[c.key]
                 } else {
@@ -2043,10 +2119,21 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
             })
           }
 
-          exportExcelWorkbook({
+          let logoBytes = null
+          try {
+            const logoResp = await fetch(swatiLogo || '/swati-logo.png')
+            if (logoResp.ok) {
+              const ab = await logoResp.arrayBuffer()
+              logoBytes = new Uint8Array(ab)
+            }
+          } catch (_) {}
+
+          await exportExcelWorkbook({
             filename: `${slugify(displayReportTitle)}-${new Date().toISOString().slice(0, 10)}.xlsx`,
             title: displayReportTitle,
             subtitle: `${filterSummaryText} | Generated: ${new Date().toLocaleDateString('en-IN')}`,
+            companyName: 'SWATI SWITCHGEARS INDIA PVT. LTD.',
+            logoBytes,
             sheetName: 'Report Data',
             columns: columns.map(c => ({
               ...c,

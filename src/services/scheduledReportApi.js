@@ -221,6 +221,12 @@ export const scheduledReportApi = {
         filters: Array.isArray(t.filters) ? t.filters : [],
         accountOwner: t.accountOwner || t.owner || 'all',
         dateRangeType: t.dateRangeType || 'last_7_days',
+        userGroups: Array.isArray(t.userGroups) ? t.userGroups : (Array.isArray(t.selectedUserGroups) ? t.selectedUserGroups : []),
+        selectedUserGroups: Array.isArray(t.selectedUserGroups) ? t.selectedUserGroups : (Array.isArray(t.userGroups) ? t.userGroups : []),
+        userGroupMembers: Array.isArray(t.userGroupMembers) ? t.userGroupMembers : [],
+        recordDateFrom: t.recordDateFrom || '',
+        recordDateTo: t.recordDateTo || '',
+        dateFilterField: t.dateFilterField || 'accountDate',
       }
     })
 
@@ -243,6 +249,12 @@ export const scheduledReportApi = {
         filters: Array.isArray(r.filters) ? r.filters : [],
         accountOwner: r.accountOwner || r.owner || 'all',
         dateRangeType: r.dateRangeType || 'last_7_days',
+        userGroups: Array.isArray(r.userGroups) ? r.userGroups : (Array.isArray(r.selectedUserGroups) ? r.selectedUserGroups : []),
+        selectedUserGroups: Array.isArray(r.selectedUserGroups) ? r.selectedUserGroups : (Array.isArray(r.userGroups) ? r.userGroups : []),
+        userGroupMembers: Array.isArray(r.userGroupMembers) ? r.userGroupMembers : [],
+        recordDateFrom: r.recordDateFrom || '',
+        recordDateTo: r.recordDateTo || '',
+        dateFilterField: r.dateFilterField || 'accountDate',
       }
     })
 
