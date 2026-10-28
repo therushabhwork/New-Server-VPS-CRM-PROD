@@ -227,7 +227,8 @@ const AdminDealDetailPage = () => {
   const [inlineQuotationDeal, setInlineQuotationDeal] = useState(null)
   const [isDealHistoryModalOpen, setIsDealHistoryModalOpen] = useState(false)
   const [dealHistoryRemarks, setDealHistoryRemarks] = useState([])
-  const [isLoadingDealHistory, setIsLoadingHistory] = useState(false)
+  const [isLoadingDealHistory, setIsLoadingDealHistory] = useState(false)
+  const setIsLoadingHistory = setIsLoadingDealHistory
   const [historyModalTitle, setHistoryModalTitle] = useState('')
 
   const availableUsers = useMemo(
@@ -554,7 +555,7 @@ const AdminDealDetailPage = () => {
   const handleOpenDealHistory = async () => {
     const targetDealId = deal?.sourceDealId || deal?.source_deal_id || deal?.dealId || deal?.id
     if (!targetDealId) return
-    setIsLoadingHistory(true)
+    setIsLoadingDealHistory(true)
     setIsDealHistoryModalOpen(true)
     setHistoryModalTitle(`Remarks & Communication History - ${deal.dealName || deal.projectName || 'Deal'}`)
     try {
@@ -608,7 +609,7 @@ const AdminDealDetailPage = () => {
       console.error('Failed to fetch deal history remarks:', error)
       setDealHistoryRemarks([])
     } finally {
-      setIsLoadingHistory(false)
+      setIsLoadingDealHistory(false)
     }
   }
 
@@ -734,7 +735,6 @@ const AdminDealDetailPage = () => {
 
   // Card 2 — Deal Information Items
   const dealInfoItems = [
-    { key: 'actualClosureDate', label: 'Actual Closure Date', value: deal.actualClosureDate ? formatDate(deal.actualClosureDate) : '', rawValue: toDateInputValue(deal.actualClosureDate), type: 'date' },
     { key: 'description', label: 'Description', value: deal.description, rawValue: deal.description, type: 'text' },
     { key: 'productCategory', label: 'Product Category', value: deal.productCategory, rawValue: deal.productCategory, type: 'select', options: PRODUCT_CATEGORY_SELECT_OPTIONS },
     { key: 'projectName', label: 'Project Name', value: deal.projectName, rawValue: deal.projectName, type: 'text' },
@@ -747,7 +747,6 @@ const AdminDealDetailPage = () => {
     { key: 'addedBy', label: 'Added By', value: deal.addedBy, readonly: true },
     { key: 'aging', label: 'Aging', value: computedAging, readonly: true },
     { key: 'dealSource', label: 'Deal Source', value: deal.dealSource, rawValue: deal.dealSource, type: 'select', options: DEAL_SOURCE_SELECT_OPTIONS },
-    { key: 'dealSubsource', label: 'Deal Subsource', value: deal.dealSubsource, rawValue: deal.dealSubsource, type: 'select', options: DEAL_SUBSOURCE_SELECT_OPTIONS },
   ]
 
   // Section 5 — Other Details Items (Structured in 3 Columns)

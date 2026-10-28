@@ -3,7 +3,6 @@ import {
   FaBolt,
   FaEnvelope,
   FaPhoneAlt,
-  FaWhatsapp,
   FaCommentDots,
   FaBell,
   FaSyncAlt,
@@ -86,16 +85,6 @@ export default function DealQuickActionsCard({
           >
             <FaPhoneAlt style={{ fontSize: '0.75rem', color: '#2563eb' }} />
             <span>Call Log</span>
-          </button>
-
-          <button
-            type="button"
-            className="ad-action-pill-btn"
-            onClick={() => onQuickAction('whatsapp')}
-            title="Send WhatsApp Message"
-          >
-            <FaWhatsapp style={{ fontSize: '0.82rem', color: '#16a34a' }} />
-            <span>WhatsApp</span>
           </button>
 
           <button

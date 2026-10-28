@@ -52,6 +52,27 @@ class RemarkController {
     }
   }
 
+  async getRemarksByDeal(req, res, next) {
+    try {
+      const { dealId } = req.params
+      const { limit = 50, offset = 0 } = req.query
+
+      const result = await remarkService.getRemarksByDeal(
+        dealId,
+        parseInt(limit),
+        parseInt(offset),
+        req.user
+      )
+
+      res.status(200).json({
+        success: true,
+        data: result
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
+
   async listRemarkReminders(req, res, next) {
     try {
       const reminders = await remarkService.listRemarkReminders(req.user)

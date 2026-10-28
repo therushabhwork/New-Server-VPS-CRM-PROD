@@ -211,13 +211,13 @@ const AddAccountReportPage = () => {
     if (templateIdParam) return // Handled in reopen loader
 
     if (contextParam === 'deal') {
-      setFormState((prev) => ({ ...prev, entityType: 'Deal', description: 'Deal Report Template' }))
+      setFormState((prev) => ({ ...prev, entityType: 'Deal', dateFilterField: 'dealDate', description: 'Deal Report Template' }))
     } else if (contextParam === 'quotation') {
-      setFormState((prev) => ({ ...prev, entityType: 'Quotation', description: 'Quotation Report Template' }))
+      setFormState((prev) => ({ ...prev, entityType: 'Quotation', dateFilterField: 'quotationDate', description: 'Quotation Report Template' }))
     } else if (contextParam === 'customer') {
-      setFormState((prev) => ({ ...prev, entityType: 'Customer', description: 'Customer Report Template' }))
+      setFormState((prev) => ({ ...prev, entityType: 'Customer', dateFilterField: 'createdAt', description: 'Customer Report Template' }))
     } else {
-      setFormState((prev) => ({ ...prev, entityType: 'Account', description: 'Account Report Template' }))
+      setFormState((prev) => ({ ...prev, entityType: 'Account', dateFilterField: 'accountDate', description: 'Account Report Template' }))
     }
   }, [contextParam, templateIdParam])
 
@@ -415,6 +415,7 @@ const AddAccountReportPage = () => {
           userGroups: selectedUserGroups,
           selectedUserGroups: selectedUserGroups,
           userGroupMembers: selectedGroupMembers,
+          dateFilterField: formState.dateFilterField || (formState.entityType === 'Deal' ? 'dealDate' : formState.entityType === 'Quotation' ? 'quotationDate' : formState.entityType === 'Customer' ? 'createdAt' : 'accountDate'),
           recordDateFrom: formState.recordDateFrom || undefined,
           recordDateTo: formState.recordDateTo || undefined,
           selectedFields: selectedKeys,
@@ -493,9 +494,19 @@ const AddAccountReportPage = () => {
       }
 
       // Group records by Owner if All Owners or multiple owners exist
+      const entityLabel = formState.entityType || 'Account'
+      const entityPlural = entityLabel === 'Customer' ? 'Customers' : entityLabel === 'Deal' ? 'Deals' : entityLabel === 'Quotation' ? 'Quotations' : 'Accounts'
+
       const ownerGroups = {}
       dedupedRows.forEach((row) => {
-        const ownerName = String(row['Account Owner'] || row.accountOwner || row.ownerName || row.owner || formState.accountOwner || 'Unassigned').trim() || 'Unassigned'
+        const ownerName = String(
+          row[`${entityLabel} Owner`] ||
+          row['Account Owner'] || row.accountOwner ||
+          row['Deal Owner'] || row.dealOwner ||
+          row['Quotation Owner'] || row.quotationOwner ||
+          row['Customer Owner'] || row.customerOwner ||
+          row.ownerName || row.owner || formState.accountOwner || 'Unassigned'
+        ).trim() || 'Unassigned'
         if (!ownerGroups[ownerName]) ownerGroups[ownerName] = []
         ownerGroups[ownerName].push(row)
       })
@@ -510,7 +521,7 @@ const AddAccountReportPage = () => {
           const ownerHeaderRow = {}
           columns.forEach((c, idx) => {
             if (idx === 0) {
-              ownerHeaderRow[c.key] = `▶ Account Owner: ${ownerName} (${groupRows.length} Accounts)`
+              ownerHeaderRow[c.key] = `▶ ${entityLabel} Owner: ${ownerName} (${groupRows.length} ${entityPlural})`
               ownerHeaderRow[c.label] = ownerHeaderRow[c.key]
             } else {
               ownerHeaderRow[c.key] = ''
@@ -599,7 +610,7 @@ const AddAccountReportPage = () => {
         groupName: m.groupName,
         groupId: m.groupId,
       })),
-      dateFilterField: formState.dateFilterField || 'accountDate',
+      dateFilterField: formState.dateFilterField || (formState.entityType === 'Deal' ? 'dealDate' : formState.entityType === 'Quotation' ? 'quotationDate' : formState.entityType === 'Customer' ? 'createdAt' : 'accountDate'),
       recordDateFrom: formState.recordDateFrom,
       recordDateTo: formState.recordDateTo,
       filters: cleanedFilters,
@@ -645,6 +656,15 @@ const AddAccountReportPage = () => {
             <FaTimes /> Cancel
           </button>
           <button
+            type="button"
+            className="account-report-builder-btn"
+            onClick={handleExportExcel}
+            disabled={isExporting}
+            style={{ backgroundColor: '#107c41', color: '#fff', borderColor: '#107c41' }}
+          >
+            <FaFileExcel /> {isExporting ? 'Exporting...' : 'Export Excel'}
+          </button>
+          <button
             type="submit"
             form="account-report-builder-form"
             className="account-report-builder-btn account-report-builder-btn-save"
@@ -681,9 +701,11 @@ const AddAccountReportPage = () => {
                 onChange={(event) => {
                   const val = event.target.value
                   const newEntity = val === 'deal' ? 'Deal' : val === 'quotation' ? 'Quotation' : val === 'customer' ? 'Customer' : 'Account'
+                  const newDateField = newEntity === 'Deal' ? 'dealDate' : newEntity === 'Quotation' ? 'quotationDate' : newEntity === 'Customer' ? 'createdAt' : 'accountDate'
                   setFormState((prev) => ({
                     ...prev,
                     entityType: newEntity,
+                    dateFilterField: newDateField,
                     selectedFields: [],
                     description: `${newEntity} Report Template`,
                   }))
@@ -1030,6 +1052,15 @@ const AddAccountReportPage = () => {
             <FaTimes /> Close
           </button>
           <div style={{ display: 'flex', gap: '0.35rem' }}>
+            <button
+              type="button"
+              className="account-report-builder-btn"
+              onClick={handleExportExcel}
+              disabled={isExporting}
+              style={{ backgroundColor: '#107c41', color: '#fff', borderColor: '#107c41' }}
+            >
+              <FaFileExcel /> {isExporting ? 'Exporting...' : 'Export Excel'}
+            </button>
             <button
               type="submit"
               className="account-report-builder-btn account-report-builder-btn-save"

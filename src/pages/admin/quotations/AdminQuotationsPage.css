@@ -4016,6 +4016,8 @@ html body #root .aqp-search-input:focus {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .aqp-simple-view__left {
@@ -4283,12 +4285,20 @@ html body #root .aqp-search-input:focus {
 
 .aqp-simple-table th {
   padding: 0.55rem 0.85rem;
-  background: var(--surface-muted, #f1f5f9);
-  color: var(--text-secondary, #334155);
-  font-size: 0.76rem;
-  font-weight: 700;
+  background: #c60016 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-size: 0.8rem;
+  font-weight: 600;
   text-transform: uppercase;
-  border-bottom: 2px solid var(--border-subtle, #cbd5e1);
+  letter-spacing: 0.02em;
+  border: none !important;
+  border-bottom: 2px solid #a80012 !important;
+}
+
+.aqp-simple-table th * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
 }
 
 .aqp-simple-table td {

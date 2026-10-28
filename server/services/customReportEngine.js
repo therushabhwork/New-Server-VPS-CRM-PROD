@@ -1088,7 +1088,10 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
         doc.data?.dealOwner,
         doc.dealOwnerName,
         doc.data?.dealOwnerName,
+        doc.data?.data?.dealOwner,
         doc.quotationOwner,
+        doc.data?.quotationOwner,
+        doc.data?.selectedAccountOwner,
         doc.customerOwner,
         doc.assignedTo,
         doc.assignedToName,
@@ -1158,6 +1161,15 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
           });
 
           filteredDocs = filteredDocs.filter((doc) => {
+            // Check extracted owner identities across all entities (deal, quotation, customer, account)
+            const docIdentities = extractAllDocOwnerIdentities(doc, usersMap, entityType);
+            for (const id of docIdentities) {
+              if (groupMemberNames.has(id)) return true;
+              if (groupMemberEmails.has(id)) return true;
+              if (groupMemberCodes.has(id)) return true;
+              if (groupMemberUserIds.has(id)) return true;
+            }
+
             const docOwnerName = String(
               doc.accountOwner || doc.formData?.accountOwner || doc.formData?.formData?.accountOwner ||
               doc.ownerName || doc.formData?.ownerName || doc.owner || doc.formData?.owner || ''
@@ -1179,11 +1191,12 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
 
             // 2. Re-assigned Match: Account was created by a User Group member, but current Account Owner is outside the group
             const docCreatorEmail = String(
-              doc.userEmail || doc.createdUserBy || doc.formData?.userEmail || doc.formData?.createdUserBy || ''
+              doc.userEmail || doc.createdUserBy || doc.formData?.userEmail || doc.formData?.createdUserBy ||
+              doc.createdBy || doc.data?.createdBy || ''
             ).trim().toLowerCase();
 
             const docCreatorUserId = String(
-              doc.createdByUserId || doc.formData?.createdByUserId || doc.userId || ''
+              doc.createdByUserId || doc.formData?.createdByUserId || doc.userId || doc.data?.userId || ''
             ).trim();
 
             if (docCreatorEmail && groupMemberEmails.has(docCreatorEmail)) return true;

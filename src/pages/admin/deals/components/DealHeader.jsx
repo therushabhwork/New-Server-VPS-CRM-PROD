@@ -60,6 +60,15 @@ const DealHeader = ({
                 className="c-deal-title-input"
                 value={titleEditValue}
                 onChange={(e) => onChangeTitleEditValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    if (!isSavingTitle && onSaveTitle) onSaveTitle()
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault()
+                    if (onCancelTitle) onCancelTitle()
+                  }
+                }}
                 disabled={isSavingTitle}
                 autoFocus
               />
@@ -77,7 +86,7 @@ const DealHeader = ({
                 onClick={onCancelTitle}
                 disabled={isSavingTitle}
               >
-                Cancel
+                Close
               </button>
             </div>
           ) : (

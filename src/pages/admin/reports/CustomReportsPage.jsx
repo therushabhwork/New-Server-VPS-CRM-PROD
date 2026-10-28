@@ -1988,15 +1988,18 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
                     : ''))
                 : ''
 
+              const entityName = formatTitleCase(targetCategory || report.entityType || 'Account')
+              const entityPlural = entityName === 'Customer' ? 'Customers' : entityName === 'Deal' ? 'Deals' : entityName === 'Quotation' ? 'Quotations' : 'Accounts'
+
               doc.setFontSize(10)
               doc.setFont('helvetica', 'bold')
 
               if (isReassigned) {
                 doc.setTextColor(180, 83, 9) // Amber / Orange for Re-assigned
-                doc.text(`Re-assigned Account Owner: ${ownerName} (${groupRows.length} Accounts)${fromSuffix}`, 14, currentY)
+                doc.text(`Re-assigned ${entityName} Owner: ${ownerName} (${groupRows.length} ${entityPlural})${fromSuffix}`, 14, currentY)
               } else {
                 doc.setTextColor(198, 0, 22) // Swati Brand Red for Primary Owner
-                doc.text(`Account Owner: ${ownerName} (${groupRows.length} Accounts)`, 14, currentY)
+                doc.text(`${entityName} Owner: ${ownerName} (${groupRows.length} ${entityPlural})`, 14, currentY)
               }
 
               currentY += 4
@@ -2085,12 +2088,15 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
                 excelRows.push(spacerRow)
               }
 
+              const entityName = formatTitleCase(targetCategory || report.entityType || 'Account')
+              const entityPlural = entityName === 'Customer' ? 'Customers' : entityName === 'Deal' ? 'Deals' : entityName === 'Quotation' ? 'Quotations' : 'Accounts'
+
               const ownerHeaderRow = {}
               columns.forEach((c, idx) => {
                 if (idx === 0) {
                   ownerHeaderRow[c.key] = isReassigned
-                    ? `▶ Re-assigned Account Owner: ${ownerName} (${groupRows.length} Accounts)${fromSuffix}`
-                    : `▶ Account Owner: ${ownerName} (${groupRows.length} Accounts)`
+                    ? `▶ Re-assigned ${entityName} Owner: ${ownerName} (${groupRows.length} ${entityPlural})${fromSuffix}`
+                    : `▶ ${entityName} Owner: ${ownerName} (${groupRows.length} ${entityPlural})`
                   ownerHeaderRow[c.label] = ownerHeaderRow[c.key]
                 } else {
                   ownerHeaderRow[c.key] = ''

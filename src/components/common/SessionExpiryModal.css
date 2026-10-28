@@ -57,29 +57,31 @@
 }
 
 .crm-session-subtitle {
-  font-size: 0.8125rem;
-  color: #4b5563;
+  font-size: var(--font-size-xs, 0.76rem);
+  font-family: inherit;
+  color: var(--text-secondary, #4b5563);
   line-height: 1.4;
-  margin: 0 0 0.85rem 0;
+  margin: 0 0 0.75rem 0;
 }
 
 .crm-session-timer-display {
-  font-size: 2.1rem;
-  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-  font-weight: 800;
-  color: #c60016;
+  font-size: 1.4rem;
+  font-family: var(--font-mono, inherit);
+  font-weight: 700;
+  color: var(--color-primary, #c60016);
   letter-spacing: 0.05em;
   margin: 0 0 0.15rem 0;
-  line-height: 1.1;
+  line-height: 1.2;
 }
 
 .crm-session-timer-label {
-  font-size: 0.7rem;
-  color: #9ca3af;
+  font-size: var(--font-size-2xs, 0.65rem);
+  font-family: inherit;
+  color: var(--text-muted, #9ca3af);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-weight: 600;
-  margin-bottom: 1rem;
+  margin-bottom: 0.95rem;
 }
 
 .crm-session-prompt {

@@ -44,11 +44,6 @@ export const SessionExpiryModal = ({
   return (
     <div className="crm-session-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="session-warning-title">
       <div className="crm-session-modal-card">
-        <div className="crm-session-warning-pill">
-          <FaHourglassHalf />
-          <span>SESSION EXPIRY WARNING</span>
-        </div>
-
         <h2 id="session-warning-title" className="crm-session-title">
           Are you still working?
         </h2>

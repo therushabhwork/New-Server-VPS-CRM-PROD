@@ -37,6 +37,20 @@ const InfoFieldItem = ({
 }) => {
   const isSelect = options && Array.isArray(options) && options.length > 0
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (!isSaving && onSave) {
+        onSave(itemKey)
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      if (onCancel) {
+        onCancel()
+      }
+    }
+  }
+
   return (
     <div className={`c-deal-info-field ${className} ${isEditing ? 'c-deal-info-field--editing' : ''}`} data-field-key={itemKey}>
       <div className="c-deal-info-field-header">
@@ -69,6 +83,7 @@ const InfoFieldItem = ({
                 className="c-deal-inline-input c-deal-inline-select"
                 value={editValue}
                 onChange={(e) => onChangeEditValue(e.target.value)}
+                onKeyDown={handleKeyDown}
                 disabled={isSaving}
                 autoFocus
               >
@@ -85,6 +100,7 @@ const InfoFieldItem = ({
                 className="c-deal-inline-input"
                 value={editValue}
                 onChange={(e) => onChangeEditValue(e.target.value)}
+                onKeyDown={handleKeyDown}
                 disabled={isSaving}
                 autoFocus
               />
@@ -94,6 +110,7 @@ const InfoFieldItem = ({
                 className="c-deal-inline-input"
                 value={editValue}
                 onChange={(e) => onChangeEditValue(e.target.value)}
+                onKeyDown={handleKeyDown}
                 disabled={isSaving}
                 autoFocus
               />
@@ -103,6 +120,7 @@ const InfoFieldItem = ({
                 className="c-deal-inline-input"
                 value={editValue}
                 onChange={(e) => onChangeEditValue(e.target.value)}
+                onKeyDown={handleKeyDown}
                 disabled={isSaving}
                 autoFocus
               />
@@ -122,7 +140,7 @@ const InfoFieldItem = ({
                 onClick={onCancel}
                 disabled={isSaving}
               >
-                Cancel
+                Close
               </button>
             </div>
           </div>

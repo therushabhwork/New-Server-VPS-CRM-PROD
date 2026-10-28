@@ -7,6 +7,8 @@ import {
   FaUser,
   FaBuilding,
   FaCalendarAlt,
+  FaCalendarDay,
+  FaHistory,
   FaTag,
   FaPaperPlane,
   FaClock,
@@ -299,7 +301,11 @@ const CommunicationActivitiesPage = ({ isAdmin = false }) => {
                   <section key={group.key} className="comm-date-group-section">
                     <div className="comm-date-group-header">
                       <div className="comm-date-group-title">
-                        <FaCalendarAlt className="comm-date-group-icon" />
+                        {group.key === 'today' ? (
+                          <FaCalendarDay className="comm-date-group-icon" />
+                        ) : (
+                          <FaHistory className="comm-date-group-icon" />
+                        )}
                         <span>{group.label}</span>
                       </div>
                       <span className="comm-date-group-badge">

@@ -12,6 +12,7 @@ router.post('/remarks', remarkController.createRemark)
 router.get('/remarks', remarkController.getAllRemarks)
 router.get('/remarks/all', remarkController.getAllRemarks)
 router.get('/remarks/account/:accountId', remarkController.getRemarksByAccount)
+router.get('/remarks/deal/:dealId', remarkController.getRemarksByDeal)
 router.put('/remarks/:remarkId', remarkController.updateRemark)
 router.delete('/remarks/:remarkId', remarkController.deleteRemark)
 
