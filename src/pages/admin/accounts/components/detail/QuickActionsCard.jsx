@@ -59,7 +59,7 @@ export default function QuickActionsCard({
     <div className="ad-card">
       <div className="ad-card-header">
         <h3 className="ad-card-title">
-          <FaBolt className="ad-card-title-icon" />
+          <FaBolt className="ad-card-title-icon" style={{ color: '#dc2626' }} />
           <span>Quick Actions</span>
         </h3>
       </div>
@@ -72,7 +72,7 @@ export default function QuickActionsCard({
           onClick={() => onQuickAction('email')}
           title="Send Email"
         >
-          <FaEnvelope style={{ fontSize: '0.78rem', color: '#2563eb' }} />
+          <FaEnvelope style={{ fontSize: '0.78rem', color: '#dc2626' }} />
           <span>Email</span>
         </button>
 
@@ -82,7 +82,7 @@ export default function QuickActionsCard({
           onClick={() => onQuickAction('callLog')}
           title="Add Call Log"
         >
-          <FaPhoneAlt style={{ fontSize: '0.75rem', color: '#2563eb' }} />
+          <FaPhoneAlt style={{ fontSize: '0.75rem', color: '#dc2626' }} />
           <span>Call Log</span>
         </button>
 
@@ -92,7 +92,7 @@ export default function QuickActionsCard({
           onClick={() => onQuickAction('whatsapp')}
           title="Send WhatsApp Message"
         >
-          <FaWhatsapp style={{ fontSize: '0.82rem', color: '#16a34a' }} />
+          <FaWhatsapp style={{ fontSize: '0.82rem', color: '#dc2626' }} />
           <span>WhatsApp</span>
         </button>
 
@@ -102,7 +102,7 @@ export default function QuickActionsCard({
           onClick={() => onQuickAction('add-note-remarks')}
           title="Add Note/Remark"
         >
-          <FaCommentDots style={{ fontSize: '0.8rem', color: '#7c3aed' }} />
+          <FaCommentDots style={{ fontSize: '0.8rem', color: '#dc2626' }} />
           <span>Add Remark</span>
         </button>
 
@@ -112,7 +112,7 @@ export default function QuickActionsCard({
           onClick={() => onQuickAction('add-reminder')}
           title="Schedule Reminder"
         >
-          <FaBell style={{ fontSize: '0.75rem', color: '#d97706' }} />
+          <FaBell style={{ fontSize: '0.75rem', color: '#dc2626' }} />
           <span>Reminder</span>
         </button>
 
@@ -122,7 +122,7 @@ export default function QuickActionsCard({
           onClick={() => onQuickAction('change-status')}
           title="Change Status"
         >
-          <FaRegSun style={{ fontSize: '0.75rem', color: '#475569' }} />
+          <FaRegSun style={{ fontSize: '0.75rem', color: '#dc2626' }} />
           <span>Status</span>
         </button>
 
@@ -132,7 +132,7 @@ export default function QuickActionsCard({
           onClick={() => onQuickAction('add-document')}
           title="Add Document"
         >
-          <FaFileAlt style={{ fontSize: '0.75rem', color: '#0284c7' }} />
+          <FaFileAlt style={{ fontSize: '0.75rem', color: '#dc2626' }} />
           <span>Document</span>
         </button>
 
@@ -142,7 +142,7 @@ export default function QuickActionsCard({
           onClick={() => onQuickAction('converted-deal')}
           title="Convert to PO"
         >
-          <FaExchangeAlt style={{ fontSize: '0.75rem', color: '#059669' }} />
+          <FaExchangeAlt style={{ fontSize: '0.75rem', color: '#dc2626' }} />
           <span>Convert to PO</span>
         </button>
       </div>

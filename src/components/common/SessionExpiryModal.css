@@ -50,14 +50,14 @@
 }
 
 .crm-session-title {
-  font-size: 1.15rem;
+  font-size: 0.92rem;
   font-weight: 700;
   color: #111827;
   margin: 0 0 0.35rem 0;
 }
 
 .crm-session-subtitle {
-  font-size: var(--font-size-xs, 0.76rem);
+  font-size: 0.70rem;
   font-family: inherit;
   color: var(--text-secondary, #4b5563);
   line-height: 1.4;
@@ -65,7 +65,7 @@
 }
 
 .crm-session-timer-display {
-  font-size: 1.4rem;
+  font-size: 1.15rem;
   font-family: var(--font-mono, inherit);
   font-weight: 700;
   color: var(--color-primary, #c60016);
@@ -75,7 +75,7 @@
 }
 
 .crm-session-timer-label {
-  font-size: var(--font-size-2xs, 0.65rem);
+  font-size: 0.58rem;
   font-family: inherit;
   color: var(--text-muted, #9ca3af);
   text-transform: uppercase;
@@ -99,10 +99,10 @@
   background: #ffffff;
   border: 1.5px solid #d1d5db;
   color: #374151;
-  padding: 0.5rem 0.85rem;
+  padding: 0.42rem 0.75rem;
   border-radius: 7px;
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.76rem;
   cursor: pointer;
   transition: all 0.15s ease;
   display: inline-flex;
@@ -121,10 +121,10 @@
   background: #c60016;
   border: 1.5px solid #c60016;
   color: #ffffff;
-  padding: 0.5rem 0.85rem;
+  padding: 0.42rem 0.75rem;
   border-radius: 7px;
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.76rem;
   cursor: pointer;
   transition: all 0.15s ease;
   box-shadow: 0 2px 4px rgba(198, 0, 22, 0.25);
@@ -149,6 +149,6 @@
     gap: 0.5rem;
   }
   .crm-session-timer-display {
-    font-size: 1.85rem;
+    font-size: 1.25rem;
   }
 }

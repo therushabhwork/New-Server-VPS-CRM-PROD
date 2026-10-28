@@ -1,7 +1,18 @@
-const createCrudController = (service) => {
+﻿const createCrudController = (service) => {
   const list = async (req, res, next) => {
     try {
       const data = await service.list(req.user, req.query || {})
+      if (data && typeof data === 'object' && Array.isArray(data.records)) {
+        return res.json({
+          success: true,
+          data: data.records,
+          records: data.records,
+          total: data.total,
+          page: data.page,
+          limit: data.limit,
+          totalPages: data.totalPages,
+        })
+      }
       res.json({ success: true, data })
     } catch (error) { next(error) }
   }

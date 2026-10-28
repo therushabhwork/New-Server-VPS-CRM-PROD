@@ -628,7 +628,7 @@
 }
 
 .ad-assignment-bell {
-  color: #dc2626 !important;
+  color: var(--color-gray-700, #334155) !important;
   font-size: 1.15rem;
   flex-shrink: 0;
 }
@@ -671,7 +671,7 @@
   border-radius: 6px;
   border: 1.5px solid #ef4444 !important;
   background: #ffffff !important;
-  color: #dc2626 !important;
+  color: var(--color-gray-700, #334155) !important;
   font-size: 0.78rem;
   cursor: pointer;
   transition: all 0.15s ease-in-out;
@@ -941,3 +941,166 @@
   }
 }
 
+
+/* ==========================================================================
+   Account Summary Stage Timeline Component
+   ========================================================================== */
+
+.c-account-timeline-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.95rem 1.15rem;
+  box-sizing: border-box;
+  margin-bottom: 1.25rem;
+}
+
+.c-account-timeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c-account-timeline-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.c-account-timeline-scroll-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
+.c-account-timeline-scroll-wrapper::-webkit-scrollbar {
+  height: 6px;
+}
+
+.c-account-timeline-scroll-wrapper::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 999px;
+}
+
+.c-account-timeline-chain {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: max-content;
+}
+
+.c-account-stage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 170px;
+  max-width: 230px;
+  padding: 0.75rem 0.95rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.c-account-stage-card--current {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.c-account-stage-card--completed {
+  background: #fee2e2 !important;
+  border-color: #fca5a5 !important;
+  box-shadow: 0 1px 3px rgba(225, 29, 72, 0.08) !important;
+}
+
+.c-account-stage-card--completed .c-account-stage-name {
+  color: #c60016 !important;
+}
+
+.c-account-stage-completed-icon {
+  color: #c60016;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.c-account-stage-badge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.c-account-stage-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.c-account-stage-card--current .c-account-stage-name {
+  color: #c60016;
+}
+
+.c-account-stage-status-indicator {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #c60016;
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.c-account-stage-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.c-account-stage-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.74rem;
+  color: #475569;
+}
+
+.c-account-stage-meta-icon {
+  font-size: 0.70rem;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.c-account-stage-meta-val {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+}
+
+.c-account-stage-meta-item--pending {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.c-account-stage-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.c-account-stage-connector--active {
+  color: #c60016;
+}

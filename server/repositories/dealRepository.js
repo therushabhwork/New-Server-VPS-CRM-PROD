@@ -1,4 +1,4 @@
-const { getMongoModel } = require('../models/mongoModels')
+﻿const { getMongoModel } = require('../models/mongoModels')
 const { toNumberOrNull } = require('../security/accessScope')
 const { createCrudRepository } = require('./crudRepositoryFactory')
 const { buildScopedMongoFilter, byLegacyId, mergeFilters, regexSearch } = require('./mongoQueryHelpers')
@@ -19,7 +19,7 @@ const normalizeDealCityForFilter = (value) => {
   return String(value || '').trim()
 }
 
-const normalizeMappedDeal = async (record) => {
+const normalizeMappedDeal = async (record, accountMap = null) => {
   const mapped = baseRepository.map(record)
   if (!mapped) return null
 
@@ -35,10 +35,15 @@ const normalizeMappedDeal = async (record) => {
 
   const accountId = toNumberOrNull(mapped.accountId)
   if (accountId !== null && (!linkedAccountName || !linkedAccountNumber)) {
-    const account = await Lead.findOne(byLegacyId(accountId)).lean()
-    const formData = account?.formData && typeof account.formData === 'object' ? account.formData : {}
-    linkedAccountName = linkedAccountName || account?.accountName || formData.accountName || account?.customerName || formData.customerName || (account?.company !== account?.projectName ? account?.company : '') || ''
-    linkedAccountNumber = linkedAccountNumber || formData.accountNumber || formData.accountNo || account?.accountNo || ''
+    let account = accountMap ? accountMap.get(accountId) : null
+    if (!account && !accountMap) {
+      account = await Lead.findOne(byLegacyId(accountId)).lean()
+    }
+    if (account) {
+      const formData = account?.formData && typeof account.formData === 'object' ? account.formData : {}
+      linkedAccountName = linkedAccountName || account?.accountName || formData.accountName || account?.customerName || formData.customerName || (account?.company !== account?.projectName ? account?.company : '') || ''
+      linkedAccountNumber = linkedAccountNumber || formData.accountNumber || formData.accountNo || account?.accountNo || ''
+    }
   }
 
   return {
@@ -110,7 +115,37 @@ const normalizeMappedDeal = async (record) => {
   }
 }
 
-const mapDeals = async (records = []) => Promise.all(records.map(normalizeMappedDeal))
+const mapDeals = async (records = []) => {
+  if (!Array.isArray(records) || records.length === 0) return []
+  const missingAccountIds = new Set()
+  records.forEach((record) => {
+    const raw = record.data && typeof record.data === 'object' ? record.data : {}
+    const hasName = record.linkedAccountName || record.accountName || raw.linkedAccountName || raw.accountName
+    const hasNumber = record.linkedAccountNumber || record.accountNumber || raw.linkedAccountNumber || raw.accountNumber
+    const accId = toNumberOrNull(record.accountId ?? raw.accountId)
+    if (accId !== null && (!hasName || !hasNumber)) {
+      missingAccountIds.add(accId)
+    }
+  })
+  const accountMap = new Map()
+  if (missingAccountIds.size > 0) {
+    try {
+      const idList = Array.from(missingAccountIds)
+      const accounts = await Lead.find({
+        $or: [{ legacyId: { $in: idList } }, { id: { $in: idList } }],
+      }).lean()
+      accounts.forEach((acc) => {
+        const key = acc.legacyId ?? acc.id
+        if (key !== undefined && key !== null) {
+          accountMap.set(Number(key), acc)
+        }
+      })
+    } catch (err) {
+      console.warn('Batch account lookup warning in mapDeals:', err.message)
+    }
+  }
+  return Promise.all(records.map((r) => normalizeMappedDeal(r, accountMap)))
+}
 
 const buildSearchFilter = (searchTerm) => {
   const trimmedSearch = String(searchTerm || '').trim()
@@ -195,7 +230,17 @@ const listWithFilters = async (actor, filters = {}, { companyWide = false, scope
     .sort(sortFromFilters(filters))
 
   if (limit > 0) {
+    const total = await Deal.countDocuments(filter)
     query = query.skip((page - 1) * limit).limit(limit)
+    const records = await query.lean()
+    const mapped = await mapDeals(records)
+    return {
+      records: mapped,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    }
   }
 
   const records = await query.lean()

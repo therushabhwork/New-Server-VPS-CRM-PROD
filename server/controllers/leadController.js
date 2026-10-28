@@ -1,11 +1,22 @@
-const leadService = require('../services/leadService')
+﻿const leadService = require('../services/leadService')
 
 const listLeads = async (req, res, next) => {
   try {
-    const leads = await leadService.listLeads(req.user, req.query || {})
+    const result = await leadService.listLeads(req.user, req.query || {})
+    if (result && typeof result === 'object' && Array.isArray(result.records)) {
+      return res.json({
+        success: true,
+        data: result.records,
+        records: result.records,
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: result.totalPages,
+      })
+    }
     res.json({
       success: true,
-      data: leads,
+      data: result,
     })
   } catch (error) {
     next(error)

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { FiChevronDown } from 'react-icons/fi'
@@ -727,6 +727,10 @@ const MyGroupAccountsPage = ({ variantKey = 'myGroup' }) => {
     }).catch(err => console.error(err));
   }, []);
   const [searchParams, setSearchParams] = useSearchParams()
+  const searchQuery = searchParams.get('query') || new URLSearchParams(location.search).get('query') || ''
+  const isServerPaginatedVariant = variantKey === 'searchAccount' || variantKey === 'myAccounts'
+  const [serverPageData, setServerPageData] = useState(null)
+  const [isServerPageLoading, setIsServerPageLoading] = useState(false)
   const view = getAdminAccountsBoardView(variantKey)
   const isAdminPortal = location.pathname.startsWith('/admin')
   const showStageTabs = view.showStageTabs !== false
@@ -873,6 +877,27 @@ const activeStageParam = searchParams.get('stage')
     () => getAccountRowsWithRequiredFields(boardData.rowsByStage[activeStage] || [], deals),
     [activeStage, boardData.rowsByStage, deals]
   )
+
+  useEffect(() => {
+    if (!isServerPaginatedVariant) return
+    let isCancelled = false
+    setIsServerPageLoading(true)
+    leadApi.getPaginatedLeads({
+      page: requestedPage || 1,
+      limit: DEFAULT_ROWS_PER_PAGE,
+      stage: activeStage,
+      query: searchQuery || '',
+    }).then((res) => {
+      if (!isCancelled && res) {
+        setServerPageData(res)
+      }
+    }).catch((err) => {
+      console.warn('Paginated leads fetch warning:', err.message)
+    }).finally(() => {
+      if (!isCancelled) setIsServerPageLoading(false)
+    })
+    return () => { isCancelled = true }
+  }, [isServerPaginatedVariant, requestedPage, activeStage, searchQuery])
   const boardRows = showStageTabs ? stageRows : convertedBoardRecords
   const convertedFieldOptions = useMemo(() => (
     CONVERTED_ACCOUNT_FIELD_DEFINITIONS.filter((field) => field.key)
@@ -885,7 +910,7 @@ const activeStageParam = searchParams.get('stage')
 
     const myAccountsOwnerCode = resolveLoggedInUserOwnerCode(user, dbMongoUsers.length > 0 ? dbMongoUsers : availableUsers)
     return convertedColumnDefinitions.map((col) => {
-      // 🚀 ABSOLUTE OVERRIDE FOR ALL ACCOUNT NUMBERS ACROSS ALL VIEWS!
+      // ðŸš€ ABSOLUTE OVERRIDE FOR ALL ACCOUNT NUMBERS ACROSS ALL VIEWS!
       if (false) {
         return {
           ...col,
@@ -955,7 +980,6 @@ const activeStageParam = searchParams.get('stage')
       return rule.not ? !isMatch : isMatch
     })
   }, [appliedConvertedFilterEnabled, appliedConvertedFilterRules, supportsAdvancedFilter])
-  const searchQuery = searchParams.get('query') || new URLSearchParams(location.search).get('query') || ''
 
   const filteredRows = useMemo(
     () => boardRows
@@ -992,15 +1016,25 @@ const activeStageParam = searchParams.get('stage')
     [convertedBoardRecords, filterColumnDefinitions, filters, matchesConvertedFilterRules, variantKey, cityFilter, ownerFilter, searchQuery]
   )
 
+  const serverPaginatedRows = useMemo(() => {
+    if (!isServerPaginatedVariant || !serverPageData?.records) return null
+    return getAccountRowsWithRequiredFields(serverPageData.records, deals)
+  }, [isServerPaginatedVariant, serverPageData?.records, deals])
+
   const rowsPerPage = DEFAULT_ROWS_PER_PAGE
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage))
+  const totalPages = (isServerPaginatedVariant && serverPageData)
+    ? serverPageData.totalPages
+    : Math.max(1, Math.ceil(filteredRows.length / rowsPerPage))
+  const totalItemsCount = (isServerPaginatedVariant && serverPageData)
+    ? serverPageData.total
+    : filteredRows.length
   const currentPage = Number.isFinite(requestedPage) && requestedPage > 0
     ? Math.min(requestedPage, totalPages)
     : 1
   const menuResetKey = `${activeStage}-${currentPage}-${JSON.stringify(filters)}`
-  const pageStart = filteredRows.length === 0 ? 0 : ((currentPage - 1) * rowsPerPage) + 1
-  const pageEnd = Math.min(filteredRows.length, currentPage * rowsPerPage)
-  const paginatedRows = filteredRows.slice(pageStart > 0 ? pageStart - 1 : 0, pageEnd)
+  const pageStart = totalItemsCount === 0 ? 0 : ((currentPage - 1) * rowsPerPage) + 1
+  const pageEnd = Math.min(totalItemsCount, currentPage * rowsPerPage)
+  const paginatedRows = serverPaginatedRows || filteredRows.slice(pageStart > 0 ? pageStart - 1 : 0, pageEnd)
   const selectedAccounts = useMemo(() => {
     const selectedIds = new Set(selectedAccountIds.map((id) => String(id)))
     return filteredAllStageRows.filter((row) => selectedIds.has(String(row.id)))
@@ -1535,8 +1569,11 @@ const activeStageParam = searchParams.get('stage')
     }
   }, [isKevalVShah, navigate, variantKey])
 
+  const displayTotalRecords = (isServerPaginatedVariant && serverPageData)
+    ? serverPageData.total
+    : boardData.totalRecords
   const pageTitle = showRecordCountInHeroTitle
-    ? `${view.heroTitle} - ${boardData.totalRecords} records`
+    ? `${view.heroTitle} - ${displayTotalRecords} records`
     : view.heroTitle
 
   if (variantKey === 'weeklyReportsAll' && isKevalVShah) {
@@ -1607,7 +1644,7 @@ const activeStageParam = searchParams.get('stage')
   return (
     <div className={`admin-accounts-page admin-accounts-page--${variantKey}`}>
 
-      {/* â”€â”€ Page title bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Page title bar Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <div className="mga-titlebar">
         <h1 className="mga-titlebar-heading">{pageTitle}</h1>
         <AccountBoardHeaderActions
@@ -1633,7 +1670,7 @@ const activeStageParam = searchParams.get('stage')
         />
       </div>
 
-      {/* â”€â”€ Stage tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Stage tabs Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {showStageTabs && useStageDropdown ? (
         <div className="admin-accounts-stage-dropdown-wrapper">
           <label className="admin-accounts-stage-dropdown-label">
@@ -1661,7 +1698,7 @@ const activeStageParam = searchParams.get('stage')
         />
       ) : null}
 
-      {/* â”€â”€ Board card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Board card Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <section className={`admin-accounts-board-card${showStageTabs ? ' admin-accounts-board-card--with-tabs' : ' admin-accounts-board-card--compact'}`}>
         {view.summaryBanner ? (
           <div className="admin-accounts-banner-strip">
@@ -1819,7 +1856,7 @@ const activeStageParam = searchParams.get('stage')
           totalPages={totalPages}
           pageStart={pageStart}
           pageEnd={pageEnd}
-          totalItems={filteredRows.length}
+          totalItems={totalItemsCount}
           onPageChange={handlePageChange}
         />
       </section>

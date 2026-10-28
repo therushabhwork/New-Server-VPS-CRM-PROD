@@ -21,6 +21,8 @@ const COLLECTION_INDEXES = {
     { fields: { accountNumber: 1 } },
     { fields: { accountNo: 1 } },
     { fields: { status: 1 } },
+    { fields: { stage: 1 } },
+    { fields: { frontendDeleted: 1, stage: 1 } },
     { fields: { updatedAt: -1 } },
   ],
   accounts: [
@@ -48,6 +50,7 @@ const COLLECTION_INDEXES = {
     { fields: { dealNumber: 1 }, options: { sparse: true } },
     { fields: { 'data.dealNumber': 1 }, options: { sparse: true } },
     { fields: { stage: 1 } },
+    { fields: { frontendDeleted: 1, stage: 1 } },
     { fields: { updatedAt: -1 } },
   ],
   converted_deals: [

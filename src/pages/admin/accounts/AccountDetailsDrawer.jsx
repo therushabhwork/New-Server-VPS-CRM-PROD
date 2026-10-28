@@ -40,6 +40,7 @@ import './components/detail/AccountDetailRedesign.css'
 import AccountPageHeader from './components/detail/AccountPageHeader'
 import AccountProfileHeader from './components/detail/AccountProfileHeader'
 import AccountSnapshotStrip from './components/detail/AccountSnapshotStrip'
+import AccountStageTimeline from './components/detail/AccountStageTimeline'
 import ContactAddressCard from './components/detail/ContactAddressCard'
 import CustomerProjectCard from './components/detail/CustomerProjectCard'
 import QuickActionsCard from './components/detail/QuickActionsCard'
@@ -992,6 +993,13 @@ const AccountDetailsDrawer = ({
           />
 
           {/* Section 3: Two-Column Workspace Layout (1.4fr : 1fr) */}
+          {/* Section 2.5: Account Summary Stage Timeline */}
+          <AccountStageTimeline
+            account={account}
+            deal={relatedConvertedDeals[0]}
+            form={form}
+          />
+
           <div className="ad-workspace-grid">
             {/* Left Column (Primary Data & Commercials) */}
             <div className="ad-workspace-column">

@@ -722,7 +722,7 @@ const AdminDealDetailPage = () => {
     )
   }
 
-  const customerLabel = [deal.customerName, deal.customerNumber ? `[${deal.customerNumber}]` : ''].filter(Boolean).join(' ')
+  const customerLabel = deal.customerName || ''
   const computedAging = calculateAging(deal.dealDate || deal.createdAt)
 
   // Card 1 — Contact Information Items

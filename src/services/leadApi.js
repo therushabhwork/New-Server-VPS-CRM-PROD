@@ -1,4 +1,4 @@
-import apiClient from './apiClient'
+﻿import apiClient from './apiClient'
 import { getCanonicalCrmUserName, getCrmOwnerCode } from '../features/users/crmUserDirectory'
 import { normalizeDealRecord } from './dealApi'
 import { normalizeConvertedDealRecord } from './convertedDealApi'
@@ -47,6 +47,22 @@ export const leadApi = {
   async getLeads(params = {}) {
     const response = await apiClient.get('/leads', { params })
     return (getPayload(response) || []).map(normalizeLeadRecord)
+  },
+
+  async getPaginatedLeads(params = {}) {
+    const response = await apiClient.get('/leads', { params })
+    const records = Array.isArray(response?.records)
+      ? response.records
+      : Array.isArray(response?.data)
+        ? response.data
+        : (Array.isArray(response) ? response : [])
+    return {
+      records: records.map(normalizeLeadRecord),
+      total: Number(response?.total ?? records.length),
+      page: Number(response?.page ?? (params.page || 1)),
+      limit: Number(response?.limit ?? (params.limit || 10)),
+      totalPages: Number(response?.totalPages ?? Math.max(1, Math.ceil((response?.total ?? records.length) / (params.limit || 10)))),
+    }
   },
 
   async getLeadById(id) {

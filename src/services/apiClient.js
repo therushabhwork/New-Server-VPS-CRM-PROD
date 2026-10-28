@@ -1,4 +1,4 @@
-import axios from 'axios'
+﻿import axios from 'axios'
 import { getApiBaseUrl } from './runtimeUrls'
 import { normalizeRequestPayload } from '../utils/requestPayload'
 
@@ -9,7 +9,7 @@ const API_BASE_URL = getApiBaseUrl()
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000,
+  timeout: 30000,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -97,7 +97,15 @@ apiClient.interceptors.response.use(
       const isRefreshRequest = requestUrl.includes('/auth/refresh')
       const isLogoutRequest = requestUrl.includes('/auth/logout')
       if (isInitialSessionProbe || isLoginRequest || isPasswordResetRequest || isRefreshRequest || isLogoutRequest) {
-        return Promise.reject(error)
+        if (!error.response && (error.code === 'ECONNABORTED' || error.message?.includes('timeout') || error.message?.includes('Network Error'))) {
+      const config = error.config
+      if (config && String(config.method || 'get').toLowerCase() === 'get' && !config.__isNetworkRetry) {
+        config.__isNetworkRetry = true
+        return apiClient(config)
+      }
+    }
+
+    return Promise.reject(error)
       }
 
       if (!error.config?.__isRetryRequest) {
@@ -120,6 +128,14 @@ apiClient.interceptors.response.use(
 
       if ((hadToken || requestHadToken || !isInitialSessionProbe) && typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT))
+      }
+    }
+
+    if (!error.response && (error.code === 'ECONNABORTED' || error.message?.includes('timeout') || error.message?.includes('Network Error'))) {
+      const config = error.config
+      if (config && String(config.method || 'get').toLowerCase() === 'get' && !config.__isNetworkRetry) {
+        config.__isNetworkRetry = true
+        return apiClient(config)
       }
     }
 

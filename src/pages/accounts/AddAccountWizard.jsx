@@ -338,31 +338,50 @@ const AddAccountWizard = () => {
       String(customer.customerNumber || '').trim().toLowerCase(),
     ].filter(Boolean)))
 
-    const buildCustomerFromAccount = (account = {}) => ({
-      id: `account-${account.id || account.accountId || account.accountNumber || account.accountNo || account.name}`,
-      sourceType: 'account',
-      accountId: account.id || account.accountId || '',
-      customerNumber: account.customerNumber || account.customerRefNo || account.accountNumber || account.accountNo || '',
-      customerName: account.customerName || account.accountName || account.name || account.company || '',
-      customerOwner: account.accountOwner || account.ownerName || account.assignedUserName || '',
-      customerOwnerDisplay: account.accountOwnerDisplay || getAccountOwnerOptionLabel({ name: account.accountOwner || account.ownerName || '' }),
-      customerCategory: account.customerCategory || account.accountCategory || account.category || '',
-      customerStatus: account.customerStatus || account.accountStatus || account.status || '',
-      address: account.address || '',
-      gstin: account.gstin || '',
-      consultantName: account.consultantName || '',
-      jobNo: account.jobNo || '',
-      projectName: account.projectName || '',
-      contacts: [
-        {
-          contactPerson: account.contactPerson || account.contactName || '',
-          phone: account.contactPhone || account.phone || '',
-          mobile: account.contactMobile || account.mobile || account.contactPhone || account.phone || '',
-          email: account.contactEmail || account.email || '',
-          designation: account.contactDesignation || account.designation || '',
-        },
-      ],
-    })
+    const buildCustomerFromAccount = (account = {}) => {
+      const resolvedName = (
+        account.accountName ||
+        account.formData?.accountName ||
+        account.formData?.formData?.accountName ||
+        account.data?.accountName ||
+        account.name ||
+        account.customerName ||
+        account.formData?.customerName ||
+        account.formData?.name ||
+        account.data?.customerName ||
+        account.company ||
+        ''
+      )
+      return {
+        id: `account-${account.id || account._id || account.accountId || account.accountNumber || account.accountNo || resolvedName}`,
+        sourceType: 'account',
+        accountId: account.id || account._id || account.accountId || '',
+        customerNumber: account.customerNumber || account.customerRefNo || account.accountNumber || account.accountNo || account.formData?.accountNumber || account.formData?.accountNo || '',
+        accountName: resolvedName,
+        customerName: resolvedName,
+        customerOwner: account.accountOwner || account.ownerName || account.formData?.accountOwner || account.assignedUserName || '',
+        customerOwnerDisplay: account.accountOwnerDisplay || getAccountOwnerOptionLabel({ name: account.accountOwner || account.ownerName || account.formData?.accountOwner || '' }),
+        customerCategory: account.customerCategory || account.accountCategory || account.category || account.formData?.accountCategory || '',
+        customerStatus: account.customerStatus || account.accountStatus || account.status || account.formData?.accountStatus || '',
+        address: account.address || account.formData?.address || '',
+        state: account.state || account.formData?.state || '',
+        gstin: account.gstin || account.formData?.gstin || '',
+        industryType: account.industryType || account.industry || account.formData?.industryType || '',
+        consultantName: account.consultantName || account.formData?.consultantName || '',
+        jobNo: account.jobNo || account.formData?.jobNo || '',
+        projectName: account.projectName || account.formData?.projectName || '',
+        productCategory: account.productCategory || account.formData?.productCategory || '',
+        contacts: Array.isArray(account.contacts) && account.contacts.length > 0 ? account.contacts : [
+          {
+            contactPerson: account.contactPerson || account.contactName || account.formData?.contactPerson || '',
+            phone: account.contactPhone || account.phone || account.formData?.contactPhone || account.formData?.phone || '',
+            mobile: account.contactMobile || account.mobile || account.contactPhone || account.phone || account.formData?.contactMobile || '',
+            email: account.contactEmail || account.email || account.formData?.contactEmail || account.formData?.email || '',
+            designation: account.contactDesignation || account.designation || account.formData?.contactDesignation || '',
+          },
+        ],
+      }
+    }
 
     const accountRecords = accounts
       .map(buildCustomerFromAccount)
@@ -374,51 +393,95 @@ const AddAccountWizard = () => {
       ].some((key) => customerKeys.has(key)))
 
     const dealRecords = deals
-      .map((deal) => ({
-        ...deal,
-        id: `deal-${deal.id || deal._id || deal.dealNumber || deal.name}`,
-        sourceType: 'deal',
-        dealId: deal.id || deal._id || deal.dealNumber || '',
-        customerName: deal.accountName || deal.customerName || deal.companyName || deal.name || deal.dealName || '',
-        customerNumber: deal.dealNumber || '',
-        customerOwner: deal.dealOwner || deal.ownerName || '',
-        customerOwnerDisplay: deal.dealOwner || deal.ownerName || '',
-        projectName: deal.projectName || deal.dealName || deal.name || '',
-      }))
+      .map((deal) => {
+        const resolvedName = (
+          deal.customerName ||
+          deal.accountName ||
+          deal.data?.customerName ||
+          deal.data?.accountName ||
+          deal.formData?.customerName ||
+          deal.formData?.accountName ||
+          deal.companyName ||
+          deal.name ||
+          deal.dealName ||
+          deal.title ||
+          ''
+        )
+        const primaryContact = Array.isArray(deal.contacts) ? deal.contacts[0] || {} : {}
+        return {
+          ...deal,
+          id: `deal-${deal.id || deal._id || deal.dealNumber || resolvedName}`,
+          sourceType: 'deal',
+          dealId: deal.id || deal._id || deal.dealNumber || '',
+          customerName: resolvedName,
+          customerNumber: deal.customerNumber || deal.dealNumber || '',
+          customerOwner: deal.dealOwner || deal.ownerName || deal.data?.dealOwner || '',
+          customerOwnerDisplay: deal.dealOwner || deal.ownerName || deal.data?.dealOwner || '',
+          projectName: deal.projectName || deal.dealName || deal.name || deal.data?.projectName || '',
+          customerCategory: deal.dealType || deal.customerCategory || deal.data?.dealType || '',
+          customerStatus: deal.status || deal.data?.status || '',
+          address: deal.address || deal.data?.address || '',
+          state: deal.state || deal.data?.state || '',
+          gstin: deal.gstin || deal.data?.gstin || '',
+          industryType: deal.industryType || deal.data?.industryType || '',
+          productCategory: deal.productCategory || deal.data?.productCategory || '',
+          contacts: Array.isArray(deal.contacts) && deal.contacts.length > 0 ? deal.contacts : [
+            {
+              contactPerson: deal.contactPerson || deal.contactName || primaryContact.contactPerson || primaryContact.name || '',
+              phone: deal.contactPhone || deal.phone || primaryContact.phone || '',
+              mobile: deal.contactMobile || deal.mobile || deal.phone || primaryContact.mobile || '',
+              email: deal.contactEmail || deal.email || primaryContact.email || '',
+              designation: deal.contactDesignation || deal.designation || primaryContact.designation || '',
+            },
+          ],
+        }
+      })
       .filter((deal) => deal.customerName)
 
     return [...customerRecords, ...accountRecords, ...dealRecords]
   }, [accounts, customers, deals])
 
   const filteredCustomers = useMemo(() => {
-    if (isExistingCustomer && sourceOptions.length > 0) {
-      return sourceOptions
-    }
-
     const searchValue = customerSearch.trim().toLowerCase()
     if (!searchValue) return []
-    return customerOptions
+
+    // Search across both backend search results (sourceOptions) and local cache (customerOptions)
+    const combinedCandidates = [...(Array.isArray(sourceOptions) ? sourceOptions : []), ...customerOptions]
+
+    const seen = new Set()
+    return combinedCandidates
       .map((customer) => {
         const primaryContact = customer.contacts?.[0] || {}
         const searchableFields = [
           customer.customerName,
+          customer.accountName,
+          customer.name,
           customer.customerNumber,
           customer.customerOwner,
           customer.customerCategory,
           customer.customerStatus,
+          customer.projectName,
           customer.address,
+          customer.gstin,
           primaryContact.email,
           primaryContact.mobile,
           primaryContact.phone,
           primaryContact.contactPerson,
+          primaryContact.name,
         ].map((field) => String(field || '').toLowerCase())
         const matched = searchableFields.some((field) => field.includes(searchValue))
         return { customer, matched }
       })
       .filter((entry) => entry.matched)
       .map((entry) => entry.customer)
+      .filter((customer) => {
+        const dedupeKey = String(customer.customerName || customer.id || '').trim().toLowerCase()
+        if (!dedupeKey || seen.has(dedupeKey)) return false
+        seen.add(dedupeKey)
+        return true
+      })
       .slice(0, 12)
-  }, [customerOptions, customerSearch, isExistingCustomer, sourceOptions])
+  }, [customerOptions, customerSearch, sourceOptions])
 
   const handleSelectCustomer = (customer) => {
     const primaryContact = customer.contacts?.[0] || {}
@@ -428,7 +491,10 @@ const AddAccountWizard = () => {
       sourceType,
       sourceId: customer.sourceId || String(customer.id || '').replace(/^(lead|deal|customer|account)-/, ''),
     })
-    setCustomerSearch(customer.customerName)
+    const displayName = (customer.sourceType === 'lead' || customer.sourceType === 'account')
+      ? (customer.accountName || customer.customerName)
+      : (customer.customerName || customer.accountName)
+    setCustomerSearch(displayName)
     setErrors((prev) => {
       const next = { ...prev }
       delete next.customer
@@ -437,8 +503,8 @@ const AddAccountWizard = () => {
 
     setFormData((prev) => ({
       ...prev,
-      accountName: customer.customerName || prev.accountName,
-      customerName: customer.customerName || prev.customerName,
+      accountName: customer.accountName || customer.customerName || prev.accountName,
+      customerName: customer.customerName || customer.accountName || prev.customerName,
       address: customer.address || prev.address,
       state: customer.state || prev.state,
       gstin: customer.gstin || prev.gstin,
@@ -696,6 +762,7 @@ const AddAccountWizard = () => {
     }
 
     const projectLabel = String(formData.projectName || formData.dealName || '').trim()
+    const resolvedCustomerName = String(formData.customerName || '').trim() || formData.accountName
     const accountPayload = {
       name: formData.accountName,
       email: formData.contactEmail,
@@ -713,6 +780,8 @@ const AddAccountWizard = () => {
       department: user?.department || '',
       userEmail: user?.email || '',
       ...formData,
+      accountName: formData.accountName,
+      customerName: resolvedCustomerName,
       projectName: projectLabel,
       dealName: projectLabel,
       company: projectLabel,
@@ -750,8 +819,22 @@ const AddAccountWizard = () => {
       const createdAccountId = accountResult.data?.id || accountResult.data?._id || ''
       const createdAccountName = accountResult.data?.name || formData.accountName || ''
 
+      // Also mirror account to MongoDB customers collection with identical customerName
+      if (formData.accountName) {
+        customerService.saveCustomer({
+          customerName: resolvedCustomerName,
+          customerOwner: finalOwnerName,
+          customerCategory: formData.accountCategory || '',
+          address: formData.address || '',
+          gstin: formData.gstin || '',
+          industryType: formData.industryType || '',
+          state: formData.state || '',
+          contacts: accountPayload.contacts || [],
+        }).catch((err) => console.warn('Customer mirror save warning:', err))
+      }
+
       // If Deal Name is provided OR isExistingCustomer is checked, create a Deal in MongoDB deals collection
-      const targetDealName = formData.projectName ? String(formData.projectName).trim() : (formData.dealName.trim() || (isExistingCustomer ? `${formData.customerName || createdAccountName || 'Account'} Deal` : ''))
+      const targetDealName = formData.projectName ? String(formData.projectName).trim() : (formData.dealName.trim() || (isExistingCustomer ? `${resolvedCustomerName || createdAccountName || 'Account'} Deal` : ''))
       if (targetDealName) {
         const dealPayload = {
           name: targetDealName,
@@ -783,8 +866,8 @@ const AddAccountWizard = () => {
           status: isExistingCustomer ? 'pending' : (formData.dealStatus || 'pending'),
           stage: isExistingCustomer ? 'new' : (formData.dealStage || 'new'),
           accountId: createdAccountId,
-          accountName: createdAccountName,
-          customerName: formData.customerName || createdAccountName,
+          accountName: formData.accountName || createdAccountName,
+          customerName: resolvedCustomerName || createdAccountName,
           contacts: [
             {
               name: formData.contactPerson,
@@ -993,15 +1076,20 @@ const AddAccountWizard = () => {
                   {errors.customer && <p className="text-xs text-red-600 mt-1 legacy-form-error-message">{errors.customer}</p>}
                   {filteredCustomers.length > 0 && !selectedCustomerId && (
                     <div className="absolute z-10 w-full bg-white border border-gray-200 mt-1 rounded shadow-lg max-h-60 overflow-y-auto">
-                      {filteredCustomers.map(c => (
-                        <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-3 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-0">
-                          <div className="font-semibold text-sm text-slate-800">{c.customerName}</div>
-                          <div className="text-xs text-slate-500">
-                            <span className="bg-gray-100 px-1 py-0.5 rounded mr-2">{c.sourceType === 'lead' || c.sourceType === 'account' ? 'Account' : c.sourceType === 'deal' ? 'Deal' : 'Customer'}</span>
-                            {c.customerNumber || 'No number'} | {c.customerOwnerDisplay || 'No owner'}
+                      {filteredCustomers.map(c => {
+                        const displayName = (c.sourceType === 'lead' || c.sourceType === 'account')
+                          ? (c.accountName || c.customerName)
+                          : (c.customerName || c.accountName)
+                        return (
+                          <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-3 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-0">
+                            <div className="font-semibold text-sm text-slate-800">{displayName}</div>
+                            <div className="text-xs text-slate-500">
+                              <span className="bg-gray-100 px-1 py-0.5 rounded mr-2">{c.sourceType === 'lead' || c.sourceType === 'account' ? 'Account' : c.sourceType === 'deal' ? 'Deal' : 'Customer'}</span>
+                              {c.customerNumber || 'No number'} | {c.customerOwnerDisplay || 'No owner'}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                   {selectedCustomerId && customerSearch.trim() && (

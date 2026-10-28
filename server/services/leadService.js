@@ -1,4 +1,4 @@
-const leadRepository = require('../repositories/leadRepository')
+﻿const leadRepository = require('../repositories/leadRepository')
 const userRepository = require('../repositories/userRepository')
 const dealService = require('./dealService')
 const customerService = require('./customerService')
@@ -507,11 +507,23 @@ const listLeads = async (actor, query = {}) => {
       leads = await leadRepository.listLeadsForActor(scope.actor, {
         ...scope.queryOptions,
         filters: query,
+        page: query.page,
+        limit: query.limit,
+        stage: query.stage,
+        search: query.search || query.query,
       })
     } else {
       leads = isPrivilegedRole(actor.role)
         ? await leadRepository.listAllLeads()
         : await leadRepository.listAssignedLeads(actor.id)
+    }
+  }
+
+  if (leads && typeof leads === 'object' && Array.isArray(leads.records)) {
+    const augmented = await augmentLeadsWithOwnerCode(leads.records)
+    return {
+      ...leads,
+      records: augmented,
     }
   }
 

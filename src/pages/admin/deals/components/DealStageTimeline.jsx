@@ -1,11 +1,11 @@
 import React from 'react'
-import { FaArrowRight, FaClock, FaUser } from 'react-icons/fa'
+import { FaArrowRight, FaClock, FaUser, FaCheckCircle } from 'react-icons/fa'
 
 const DEFAULT_STAGES = [
-  { key: 'new', label: 'New' },
-  { key: 'quotation_sent', label: 'Quotation Sent' },
-  { key: 'order_received', label: 'Order Received' },
-  { key: 'convert_to_po', label: 'PO Converted' },
+  { key: 'new', label: 'New', aliases: ['new'] },
+  { key: 'quotation_sent', label: 'Quotation Sent', aliases: ['quote sent', 'quotation sent', 'quotationsent'] },
+  { key: 'order_received', label: 'Order Received', aliases: ['order received', 'orderreceived'] },
+  { key: 'convert_to_po', label: 'PO Converted', aliases: ['convert to po', 'convert_to_po', 'po converted', 'poconverted', 'converted'] },
 ]
 
 const formatStageTime = (dateStr) => {
@@ -40,7 +40,7 @@ const DealStageTimeline = ({ deal }) => {
       ? deal.history.filter((h) => h?.stage || h?.status || h?.type === 'stage_change')
       : []
 
-  const currentStageKey = String(deal.dealStatus || deal.status || deal.stage || 'new').toLowerCase()
+  const currentStageKey = String(deal.dealStatus || deal.status || deal.stage || 'new').toLowerCase().trim()
 
   // Determine stage cards to render
   let stageCards = []
@@ -53,11 +53,13 @@ const DealStageTimeline = ({ deal }) => {
       time: formatStageTime(item.timestamp || item.date || item.createdAt),
       date: formatStageDate(item.timestamp || item.date || item.createdAt),
       isCurrent: idx === historyList.length - 1,
-      isCompleted: true,
+      isCompleted: idx < historyList.length - 1,
     }))
   } else {
     // Generate canonical progression based on current deal status
-    const stageIndex = DEFAULT_STAGES.findIndex((s) => s.key === currentStageKey || s.label.toLowerCase() === currentStageKey)
+    const stageIndex = DEFAULT_STAGES.findIndex(
+      (s) => s.key === currentStageKey || s.label.toLowerCase() === currentStageKey || s.aliases?.some((a) => a === currentStageKey)
+    )
     const activeIndex = stageIndex >= 0 ? stageIndex : 0
 
     stageCards = DEFAULT_STAGES.map((s, idx) => {
@@ -92,6 +94,9 @@ const DealStageTimeline = ({ deal }) => {
               >
                 <div className="c-deal-stage-badge-row">
                   <span className="c-deal-stage-name">{stage.name}</span>
+                  {stage.isCompleted && (
+                    <FaCheckCircle className="c-deal-stage-completed-icon" aria-label="Completed" />
+                  )}
                   {stage.isCurrent && <span className="c-deal-stage-status-indicator">Current</span>}
                 </div>
 
@@ -121,7 +126,10 @@ const DealStageTimeline = ({ deal }) => {
               </div>
 
               {idx < stageCards.length - 1 && (
-                <div className="c-deal-stage-connector" aria-hidden="true">
+                <div
+                  className={`c-deal-stage-connector ${stage.isCompleted ? 'c-deal-stage-connector--active' : ''}`}
+                  aria-hidden="true"
+                >
                   <FaArrowRight />
                 </div>
               )}

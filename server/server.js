@@ -9,6 +9,7 @@ const { connectDatabase } = require('./config/db')
 const { createSocketServer } = require('./socket/socketServer')
 const logger = require('./utils/logger')
 const { normalizeRequestBody } = require('./utils/requestPayload')
+const compressionMiddleware = require('./middleware/compressionMiddleware')
 const requestLogger = require('./middleware/requestLogger')
 const auditRequestLogger = require('./middleware/auditRequestLogger')
 const authRoutes = require('./routes/authRoutes')
@@ -100,6 +101,7 @@ if (helmet) {
 }
 
 app.use(requestLogger)
+app.use(compressionMiddleware)
 
 app.use('/api', (_req, res, next) => {
   res.set('Cache-Control', 'no-store')

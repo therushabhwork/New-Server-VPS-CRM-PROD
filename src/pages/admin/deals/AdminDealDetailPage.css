@@ -371,6 +371,22 @@
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
 }
 
+.c-deal-stage-card--completed {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  box-shadow: 0 1px 3px rgba(225, 29, 72, 0.08);
+}
+
+.c-deal-stage-card--completed .c-deal-stage-name {
+  color: #be123c;
+}
+
+.c-deal-stage-completed-icon {
+  color: #be123c;
+  font-size: 0.82rem;
+  flex-shrink: 0;
+}
+
 .c-deal-stage-badge-row {
   display: flex;
   align-items: center;
@@ -430,6 +446,10 @@
   justify-content: center;
   color: #94a3b8;
   font-size: 0.85rem;
+}
+
+.c-deal-stage-connector--active {
+  color: #c60016;
 }
 
 /* ==========================================================================
@@ -957,17 +977,17 @@
   font-weight: 600;
   cursor: pointer;
   background: #ffffff !important;
-  border: 1.5px solid #c60016 !important;
+  border: 1.5px solid #ef4444 !important;
   color: #334155 !important;
   box-shadow: none !important;
   transition: all 0.15s ease-in-out;
 }
 
 .ad-action-pill-btn:hover {
-  background: #fff1f2 !important;
-  border-color: #991b1b !important;
-  color: #991b1b !important;
-  box-shadow: 0 1px 3px rgba(198, 0, 22, 0.12) !important;
+  background: #fef2f2 !important;
+  border-color: #dc2626 !important;
+  color: #b91c1c !important;
+  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.12) !important;
 }
 
 /* Assignment / Reminder Notification Banner */

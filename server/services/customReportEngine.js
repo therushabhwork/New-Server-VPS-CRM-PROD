@@ -496,41 +496,195 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
     ? reportResult.selectedFields
     : fields;
 
+  const formatTitleCase = (str) => {
+    if (!str) return '';
+    return String(str)
+      .toLowerCase()
+      .split(' ')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+  };
+
   const columns = selectedFields.map((k) => ({
     key: k,
     label: fieldLabels[k] || labelDict[k] || k,
+    rawKey: k,
   }));
+
+  // Canonical deduplication ensuring 100% zero repeated rows matching CustomReportsPage.jsx
+  const getCanonicalRecordKey = (row) => {
+    if (entityType === 'deal') {
+      const dealNo = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || '').trim().toUpperCase();
+      if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL') return `DEAL:${dealNo}`;
+      const id = String(row._id || row.id || '').trim();
+      if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`;
+    } else if (entityType === 'quotation') {
+      const qNo = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNumber || row.quoteNumber || '').trim().toUpperCase();
+      if (qNo && qNo !== '-' && qNo !== 'UNDEFINED' && qNo !== 'NULL') return `QUOTE:${qNo}`;
+      const id = String(row._id || row.id || '').trim();
+      if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`;
+    } else if (entityType === 'customer') {
+      const custNo = String(row['Customer No.'] || row['Customer No'] || row.customerNumber || '').trim().toUpperCase();
+      if (custNo && custNo !== '-' && custNo !== 'UNDEFINED' && custNo !== 'NULL') return `CUST:${custNo}`;
+      const id = String(row._id || row.id || '').trim();
+      if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`;
+    } else if (entityType === 'account') {
+      const accNo = String(
+        row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
+      ).trim().toUpperCase();
+      if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL') return `ACC:${accNo}`;
+      const id = String(row._id || row.id || '').trim();
+      if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`;
+    } else {
+      const dealNo = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || '').trim().toUpperCase();
+      if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL') return `DEAL:${dealNo}`;
+      const qNo = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNumber || row.quoteNumber || '').trim().toUpperCase();
+      if (qNo && qNo !== '-' && qNo !== 'UNDEFINED' && qNo !== 'NULL') return `QUOTE:${qNo}`;
+      const custNo = String(row['Customer No.'] || row['Customer No'] || row.customerNumber || '').trim().toUpperCase();
+      if (custNo && custNo !== '-' && custNo !== 'UNDEFINED' && custNo !== 'NULL') return `CUST:${custNo}`;
+      const accNo = String(
+        row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
+      ).trim().toUpperCase();
+      if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL') return `ACC:${accNo}`;
+      const id = String(row._id || row.id || '').trim();
+      if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`;
+    }
+    return JSON.stringify(row);
+  };
+
+  const seenRowKeys = new Set();
+  const dedupedDataSets = [];
+  rawRows.forEach((row, idx) => {
+    const rowKey = getCanonicalRecordKey(row) || `row-idx-${idx}`;
+    if (!seenRowKeys.has(rowKey)) {
+      seenRowKeys.add(rowKey);
+      dedupedDataSets.push(row);
+    }
+  });
+
+  // Resolve row owner across all entity types (Deals, Quotations, Customers, Accounts)
+  const resolveRowOwner = (row) => {
+    const val = row['Account Owner'] || row.accountOwner || row.ownerName || row.owner || row._ownerName ||
+      row['Deal Owner'] || row.dealOwner || row['Quotation Owner'] || row.quotationOwner ||
+      row['Customer Owner'] || row.customerOwner || '';
+    const trimmed = String(val || 'Unassigned').trim() || 'Unassigned';
+    return trimmed.toLowerCase() === 'unassigned' ? 'Unassigned' : formatTitleCase(trimmed);
+  };
 
   // 7. Group rows owner-wise
   const targetOwner = String(fullTemplate.accountOwner || 'all').trim().toLowerCase();
   const ownerGroups = {};
-  rawRows.forEach((r) => {
-    const o = r.accountOwner || r.owner || r.accountOwnerName || r.ownerName || 'Unassigned';
+  dedupedDataSets.forEach((r) => {
+    const o = resolveRowOwner(r);
     if (!ownerGroups[o]) ownerGroups[o] = [];
     ownerGroups[o].push(r);
   });
 
+  const reportGroups = (
+    Array.isArray(fullTemplate.userGroups) && fullTemplate.userGroups.length > 0
+      ? fullTemplate.userGroups
+      : (Array.isArray(fullTemplate.selectedUserGroups) ? fullTemplate.selectedUserGroups : [])
+  ).filter(Boolean);
+
+  let groupMemberNamesLower = new Set();
+  if (reportGroups.length > 0) {
+    try {
+      const { listMembersByGroupIds } = require('../repositories/userGroupRepository');
+      const groupMembers = await listMembersByGroupIds(reportGroups);
+      const embeddedMembers = Array.isArray(fullTemplate.userGroupMembers) ? fullTemplate.userGroupMembers : [];
+      const allMembers = [...(groupMembers || []), ...embeddedMembers];
+      groupMemberNamesLower = new Set(
+        allMembers.map(m => String(m.name || m.member?.name || '').toLowerCase().trim()).filter(Boolean)
+      );
+    } catch (_) {}
+  }
+
+  const primaryTargetOwner = targetOwner && targetOwner !== 'all' ? targetOwner : '';
+
   const checkIsReassigned = (ownerName) => {
-    if (fullTemplate.userGroups && fullTemplate.userGroups.length > 0) {
-      const groupRows = ownerGroups[ownerName] || [];
-      const hasReassignedFlag = groupRows.some((r) => r._isReassigned || r.isReassigned);
-      if (hasReassignedFlag) return true;
+    const lower = String(ownerName || '').toLowerCase().trim();
+    if (reportGroups.length > 0 && groupMemberNamesLower.size > 0) {
+      return !groupMemberNamesLower.has(lower);
     }
-    if (targetOwner && targetOwner !== 'all' && ownerName.toLowerCase() !== targetOwner) {
-      return true;
+    return Boolean(primaryTargetOwner && primaryTargetOwner !== 'all' && lower !== primaryTargetOwner);
+  };
+
+  let usersLookup = null;
+  try {
+    usersLookup = await getUsersLookupMap();
+  } catch (_) {}
+
+  // Resolve creator/original owner across Accounts, Deals, Quotations, and Customers strictly within scheduler
+  const resolveRowCreator = (row) => {
+    let cand = row._createdByUserName || row.createdByUserName || row.createdByName || row.creatorName ||
+      row.addedBy || row['Added By'] || row['Created By'] || row.preparedBy || row['Prepared By'] || '';
+    if (!cand && row.createdBy && usersLookup) {
+      const idOrEmail = String(row.createdBy).trim();
+      cand = usersLookup[idOrEmail] || usersLookup._codes?.[idOrEmail] ||
+        (usersLookup._emails && Object.keys(usersLookup._emails).find(n => usersLookup._emails[n] === idOrEmail.toLowerCase())) || '';
     }
-    return false;
+    if (!cand && (row._createdUserBy || row.createdUserBy || row.userEmail) && usersLookup?._emails) {
+      const email = String(row._createdUserBy || row.createdUserBy || row.userEmail).trim().toLowerCase();
+      cand = Object.keys(usersLookup._emails).find(n => usersLookup._emails[n] === email) || '';
+    }
+    if (cand && typeof cand === 'string' && cand.trim() && cand !== '-') {
+      return formatTitleCase(cand.trim());
+    }
+    return '';
   };
 
   const sortedOwnerNames = Object.keys(ownerGroups).sort((a, b) => {
-    if (targetOwner && targetOwner !== 'all') {
-      if (a.toLowerCase() === targetOwner) return -1;
-      if (b.toLowerCase() === targetOwner) return 1;
+    const aLower = a.toLowerCase();
+    const bLower = b.toLowerCase();
+
+    const aIsReassigned = checkIsReassigned(a);
+    const bIsReassigned = checkIsReassigned(b);
+
+    if (!aIsReassigned && bIsReassigned) return -1;
+    if (aIsReassigned && !bIsReassigned) return 1;
+
+    if (primaryTargetOwner && primaryTargetOwner !== 'all') {
+      if (aLower === primaryTargetOwner) return -1;
+      if (bLower === primaryTargetOwner) return 1;
     }
-    return a.localeCompare(b);
+    return a.localeCompare(b, undefined, { sensitivity: 'base' });
   });
 
-  const filterSummary = `Total Unique Records: ${rawRows.length} | Generated: ${new Date().toLocaleDateString('en-IN')}`;
+  const entityName = formatTitleCase(entityType || 'Account');
+  const entityPlural = entityName === 'Customer' ? 'Customers' : entityName === 'Deal' ? 'Deals' : entityName === 'Quotation' ? 'Quotations' : 'Accounts';
+
+  const filterSummary = `Total Unique Records: ${dedupedDataSets.length} | Generated: ${new Date().toLocaleDateString('en-IN')}`;
+
+  // Helper to resolve cell values case-insensitively and normalize dates matching CustomReportsPage.jsx
+  const resolveExportCell = (row, col) => {
+    if (!row || !col) return '-';
+    const candidates = [
+      row[col.label],
+      row[col.key],
+      col.rawKey ? row[col.rawKey] : undefined,
+      col.label ? row[String(col.label).toLowerCase()] : undefined,
+      col.key ? row[String(col.key).toLowerCase()] : undefined,
+      col.rawKey ? row[String(col.rawKey).toLowerCase()] : undefined,
+      col.label ? row[String(col.label).toLowerCase().replace(/[^a-z0-9]/g, '')] : undefined,
+      col.key ? row[String(col.key).toLowerCase().replace(/[^a-z0-9]/g, '')] : undefined,
+      col.rawKey ? row[String(col.rawKey).toLowerCase().replace(/[^a-z0-9]/g, '')] : undefined,
+    ];
+    const isOwnerCol = /owner|assigned|createdby|addedby/i.test(String(col.label || col.key || col.rawKey || ''));
+    for (const cand of candidates) {
+      if (cand !== undefined && cand !== null && cand !== '') {
+        if (typeof cand === 'string' && /^\d{4}-\d{2}-\d{2}/.test(cand)) {
+          const parts = cand.slice(0, 10).split('-');
+          if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        const strVal = String(cand).trim();
+        if (isOwnerCol && strVal && strVal !== '-' && strVal.toLowerCase() !== 'unassigned') {
+          return formatTitleCase(strVal);
+        }
+        return strVal;
+      }
+    }
+    return '-';
+  };
 
   // 8. Generate PDF Buffer with Centered Swati Logo and Grouped Tables
   let pdfBuffer = null;
@@ -589,7 +743,7 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
       const distinctFromNames = Array.from(
         new Set(
           groupRows
-            .map((r) => r._createdByUserName || r.createdByUserName || r.addedBy || '')
+            .map((r) => resolveRowCreator(r))
             .filter((n) => n && n.toLowerCase() !== ownerName.toLowerCase())
         )
       );
@@ -597,14 +751,14 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
       const fromSuffix = isReassigned
         ? (distinctFromNames.length > 0
           ? ` From ${distinctFromNames.join(', ')}`
-          : (targetOwner && targetOwner !== 'all' && targetOwner !== ownerName.toLowerCase()
-            ? ` From ${targetOwner}`
+          : (primaryTargetOwner && primaryTargetOwner !== 'all' && primaryTargetOwner !== ownerName.toLowerCase()
+            ? ` From ${formatTitleCase(primaryTargetOwner)}`
             : ''))
         : '';
 
       const headerLabel = isReassigned
-        ? `Re-assigned Account Owner: ${ownerName} (${groupRows.length} Accounts)${fromSuffix}`
-        : `Account Owner: ${ownerName} (${groupRows.length} Accounts)`;
+        ? `Re-assigned ${entityName} Owner: ${ownerName} (${groupRows.length} ${entityPlural})${fromSuffix}`
+        : `${entityName} Owner: ${ownerName} (${groupRows.length} ${entityPlural})`;
 
       if (currentY > 185) {
         doc.addPage();
@@ -621,9 +775,9 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
       doc.text(headerLabel, 14, currentY);
       currentY += 4;
 
-      const tableHead = [colLabels];
+      const tableHead = [columns.map((c) => c.label)];
       const tableBody = groupRows.map((row) =>
-        colKeys.map((k) => (row[k] != null && row[k] !== '' ? String(row[k]) : '-'))
+        columns.map((c) => resolveExportCell(row, c))
       );
 
       autoTable(doc, {
@@ -633,7 +787,7 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
         theme: 'grid',
         styles: { fontSize: 7.5, cellPadding: 2, overflow: 'linebreak' },
         headStyles: {
-          fillColor: isReassigned ? [71, 85, 105] : [198, 0, 22],
+          fillColor: isReassigned ? [71, 85, 105] : [45, 55, 72],
           textColor: 255,
           fontStyle: 'bold',
         },
@@ -668,7 +822,7 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
     const distinctFromNames = Array.from(
       new Set(
         groupRows
-          .map((r) => r._createdByUserName || r.createdByUserName || r.addedBy || '')
+          .map((r) => resolveRowCreator(r))
           .filter((n) => n && n.toLowerCase() !== ownerName.toLowerCase())
       )
     );
@@ -676,8 +830,8 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
     const fromSuffix = isReassigned
       ? (distinctFromNames.length > 0
         ? ` From ${distinctFromNames.join(', ')}`
-        : (targetOwner && targetOwner !== 'all' && targetOwner !== ownerName.toLowerCase()
-          ? ` From ${targetOwner}`
+        : (primaryTargetOwner && primaryTargetOwner !== 'all' && primaryTargetOwner !== ownerName.toLowerCase()
+          ? ` From ${formatTitleCase(primaryTargetOwner)}`
           : ''))
       : '';
 
@@ -695,8 +849,8 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
     columns.forEach((c, idx) => {
       if (idx === 0) {
         ownerHeaderRow[c.key] = isReassigned
-          ? `▶ Re-assigned Account Owner: ${ownerName} (${groupRows.length} Accounts)${fromSuffix}`
-          : `▶ Account Owner: ${ownerName} (${groupRows.length} Accounts)`;
+          ? `▶ Re-assigned ${entityName} Owner: ${ownerName} (${groupRows.length} ${entityPlural})${fromSuffix}`
+          : `▶ ${entityName} Owner: ${ownerName} (${groupRows.length} ${entityPlural})`;
         ownerHeaderRow[c.label] = ownerHeaderRow[c.key];
       } else {
         ownerHeaderRow[c.key] = '';
@@ -708,8 +862,7 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
     groupRows.forEach((r) => {
       const excelRow = { ...r };
       columns.forEach((c) => {
-        const val = r[c.key];
-        excelRow[c.key] = val != null && val !== '' ? val : '-';
+        excelRow[c.key] = resolveExportCell(r, c);
         excelRow[c.label] = excelRow[c.key];
       });
       excelRows.push(excelRow);
@@ -751,7 +904,7 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
     excelFileName,
     pdfBuffer,
     pdfFileName,
-    recordCount: rawRows.length,
+    recordCount: dedupedDataSets.length,
     reportTitle,
   };
 }
