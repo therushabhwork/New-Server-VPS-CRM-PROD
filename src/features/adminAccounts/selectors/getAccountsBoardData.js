@@ -105,7 +105,7 @@ export const getAccountsBoardData = (accounts = []) => {
     addToStage(record.stage)
 
     // Also display converted, rejected, and quotation_sent records in the 'new' tab so they remain visible
-    if ((record.isConverted || record.stage === 'converted' || record.stage === 'rejected' || record.stage === 'quotation_sent') && record.stage !== 'new') {
+    if (record.stage !== 'new') {
       addToStage('new')
     }
   })

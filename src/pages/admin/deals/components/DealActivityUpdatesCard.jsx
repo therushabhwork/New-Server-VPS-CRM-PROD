@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { FaHistory } from 'react-icons/fa'
+import { getCrmOwnerDisplay, getCrmOwnerRecord } from '../../../../features/users/crmUserDirectory'
 
 const formatActivityTime = (value) => {
   if (!value) return ''
@@ -14,15 +15,62 @@ const formatActivityTime = (value) => {
   })
 }
 
-export default function DealActivityUpdatesCard({ deal = {}, remarks = [], reminders = [] }) {
+export default function DealActivityUpdatesCard({ deal = {}, remarks = [], reminders = [], users = [] }) {
   const [activeTab, setActiveTab] = useState('recent')
+
+  const resolveUserName = (rawIdOrName, fallback = 'User') => {
+    if (!rawIdOrName) return fallback
+    const str = String(rawIdOrName).trim()
+    if (!str) return fallback
+
+    const isPureNumber = /^\d+$/.test(str)
+
+    if (Array.isArray(users) && users.length > 0) {
+      const matched = users.find((u) => (
+        String(u.id) === str
+        || String(u._id) === str
+        || String(u.legacyId) === str
+        || String(u.ownerCode) === str
+        || String(u.userId) === str
+        || String(u.value) === str
+        || (u.name && u.name.toLowerCase() === str.toLowerCase())
+      ))
+      if (matched) {
+        return matched.ownerDisplayName || matched.name || matched.label || matched.username || str
+      }
+    }
+
+    const crmRecord = getCrmOwnerRecord(str)
+    if (crmRecord?.ownerDisplayName || crmRecord?.name) {
+      return crmRecord.ownerDisplayName || crmRecord.name
+    }
+
+    const crmDisplay = getCrmOwnerDisplay(str)
+    if (crmDisplay && !/^\d+$/.test(crmDisplay)) {
+      return crmDisplay
+    }
+
+    if (isPureNumber) {
+      if (deal.addedByName && !/^\d+$/.test(deal.addedByName)) return deal.addedByName
+      if (deal.createdByName && !/^\d+$/.test(deal.createdByName)) return deal.createdByName
+      if (deal.dealOwner && !/^\d+$/.test(deal.dealOwner)) return deal.dealOwner
+      if (deal.ownerName && !/^\d+$/.test(deal.ownerName)) return deal.ownerName
+    }
+
+    return str
+  }
+
+  const creatorName = resolveUserName(
+    deal.addedByName || deal.addedBy || deal.createdBy || deal.createdByName || deal.dealOwner || deal.ownerName,
+    'User'
+  )
 
   const reminderUpdates = (Array.isArray(reminders) ? reminders : []).map((r) => ({
     id: `rem-${r.id || r._id}`,
     title: `Reminder: ${r.title || r.message || 'Scheduled Follow-up'}`,
     content: r.message || r.content || r.note || r.title || 'Follow-up reminder scheduled.',
     createdAt: r.reminderDate || r.dueDate || r.createdAt,
-    author: r.ownerName || r.assignedTo || deal.dealOwner || 'User',
+    author: resolveUserName(r.ownerName || r.assignedTo || deal.dealOwner, 'User'),
     isReminder: true,
   }))
 
@@ -30,16 +78,16 @@ export default function DealActivityUpdatesCard({ deal = {}, remarks = [], remin
     ...(deal.createdAt ? [{
       id: 'sys-created',
       title: 'Deal Created',
-      content: `Deal record was created by ${deal.addedBy || deal.dealOwner || 'User'}.`,
+      content: `Deal record was created by ${creatorName}.`,
       createdAt: deal.createdAt,
-      author: deal.addedBy || deal.dealOwner || 'System',
+      author: creatorName,
     }] : []),
     ...(deal.lastUpdated && deal.lastUpdated !== deal.createdAt ? [{
       id: 'sys-updated',
       title: 'Deal Modified',
       content: `Deal updated to status ${deal.dealStatus || deal.status || 'Updated'}.`,
       createdAt: deal.lastUpdated,
-      author: deal.dealOwner || deal.addedBy || 'System',
+      author: resolveUserName(deal.dealOwner || deal.addedBy, 'System'),
     }] : []),
     ...reminderUpdates,
   ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
@@ -81,7 +129,7 @@ export default function DealActivityUpdatesCard({ deal = {}, remarks = [], remin
               <div key={item.id || `activity-${index}`} className="ad-activity-item">
                 <div className="ad-activity-meta">
                   <strong style={{ color: '#c60016' }}>
-                    {item.createdByName || item.userName || item.author || 'User'}
+                    {resolveUserName(item.createdByName || item.userName || item.author, 'User')}
                   </strong>
                   <span>{formatActivityTime(item.createdAt || item.date)}</span>
                 </div>

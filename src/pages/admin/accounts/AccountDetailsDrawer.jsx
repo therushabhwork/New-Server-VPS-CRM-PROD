@@ -265,7 +265,9 @@ const buildInitialForm = (account, deal = {}) => ({
   designation: account.contactDesignation || account.designation || account.raw?.designation || '',
   customerType: sanitizeCustomerType(account.customerType) || '',
   mobile: account.contactMobile || account.phone || '',
-  alternatePhone: account.alternatePhone || '',
+  alternatePhone: account.alternatePhone || account.contactAlternatePhone || account.raw?.alternatePhone || account.data?.alternatePhone || account.formData?.alternatePhone || '',
+  secondaryPhoneNumber: account.secondaryPhoneNumber || account.secondaryPhone || account.raw?.secondaryPhoneNumber || account.data?.secondaryPhoneNumber || account.formData?.secondaryPhoneNumber || '',
+  secondaryPhone: account.secondaryPhoneNumber || account.secondaryPhone || account.raw?.secondaryPhoneNumber || account.data?.secondaryPhoneNumber || account.formData?.secondaryPhoneNumber || '',
   alternateEmail: account.alternateEmail || '',
   landline: account.landline || account.phone2 || account.raw?.landline || account.data?.landline || '',
   email: account.email || account.contactEmail || account.formData?.email || '',
@@ -360,7 +362,9 @@ const buildUpdatePayload = (form) => ({
   contactMobile: form.mobile,
   mobile: form.mobile,
   phone: form.mobile,
-  alternatePhone: form.alternatePhone,
+  alternatePhone: form.alternatePhone || '',
+  secondaryPhoneNumber: form.secondaryPhoneNumber || form.secondaryPhone || '',
+  secondaryPhone: form.secondaryPhoneNumber || form.secondaryPhone || '',
   alternateEmail: form.alternateEmail,
   landline: form.landline || '',
   phone2: form.landline || '',
@@ -482,7 +486,19 @@ const AccountDetailsDrawer = ({
             id: `account-remark-single-${acc.id}`,
             content: text,
             category: 'general',
-            createdByName: acc.ownerName || acc.accountOwner || 'User',
+            createdByName:
+              acc.lastUpdatedByName ||
+              acc.updatedByName ||
+              acc.accountOwnerDisplay ||
+              acc.accountOwnerName ||
+              acc.accountOwner ||
+              acc.ownerName ||
+              acc.addedByName ||
+              acc.addedByDisplay ||
+              (availableUsers.find((u) => String(u.id) === String(acc.ownerId || acc.userId || acc.assignedUserId))?.name) ||
+              user?.name ||
+              user?.username ||
+              'User',
             createdAt: acc.updatedAt || acc.createdAt || new Date().toISOString(),
           })
         }
@@ -505,7 +521,7 @@ const AccountDetailsDrawer = ({
               id: item.id || item._id || `account-embedded-${idx}`,
               content: cleanText,
               category: item.category || 'general',
-              createdByName: item.createdByName || item.userName || item.addedBy || acc.ownerName || 'User',
+              createdByName: item.createdByName || item.userName || item.addedBy || acc.lastUpdatedByName || acc.updatedByName || acc.ownerName || user?.name || user?.username || 'User',
               createdAt: item.createdAt || item.date || acc.createdAt || new Date().toISOString(),
               startTime: item.startTime || null,
               endTime: item.endTime || null,
@@ -626,7 +642,11 @@ const AccountDetailsDrawer = ({
     }
 
     if (actionKey === 'send-mail') {
-      setActiveActionKey('send-mail')
+      const recipientEmail = form.email || form.contactEmail || account.email || account.contactEmail || ''
+      const targetId = account.id || account.legacyId || ''
+      const currentPath = `${location.pathname}${location.search || ''}`
+      const prefix = location.pathname.startsWith('/admin') ? '/admin' : ''
+      navigate(`${prefix}/email/compose/account/${encodeURIComponent(targetId)}?to=${encodeURIComponent(recipientEmail)}&returnTo=${encodeURIComponent(currentPath)}`)
       return
     }
 
@@ -675,15 +695,12 @@ const AccountDetailsDrawer = ({
   }
 
   const handleQuickAction = (actionKey) => {
-    if (actionKey === 'email') {
-      const email = form.email || account.email || form.contactEmail || account.contactEmail
-      if (email) {
-        window.open(`mailto:${email}`, '_blank')
-      } else {
-        if (typeof addNotification === 'function') {
-          addNotification('warning', 'No Email', 'No email address available for this account.')
-        }
-      }
+        if (actionKey === 'email') {
+      const recipientEmail = form.email || form.contactEmail || account.email || account.contactEmail || ''
+      const targetId = account.id || account.legacyId || ''
+      const currentPath = `${location.pathname}${location.search || ''}`
+      const prefix = location.pathname.startsWith('/admin') ? '/admin' : ''
+      navigate(`${prefix}/email/compose/account/${encodeURIComponent(targetId)}?to=${encodeURIComponent(recipientEmail)}&returnTo=${encodeURIComponent(currentPath)}`)
       return
     }
 
@@ -715,7 +732,7 @@ const AccountDetailsDrawer = ({
         onSaveAccount(account.id, reviewPayload)
       }
       if (typeof addNotification === 'function') {
-        addNotification('success', 'Acknowledged', 'Account assignment marked as reviewed.')
+        addNotification('success', 'Mark Reviewed / Acknowledge', 'Account assignment marked as reviewed.')
       }
       return
     }
@@ -900,15 +917,39 @@ const AccountDetailsDrawer = ({
     }
   }
 
-  const handleFieldAutoSave = async (fieldKey, newValue) => {
+    const handleFieldAutoSave = async (fieldKey, newValue) => {
     if (!onSaveAccount) return false
-    const updatedForm = { ...form, [fieldKey]: newValue }
+    const isStatusKey = fieldKey === 'status' || fieldKey === 'stage' || fieldKey === 'accountStatus'
+    const isDescriptionKey = fieldKey === 'description'
+    const cleanStatusVal = isStatusKey ? String(newValue || '').trim().toLowerCase() : ''
+    const updatedForm = {
+      ...form,
+      [fieldKey]: newValue,
+      ...(isStatusKey ? {
+        status: cleanStatusVal,
+        stage: cleanStatusVal,
+        accountStatus: cleanStatusVal === 'not_quoted' ? 'not_quoted' : (cleanStatusVal === 'convert_to_po' ? 'convert_to_po' : cleanStatusVal),
+        accountState: cleanStatusVal === 'not_quoted' ? 'not_quoted' : (cleanStatusVal === 'convert_to_po' ? 'convert_to_po' : (form.accountState || cleanStatusVal)),
+      } : {}),
+    }
     setForm(updatedForm)
 
     const selectedOwner = ownerOptions.find((owner) => owner.name === updatedForm.accountOwner)
     const updatePayload = {
       ...buildUpdatePayload(updatedForm),
-      preserveStatus: true,
+      ...(isStatusKey ? {
+        status: cleanStatusVal,
+        stage: cleanStatusVal,
+        accountStatus: updatedForm.accountStatus,
+        accountState: updatedForm.accountState,
+        preserveStatus: false,
+      } : {
+        preserveStatus: true,
+      }),
+      ...(isDescriptionKey ? {
+        lastUpdatedByName: user?.name || user?.username || 'Current User',
+        updatedBy: user?.id || null,
+      } : {}),
       skipAutoConvert: true,
       isSaveSettings: true,
       ...(selectedOwner ? {
@@ -955,7 +996,7 @@ const AccountDetailsDrawer = ({
   const drawerContent = (
     <>
       <AccountPageHeader
-        account={account}
+        account={{ ...account, ...form }}
         form={form}
         onClose={onClose}
         isSaving={isSaving}
@@ -978,7 +1019,7 @@ const AccountDetailsDrawer = ({
 
           {/* Section 1: Top Profile Header Card */}
           <AccountProfileHeader
-            account={account}
+            account={{ ...account, ...form }}
             form={form}
             onAutoSave={handleFieldAutoSave}
             canEdit={canEdit !== false}
@@ -986,7 +1027,7 @@ const AccountDetailsDrawer = ({
 
           {/* Section 2: Account Details Snapshot Strip */}
           <AccountSnapshotStrip
-            account={account}
+            account={{ ...account, ...form }}
             form={form}
             onAutoSave={handleFieldAutoSave}
             canEdit={canEdit !== false}
@@ -995,7 +1036,7 @@ const AccountDetailsDrawer = ({
           {/* Section 3: Two-Column Workspace Layout (1.4fr : 1fr) */}
           {/* Section 2.5: Account Summary Stage Timeline */}
           <AccountStageTimeline
-            account={account}
+            account={{ ...account, ...form }}
             deal={relatedConvertedDeals[0]}
             form={form}
           />
@@ -1004,13 +1045,13 @@ const AccountDetailsDrawer = ({
             {/* Left Column (Primary Data & Commercials) */}
             <div className="ad-workspace-column">
               <ContactAddressCard
-                account={account}
+                account={{ ...account, ...form }}
                 form={form}
                 onAutoSave={handleFieldAutoSave}
                 canEdit={canEdit !== false}
               />
               <CustomerProjectCard
-                account={account}
+                account={{ ...account, ...form }}
                 form={form}
                 deal={relatedConvertedDeals[0] || {}}
                 onAutoSave={handleFieldAutoSave}
@@ -1021,7 +1062,7 @@ const AccountDetailsDrawer = ({
             {/* Right Column (Interaction Suite & Timeline) */}
             <div className="ad-workspace-column">
               <QuickActionsCard
-                account={account}
+                account={{ ...account, ...form }}
                 form={form}
                 reminders={accountReminders}
                 onQuickAction={handleQuickAction}
@@ -1032,7 +1073,7 @@ const AccountDetailsDrawer = ({
                       await updateReminder(rem.id, { isActivated: true, status: 'activated', activatedAt: new Date().toISOString() })
                     }
                     if (typeof addNotification === 'function') {
-                      addNotification('success', 'Reminder Activated', 'Reminder has been marked as active.')
+                      addNotification('success', 'Mark Reviewed / Acknowledge', 'Reminder marked as reviewed and active.')
                     }
                     if (typeof onRefresh === 'function') onRefresh()
                   } catch (err) {
@@ -1066,7 +1107,7 @@ const AccountDetailsDrawer = ({
 
           {/* Section 4: Expandable Detailed Accordions */}
           <AdditionalInfoAccordion
-            account={account}
+            account={{ ...account, ...form }}
             form={form}
             deal={relatedConvertedDeals[0] || {}}
             onAutoSave={handleFieldAutoSave}
@@ -1111,7 +1152,7 @@ const AccountDetailsDrawer = ({
       </main>
 
       <AccountActionModal
-        account={account}
+        account={{ ...account, ...form }}
         actionKey={activeActionKey}
         onClose={() => setActiveActionKey(null)}
         onSaved={async () => {

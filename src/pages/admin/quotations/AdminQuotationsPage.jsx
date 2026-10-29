@@ -328,6 +328,17 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
     }
   }, [searchParams, rows, revisionsModalRow, viewRow])
 
+  const handleCloseRevisionsModal = () => {
+    setRevisionsModalRow(null)
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('accountId')
+    nextParams.delete('accountName')
+    nextParams.delete('accountNo')
+    nextParams.set('tab', 'deals')
+    setSearchParams(nextParams, { replace: true })
+    setActiveTab('deal')
+  }
+
   const handleApproveRevisionItem = async (targetRevRow) => {
     if (!targetRevRow) return
     const targetId = targetRevRow.raw?.id || targetRevRow.id
@@ -1209,7 +1220,7 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
     return (
       <RevisionsListModal
         isOpen={Boolean(revisionsModalRow)}
-        onClose={() => setRevisionsModalRow(null)}
+        onClose={handleCloseRevisionsModal}
         row={revisionsModalRow}
         allQuotations={rows}
         onSelectRevision={(revRow) => {

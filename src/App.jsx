@@ -38,6 +38,7 @@ import AddTicketPage from './pages/tickets/AddTicketPage'
 import IntegrationQrPage from './pages/integrations/IntegrationQrPage'
 import OutlookMailPage from './pages/integrations/OutlookMailPage'
 import OutlookEmailComposePage from './pages/integrations/OutlookEmailComposePage'
+import DealEmailComposePage from './pages/integrations/DealEmailComposePage'
 import Login from './pages/auth/Login'
 import AdminLogin from './pages/auth/AdminLogin'
 import Logout from './pages/auth/Logout'
@@ -306,6 +307,7 @@ function App() {
                 <Route path="outlook" element={<Navigate to="/dashboard" replace />} />
                 <Route path="messages" element={<AdminMessagesPage />} />
                 <Route path="settings" element={<AdminSettingsPage />} />
+                <Route path="email/compose/deal/:dealId" element={<DealEmailComposePage />} />
                 <Route path="email/compose/:targetType/:targetId" element={<OutlookEmailComposePage />} />
               </Route>
 
@@ -433,6 +435,7 @@ function App() {
                 <Route path="integrations" element={<IntegrationQrPage />} />
                 <Route path="integrations/:channel" element={<IntegrationQrPage />} />
                 <Route path="outlook" element={<OutlookMailPage />} />
+                <Route path="email/compose/deal/:dealId" element={<DealEmailComposePage />} />
                 <Route path="email/compose/:targetType/:targetId" element={<OutlookEmailComposePage />} />
                 <Route path="settings" element={<AdminSettingsPage />} />
                 <Route path="data-manager" element={<DataManagerPage />} />

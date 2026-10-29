@@ -32,6 +32,8 @@ const normalizeContacts = (contacts = []) =>
         contactPerson: contact.contactPerson || '',
         phone: contact.phone || '',
         mobile: contact.mobile || '',
+        secondaryPhone: contact.secondaryPhone || contact.secondaryPhoneNumber || '',
+        secondaryPhoneNumber: contact.secondaryPhone || contact.secondaryPhoneNumber || '',
         email: contact.email || '',
         designation: contact.designation || '',
       }))

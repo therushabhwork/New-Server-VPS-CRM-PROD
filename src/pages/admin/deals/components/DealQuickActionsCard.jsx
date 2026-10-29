@@ -1,4 +1,6 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { getCachedAccountOwnerOptions, loadAccountOwnerOptions, getAccountOwnerOptionLabel } from '../../../../features/adminAccounts/utils/accountOwnerOptions'
+import { getCrmOwnerDisplay } from '../../../../features/users/crmUserDirectory'
 import {
   FaBolt,
   FaEnvelope,
@@ -25,6 +27,28 @@ const formatAssignmentDateTime = (value) => {
   return `${day}-${month}-${year} ${time}`
 }
 
+const resolveOwnerName = (val) => {
+  if (!val) return 'You'
+  const str = String(val).trim()
+  try {
+    const cachedOptions = getCachedAccountOwnerOptions() || []
+    const found = cachedOptions.find((u) =>
+      String(u.id) === str ||
+      String(u._id) === str ||
+      String(u.value) === str ||
+      String(u.ownerCode) === str ||
+      String(u.username || '').toLowerCase() === str.toLowerCase() ||
+      String(u.name || '').toLowerCase() === str.toLowerCase()
+    )
+    if (found) {
+      return getAccountOwnerOptionLabel(found) || found.name || found.username
+    }
+  } catch (err) {}
+  const display = getCrmOwnerDisplay(val)
+  if (display && display !== val) return display
+  return val
+}
+
 export default function DealQuickActionsCard({
   deal = {},
   reminders = [],
@@ -33,14 +57,20 @@ export default function DealQuickActionsCard({
   onActivateReminder,
   onCloseReminder,
 }) {
+  const [localReviewedIds, setLocalReviewedIds] = useState({})
+  useEffect(() => {
+    loadAccountOwnerOptions().catch(() => {})
+  }, [])
+  const isAdmin = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')
+  const iconColor = !isAdmin ? '#c60016' : '#ffffff'
   const assignedDate = deal.dealDate || deal.createdAt || ''
-  const assignedOwner = deal.dealOwner || deal.addedBy || 'You'
+  const assignedOwner = resolveOwnerName(deal.dealOwner || deal.ownerName || deal.addedBy || 'You')
 
   const banners = Array.isArray(reminders) && reminders.length > 0
     ? reminders.map((r) => ({
         id: r.id || r._id,
         date: r.reminderDate || r.dueDate || r.createdAt,
-        owner: r.ownerName || r.assignedTo || assignedOwner,
+        owner: resolveOwnerName(r.ownerName || r.assignedTo || assignedOwner),
         message: r.title || r.message || r.content || r.note || 'Follow up required',
         reminder: r,
       }))
@@ -67,14 +97,14 @@ export default function DealQuickActionsCard({
 
       <div className="c-deal-card-content">
         {/* Border-Only Action Buttons */}
-        <div className="ad-quick-actions-btns">
+        <div className={`ad-quick-actions-btns ${!isAdmin ? 'deal-quick-actions--non-admin' : ''}`}>
           <button
             type="button"
             className="ad-action-pill-btn"
             onClick={() => onQuickAction('email')}
             title="Send Email"
           >
-            <FaEnvelope style={{ fontSize: '0.78rem', color: '#2563eb' }} />
+            <FaEnvelope style={{ fontSize: '0.78rem', color: iconColor }} />
             <span>Email</span>
           </button>
 
@@ -84,17 +114,17 @@ export default function DealQuickActionsCard({
             onClick={() => onQuickAction('callLog')}
             title="Add Call Log"
           >
-            <FaPhoneAlt style={{ fontSize: '0.75rem', color: '#2563eb' }} />
+            <FaPhoneAlt style={{ fontSize: '0.75rem', color: iconColor }} />
             <span>Call Log</span>
           </button>
 
           <button
             type="button"
             className="ad-action-pill-btn"
-            onClick={() => onQuickAction('whatsapp')}
+            style={{ display: 'none' }} aria-hidden="true" tabIndex={-1}
             title="Send WhatsApp Message"
           >
-            <FaWhatsapp style={{ fontSize: '0.82rem', color: '#16a34a' }} />
+            <FaWhatsapp style={{ fontSize: '0.82rem', color: iconColor }} />
             <span>WhatsApp</span>
           </button>
 
@@ -104,7 +134,7 @@ export default function DealQuickActionsCard({
             onClick={() => onQuickAction('add-note-remarks')}
             title="Add Note/Remark"
           >
-            <FaCommentDots style={{ fontSize: '0.8rem', color: '#7c3aed' }} />
+            <FaCommentDots style={{ fontSize: '0.8rem', color: iconColor }} />
             <span>Add Remark</span>
           </button>
 
@@ -114,7 +144,7 @@ export default function DealQuickActionsCard({
             onClick={() => onQuickAction('add-reminder')}
             title="Schedule Reminder"
           >
-            <FaBell style={{ fontSize: '0.75rem', color: '#d97706' }} />
+            <FaBell style={{ fontSize: '0.75rem', color: iconColor }} />
             <span>Reminder</span>
           </button>
 
@@ -124,7 +154,7 @@ export default function DealQuickActionsCard({
             onClick={() => onQuickAction('change-status')}
             title="Change Status"
           >
-            <FaRegSun style={{ fontSize: '0.75rem', color: '#475569' }} />
+            <FaRegSun style={{ fontSize: '0.75rem', color: iconColor }} />
             <span>Status</span>
           </button>
 
@@ -134,7 +164,7 @@ export default function DealQuickActionsCard({
             onClick={() => onQuickAction('add-document')}
             title="Upload Quotation / Document"
           >
-            <FaFileAlt style={{ fontSize: '0.75rem', color: '#0284c7' }} />
+            <FaFileAlt style={{ fontSize: '0.75rem', color: iconColor }} />
             <span>Document</span>
           </button>
 
@@ -144,7 +174,7 @@ export default function DealQuickActionsCard({
             onClick={() => onQuickAction('converted-deal')}
             title="Convert to PO"
           >
-            <FaExchangeAlt style={{ fontSize: '0.75rem', color: '#059669' }} />
+            <FaExchangeAlt style={{ fontSize: '0.75rem', color: iconColor }} />
             <span>Convert to PO</span>
           </button>
         </div>
@@ -154,7 +184,7 @@ export default function DealQuickActionsCard({
           {banners.map((item) => (
             <div key={item.id} className="ad-assignment-banner">
               <div className="ad-assignment-info">
-                <FaBell className="ad-assignment-bell" />
+                <FaBell className={`ad-assignment-bell ${(Boolean(localReviewedIds[item.id] || deal.isReviewed || deal.data?.isReviewed || item.reminder?.isActivated || item.reminder?.status === 'activated')) ? 'ad-assignment-bell--reviewed' : ''}`} style={(Boolean(localReviewedIds[item.id] || deal.isReviewed || deal.data?.isReviewed || item.reminder?.isActivated || item.reminder?.status === 'activated')) ? { color: '#16a34a' } : {}} />
                 <div className="ad-assignment-text">
                   <span className="ad-assignment-header">
                     {formatAssignmentDateTime(item.date)} | {item.owner}
@@ -168,11 +198,13 @@ export default function DealQuickActionsCard({
               <div className="ad-assignment-actions">
                 <button
                   type="button"
-                  className="ad-assignment-btn"
+                  className={`ad-assignment-btn ${(localReviewedIds[item.id] || deal.isReviewed || deal.data?.isReviewed || item.reminder?.isActivated || item.reminder?.status === 'activated') ? 'ad-assignment-btn--reviewed' : ''}`}
+                  style={(localReviewedIds[item.id] || deal.isReviewed || deal.data?.isReviewed || item.reminder?.isActivated || item.reminder?.status === 'activated') ? { background: '#16a34a', color: '#ffffff', borderColor: '#16a34a' } : {}}
                   onClick={() => {
+                    setLocalReviewedIds((prev) => ({ ...prev, [item.id]: true }))
                     if (item.reminder && typeof onActivateReminder === 'function') {
                       onActivateReminder(item.reminder)
-                    } else {
+                    } else if (typeof onQuickAction === 'function') {
                       onQuickAction('acknowledge', item.reminder)
                     }
                   }}
@@ -191,14 +223,9 @@ export default function DealQuickActionsCard({
                 <button
                   type="button"
                   className="ad-assignment-btn"
-                  onClick={() => {
-                    if (item.reminder && typeof onCloseReminder === 'function') {
-                      onCloseReminder(item.reminder)
-                    } else if (typeof onRefresh === 'function') {
-                      onRefresh()
-                    }
-                  }}
-                  title={item.reminder ? 'Close Reminder' : 'Refresh Data'}
+                  hidden={true}
+                  aria-hidden="true"
+                  style={{ display: 'none' }}
                 >
                   <FaSyncAlt />
                 </button>

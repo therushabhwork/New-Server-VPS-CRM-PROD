@@ -12,6 +12,8 @@ export default function ContactAddressCard({
   const contactPerson = form.contactPerson || account.contactPerson || ''
   const email = form.email || account.email || account.contactEmail || ''
   const mobile = form.mobile || account.mobile || account.contactMobile || account.phone || ''
+  const secondaryPhoneNumber = form.secondaryPhoneNumber || form.secondaryPhone || account.secondaryPhoneNumber || account.secondaryPhone || account.raw?.secondaryPhoneNumber || account.data?.secondaryPhoneNumber || account.formData?.secondaryPhoneNumber || ''
+  const alternatePhone = form.alternatePhone || account.alternatePhone || account.contactAlternatePhone || account.raw?.alternatePhone || account.data?.alternatePhone || account.formData?.alternatePhone || ''
   const designation = form.designation || account.designation || account.contactDesignation || ''
   const address = form.address || account.address || ''
   const city = form.city || account.city || ''
@@ -63,6 +65,26 @@ export default function ContactAddressCard({
           />
 
           <InlineAutoSaveField
+            label="Secondary Phone"
+            fieldKey="secondaryPhoneNumber"
+            value={secondaryPhoneNumber}
+            type="tel"
+            placeholder="Enter secondary phone"
+            canEdit={canEdit}
+            onSave={onAutoSave}
+          />
+
+          <InlineAutoSaveField
+            label="Alternate Phone"
+            fieldKey="alternatePhone"
+            value={alternatePhone}
+            type="tel"
+            placeholder="Enter alternate phone"
+            canEdit={canEdit}
+            onSave={onAutoSave}
+          />
+
+          <InlineAutoSaveField
             label="Designation"
             fieldKey="designation"
             value={designation}
@@ -98,7 +120,6 @@ export default function ContactAddressCard({
           <InlineAutoSaveField
             label="State"
             fieldKey="state"
-            value={state}
             type="select"
             options={STATE_OPTIONS}
             canEdit={canEdit}

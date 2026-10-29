@@ -162,12 +162,12 @@ export const normalizeAccountRecord = (account = {}, index = 0, options = {}) =>
 
   const status = isNotQuotedStage
     ? 'Not Quoted'
-    : (isPoConvertedStage ? 'PO Converted' : (isQuotationSentStage ? 'Quotation Sent' : titleize(account.status || account.accountStatus || account.accountState || stageMeta.label)))
+    : (isPoConvertedStage ? 'PO Converted' : (isQuotationSentStage ? 'Quotation Sent' : ((String(account.status || account.accountStatus || '').trim().toLowerCase() === 'pending' || String(account.status || account.accountStatus || '').trim().toLowerCase() === 'new') ? 'New' : titleize(account.status || account.accountStatus || account.accountState || stageMeta.label))))
   const accountStatus = isNotQuotedStage
-    ? 'not_quoted'
+    ? 'Not Quoted'
     : (isPoConvertedStage ? 'convert_to_po' : (isQuotationSentStage ? 'Quotation Sent' : status))
   const accountState = isNotQuotedStage
-    ? 'not_quoted'
+    ? 'Not Quoted'
     : (isPoConvertedStage ? 'convert_to_po' : (isQuotationSentStage ? 'Quotation Sent' : titleize(account.accountState || account.status || account.accountStatus || stageMeta.label)))
   const reasonForLost =
     account.reasonForLost ||

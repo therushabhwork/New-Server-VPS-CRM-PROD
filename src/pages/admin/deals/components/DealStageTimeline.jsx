@@ -2,10 +2,10 @@ import React from 'react'
 import { FaArrowRight, FaClock, FaUser, FaCheckCircle } from 'react-icons/fa'
 
 const DEFAULT_STAGES = [
-  { key: 'new', label: 'New', aliases: ['new'] },
-  { key: 'quotation_sent', label: 'Quotation Sent', aliases: ['quote sent', 'quotation sent', 'quotationsent'] },
-  { key: 'order_received', label: 'Order Received', aliases: ['order received', 'orderreceived'] },
-  { key: 'convert_to_po', label: 'PO Converted', aliases: ['convert to po', 'convert_to_po', 'po converted', 'poconverted', 'converted'] },
+  { key: 'new', label: 'New', aliases: ['new', 'pending', 'created'] },
+  { key: 'quotation_sent', label: 'Quotation Sent', aliases: ['quote sent', 'quotation sent', 'quotationsent', 'quote_revision', 'quotation revision', 'quotation_revision', 'commercial_offer', 'commercial offer', 'technical_offer', 'technical offer', 'priority_1', 'priority 1', 'priority_2', 'priority 2', 'follow_up', 'follow up', 'followup'] },
+  { key: 'order_received', label: 'Order Received', aliases: ['order received', 'order_received', 'orderreceived'] },
+  { key: 'convert_to_po', label: 'PO Converted', aliases: ['convert to po', 'convert_to_po', 'po converted', 'poconverted', 'converted', 'closed', 'won'] },
 ]
 
 const formatStageTime = (dateStr) => {
@@ -30,54 +30,94 @@ const formatStageDate = (dateStr) => {
   }
 }
 
+const normalizeStageString = (val) => String(val || '').toLowerCase().trim().replace(/[-_]/g, ' ')
+
+const resolveStageIndex = (stageStr) => {
+  const normalized = normalizeStageString(stageStr)
+  if (!normalized) return 0
+
+  if (
+    normalized.includes('po') ||
+    normalized.includes('convert') ||
+    normalized.includes('closed') ||
+    normalized.includes('won')
+  ) {
+    return 3
+  }
+  if (normalized.includes('order received') || normalized.includes('order_received')) {
+    return 2
+  }
+  if (
+    normalized.includes('quotation') ||
+    normalized.includes('quote') ||
+    normalized.includes('commercial offer') ||
+    normalized.includes('technical offer') ||
+    normalized.includes('priority') ||
+    normalized.includes('follow')
+  ) {
+    return 1
+  }
+  return 0
+}
+
 const DealStageTimeline = ({ deal }) => {
   if (!deal) return null
 
   // Extract explicit stage history if available in deal
-  const historyList = Array.isArray(deal.stageHistory)
+  const historyList = Array.isArray(deal.stageHistory) && deal.stageHistory.length > 0
     ? deal.stageHistory
-    : Array.isArray(deal.history)
+    : Array.isArray(deal.history) && deal.history.length > 0
       ? deal.history.filter((h) => h?.stage || h?.status || h?.type === 'stage_change')
       : []
 
   const currentStageKey = String(deal.dealStatus || deal.status || deal.stage || 'new').toLowerCase().trim()
+  const activeIndex = resolveStageIndex(currentStageKey)
 
-  // Determine stage cards to render
-  let stageCards = []
+  const assignedOwner =
+    deal.dealOwner ||
+    deal.dealOwnerDisplay ||
+    deal.assignedUserName ||
+    deal.addedBy ||
+    deal.ownerName ||
+    'Assigned User'
 
-  if (historyList.length > 0) {
-    stageCards = historyList.map((item, idx) => ({
-      id: item.id || `stage-${idx}`,
-      name: item.stageName || item.stage || item.status || 'Stage',
-      user: item.userName || item.changedBy || item.addedBy || deal.dealOwner || 'User',
-      time: formatStageTime(item.timestamp || item.date || item.createdAt),
-      date: formatStageDate(item.timestamp || item.date || item.createdAt),
-      isCurrent: idx === historyList.length - 1,
-      isCompleted: idx < historyList.length - 1,
-    }))
-  } else {
-    // Generate canonical progression based on current deal status
-    const stageIndex = DEFAULT_STAGES.findIndex(
-      (s) => s.key === currentStageKey || s.label.toLowerCase() === currentStageKey || s.aliases?.some((a) => a === currentStageKey)
-    )
-    const activeIndex = stageIndex >= 0 ? stageIndex : 0
+  const lastUpdatedTime =
+    deal.lastUpdated ||
+    deal.updatedAt ||
+    deal.dealDate ||
+    deal.createdAt ||
+    ''
 
-    stageCards = DEFAULT_STAGES.map((s, idx) => {
-      const isCompleted = idx < activeIndex
-      const isCurrent = idx === activeIndex
-      const hasOccurred = idx <= activeIndex
+  // Generate canonical 4-stage progression, harmonizing history records when present
+  const stageCards = DEFAULT_STAGES.map((s, idx) => {
+    const isCompleted = idx < activeIndex
+    const isCurrent = idx === activeIndex
+    const hasOccurred = idx <= activeIndex
 
-      return {
-        id: s.key,
-        name: s.label,
-        user: hasOccurred ? (deal.dealOwner || deal.addedBy || 'Assigned User') : '',
-        time: hasOccurred ? formatStageTime(deal.lastUpdated || deal.dealDate) : '',
-        date: hasOccurred ? formatStageDate(deal.dealDate || deal.lastUpdated) : '',
-        isCurrent,
-        isCompleted,
-      }
+    // Check if there is a matching history record for this stage
+    const matchedHistory = historyList.find((h) => {
+      const hStage = normalizeStageString(h?.stageName || h?.stage || h?.status)
+      return s.aliases.some((alias) => normalizeStageString(alias) === hStage)
     })
-  }
+
+    const stageUser = matchedHistory
+      ? (matchedHistory.userName || matchedHistory.changedBy || matchedHistory.user || assignedOwner)
+      : (hasOccurred ? assignedOwner : '')
+
+    const stageDateSource = matchedHistory
+      ? (matchedHistory.timestamp || matchedHistory.date || matchedHistory.createdAt)
+      : (isCurrent ? lastUpdatedTime : (deal.dealDate || deal.createdAt || lastUpdatedTime))
+
+    return {
+      id: s.key,
+      name: s.label,
+      user: stageUser,
+      time: hasOccurred && stageDateSource ? formatStageTime(stageDateSource) : '',
+      date: hasOccurred && stageDateSource ? formatStageDate(stageDateSource) : '',
+      isCurrent,
+      isCompleted,
+    }
+  })
 
   return (
     <section className="c-deal-timeline-section" aria-label="Deal summary stage timeline">

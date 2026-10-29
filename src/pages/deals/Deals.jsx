@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import * as XLSX from 'xlsx'
 import {
@@ -147,6 +147,44 @@ const DEAL_TABLE_COLUMNS = [
   { key: 'reasonForLostOrder', label: 'Lost Order Reason', placeholder: 'Search Lost Order Reason', sourceField: 'reason_for_lost_order' },
 ]
 
+export const getDealEffectiveDate = (deal = {}) => {
+  const allKeys = [
+    ...Object.keys(deal || {}),
+    ...Object.keys(deal?.data || {}),
+    ...Object.keys(deal?.formData || {}),
+  ]
+  let maxIdx = 0
+  let latestReassignedDate = null
+  for (const k of allKeys) {
+    const m = k.match(/^reassignedDate(\d+)$/i)
+    if (m) {
+      const idx = parseInt(m[1], 10)
+      const val = deal[k] || deal.data?.[k] || deal.formData?.[k]
+      if (idx >= maxIdx && val) {
+        maxIdx = idx
+        latestReassignedDate = val
+      }
+    }
+  }
+  if (latestReassignedDate) {
+    return formatGridDate(latestReassignedDate)
+  }
+  return formatGridDate(deal.dealDate || deal.data?.dealDate || deal.quotationDate || deal.accountDate || deal.createdAt || deal.data?.createdAt || '')
+}
+
+export const formatDealDisplayStatus = (status = '') => {
+  if (!status) return ''
+  const normalized = String(status).trim().toLowerCase()
+  if (normalized === 'quotation_sent' || normalized === 'quotation sent') return 'Quotation Sent'
+  if (normalized === 'not_quoted' || normalized === 'not quoted') return 'Not Quoted'
+  if (normalized === 'rejected') return 'Rejected'
+  if (normalized === 'convert_to_po' || normalized === 'convert to po' || normalized === 'po_converted' || normalized === 'po converted') return 'Convert To PO'
+  return normalized
+    .split(/[_s]+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
 const DEAL_SEARCH_FIELD_CATALOG = [
   ...DEAL_TABLE_COLUMNS,
 ]
@@ -212,6 +250,64 @@ const VADODARA_COLUMNS = [
 // label-substring heuristic, which was fragile (matched any column whose label
 // contained "value", "date", etc.). Add new keys here when a new field type
 // matters ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â anything not listed renders as plain wrapped text.
+export const isDealOwnedByCurrentUser = (deal, user) => {
+  if (!user || !deal) return false
+  const target = deal.rawDeal || deal.data || deal
+  const currentUserId = String(user?.id || user?._id || '')
+  const currentOwnerCode = String(user?.ownerCode || getCrmOwnerCode(user?.name) || '').trim().toLowerCase()
+  const currentUserName = String(user?.name || user?.username || '').trim().toLowerCase()
+  const currentUserEmail = String(user?.email || user?.mail || '').trim().toLowerCase()
+
+  const dealOwnerId = String(target.userId || target.ownerUserId || target.ownerId || target.assignedTo || target.assignedUserId || target.createdBy || '').trim()
+  if (currentUserId && dealOwnerId && dealOwnerId === currentUserId) return true
+
+  const dealOwnerCode = String(target.ownerCode || target.dealOwnerCode || '').trim().toLowerCase()
+  if (currentOwnerCode && dealOwnerCode && dealOwnerCode === currentOwnerCode) return true
+
+  const candidateNames = [
+    target.dealOwner,
+    target.ownerName,
+    target.addedBy,
+    target.addedByName,
+    target.accountOwner,
+    target.createdByName,
+    deal.dealOwner,
+    deal.ownerName,
+    deal.accountOwner,
+    deal.addedBy,
+    deal.addedByName,
+  ].filter(Boolean)
+
+  if (currentUserName && candidateNames.some((name) => {
+    const norm = String(name).trim().toLowerCase()
+    return norm === currentUserName || isSameCrmOwner(name, user.name)
+  })) {
+    return true
+  }
+
+  const candidateEmails = [
+    target.email,
+    target.userEmail,
+    target.ownerEmail,
+    target.createdByEmail,
+    target.contactEmail,
+    deal.email,
+    deal.userEmail,
+    deal.ownerEmail,
+    deal.createdByEmail,
+    deal.contactEmail,
+  ].filter(Boolean)
+
+  if (currentUserEmail && candidateEmails.some((email) => {
+    const norm = String(email).trim().toLowerCase()
+    return norm === currentUserEmail
+  })) {
+    return true
+  }
+
+  return false
+}
+
 const DEAL_EXPORT_FIELD_META = {
   // Currency
   dealValue:        { type: 'currency', width: 18 },
@@ -930,12 +1026,38 @@ const mergeDealSources = (deals = [], convertedDeals = []) => {
   })
 
   return mergedDeals.sort((a, b) => {
-    const timeA = new Date(a?.createdAt || a?.dealDate || a?.date || 0).getTime()
-    const timeB = new Date(b?.createdAt || b?.dealDate || b?.date || 0).getTime()
+    const timeA = getDealEffectiveTimestamp(a)
+    const timeB = getDealEffectiveTimestamp(b)
     if (timeA !== timeB) return timeB - timeA
     return String(b?.id || b?._id || '').localeCompare(String(a?.id || a?._id || ''), undefined, { numeric: true })
   })
 }
+
+const getDealEffectiveTimestamp = (deal) => {
+  if (!deal) return 0
+  let maxReassignedTime = 0
+  const sources = [deal, deal.data, deal.formData]
+  for (const src of sources) {
+    if (!src || typeof src !== 'object') continue
+    for (const [k, v] of Object.entries(src)) {
+      if (/^reassignedDate\d*$/i.test(k) && v) {
+        const t = new Date(v).getTime()
+        if (!isNaN(t) && t > maxReassignedTime) maxReassignedTime = t
+      }
+    }
+  }
+  const reassignedDocTime = new Date(deal.reassignedDate || deal.reassignDate || deal.data?.reassignedDate || deal.data?.reassignDate || 0).getTime()
+  const updatedTime = new Date(deal.updatedAt || deal.lastUpdated || deal.data?.updatedAt || 0).getTime()
+  const createdTime = new Date(deal.createdAt || deal.dealDate || deal.date || deal.data?.createdAt || 0).getTime()
+  return Math.max(
+    !isNaN(maxReassignedTime) ? maxReassignedTime : 0,
+    !isNaN(reassignedDocTime) ? reassignedDocTime : 0,
+    !isNaN(updatedTime) ? updatedTime : 0,
+    !isNaN(createdTime) ? createdTime : 0
+  )
+}
+
+const getDealTopSortTime = getDealEffectiveTimestamp
 
 const normalizeDealCityForFilter = (value) => {
   const normalizedValue = String(value || '').trim().toLowerCase()
@@ -1004,8 +1126,8 @@ const buildDealViewConfig = (variantKey, customViewDefinition) => {
     emptyMessage: 'No deals found',
     filterFn: () => true,
     sortFn: (left, right) => {
-      const timeA = new Date(left.createdAt || left.dealDate || left.date || left.updatedAt || 0).getTime()
-      const timeB = new Date(right.createdAt || right.dealDate || right.date || right.updatedAt || 0).getTime()
+      const timeA = getDealEffectiveTimestamp(left)
+      const timeB = getDealEffectiveTimestamp(right)
       if (timeA !== timeB) return timeB - timeA
       return String(right.id || right._id || '').localeCompare(String(left.id || left._id || ''), undefined, { numeric: true })
     },
@@ -1128,8 +1250,8 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
   const { accounts, deals: rawDeals, convertedDeals, quotations, createDeal, updateDeal, createConvertedDeal, addNotification, refreshData } = useData()
   const deals = useMemo(() => {
     return [...(rawDeals || [])].sort((a, b) => {
-      const timeA = new Date(a?.createdAt || a?.date || a?.dealDate || 0).getTime()
-      const timeB = new Date(b?.createdAt || b?.date || b?.dealDate || 0).getTime()
+      const timeA = getDealEffectiveTimestamp(a)
+      const timeB = getDealEffectiveTimestamp(b)
       if (timeA !== timeB) return timeB - timeA
       return String(b?.id || b?._id || '').localeCompare(String(a?.id || a?._id || ''), undefined, { numeric: true })
     })
@@ -1325,9 +1447,6 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
     [customViewColumns, isViewAdminView]
   )
 
-  const isServerPaginatedDealView = (effectiveVariantKey === 'view' || effectiveVariantKey === 'search') && !customViewDefinition
-  const [serverDealPageData, setServerDealPageData] = useState(null)
-  const [isServerDealLoading, setIsServerDealLoading] = useState(false)
   const [visibleGridColumnKeys, setVisibleGridColumnKeys] = useState(() => {
     const savedPreferences = loadDealSearchPreferences()
     const defaultKeys = Array.from(
@@ -1647,7 +1766,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
           ownerName: deal.ownerName || resolvedOwnerName,
           dealOwner: resolvedOwnerName,
           dealNumber: deal.dealNumber || `DL-${String(index + 1).padStart(3, '0')}`,
-          dealDate: deal.dealDate || deal.createdAt || '',
+          dealDate: getDealEffectiveDate(deal),
           dealType: deal.dealType || deal.customerCategory || linkedAccount?.accountCategory || deal.stage || '',
           quotationCustomerStatus: deal.quotationCustomerStatus || '',
           orderCustomerStatus: deal.orderCustomerStatus || '',
@@ -1675,15 +1794,18 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
         }
       })
 
-    const variantDeals = shouldReadDealsDirectlyForTable
+    let variantDeals = shouldReadDealsDirectlyForTable
       ? normalizedDeals
       : normalizedDeals.filter(viewConfig.filterFn)
+    if (effectiveVariantKey === 'view') {
+      variantDeals = variantDeals.filter((deal) => isDealOwnedByCurrentUser(deal, user))
+    }
     const customViewDeals = customViewDefinition
       ? getCustomViewDeals(variantDeals, customViewDefinition)
       : variantDeals
 
     return customViewDeals.sort(viewConfig.sortFn)
-  }, [accountDirectory, accountNameDirectory, customViewDefinition, customerDirectory, deals, convertedDeals, isAdmin, shouldReadDealsDirectlyForTable, variantKey, userDirectory, viewConfig.filterFn, viewConfig.sortFn])
+  }, [accountDirectory, accountNameDirectory, customViewDefinition, customerDirectory, deals, convertedDeals, isAdmin, shouldReadDealsDirectlyForTable, variantKey, effectiveVariantKey, user, userDirectory, viewConfig.filterFn, viewConfig.sortFn])
   const roleSelectionOptions = useMemo(() => {
     const availableUserByOwnerName = availableUsers.reduce((lookup, entry) => {
       const normalizedName = normalizeOwnerValue(entry.ownerDisplayName || entry.name)
@@ -1773,27 +1895,6 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
   ]
 
   const { searchTerm, setSearchTerm, filteredItems: searchedDeals } = useSearch(drilldownScopedDeals, searchKeys)
-
-  useEffect(() => {
-    if (!isServerPaginatedDealView) return
-    let isCancelled = false
-    setIsServerDealLoading(true)
-    dealApi.getPaginatedDeals({
-      page: currentPage,
-      limit: ROWS_PER_PAGE,
-      search: searchTerm || '',
-      stage: dealStatusTableFilter !== 'all' ? dealStatusTableFilter : undefined,
-    }).then((res) => {
-      if (!isCancelled && res) {
-        setServerDealPageData(res)
-      }
-    }).catch((err) => {
-      console.warn('Paginated deals fetch warning:', err.message)
-    }).finally(() => {
-      if (!isCancelled) setIsServerDealLoading(false)
-    })
-    return () => { isCancelled = true }
-  }, [isServerPaginatedDealView, currentPage, searchTerm, dealStatusTableFilter])
 
   useEffect(() => {
     if (typeof refreshData === 'function') {
@@ -1903,11 +2004,11 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
         accountName: deal.linkedAccountName || deal.accountName || getDealCompanyCustomerName(deal, linkedCustomer),
         accountNumber: deal.accountNumber || '',
         dealName: deal.name || '',
-        dealDate: formatGridDate(deal.quotationDate || deal.dealDate || deal.createdAt || ''),
+        dealDate: getDealEffectiveDate(deal),
         createdDate: formatGridDate(deal.createdAt || ''),
         dealOwner: deal.dealOwnerDisplay || getCrmOwnerDisplay(deal.dealOwner || deal.ownerName || '') || deal.dealOwner || deal.ownerName || '',
         dealType: toDealGridValue(deal.dealType || deal.customerCategory || deal.stage || '', { uppercase: true }),
-        dealStatus: capitalize(String(deal.status || '').replace(/_/g, ' ')),
+        dealStatus: formatDealDisplayStatus(deal.status || deal.stage),
         dealValue: toDealGridValue(deal.value ?? deal.dealValue ?? deal.amount, { numeric: true }),
         actualClosureDate: formatGridDate(deal.actualClosureDate || ''),
         expectedClosureDate: formatGridDate(deal.expectedClosureDate || deal.closeDate || ''),
@@ -2108,8 +2209,8 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
 
     if (!activeSortKey) {
       return [...displayGridRows].sort((left, right) => {
-        const timeA = new Date(left.createdAt || left.dealDate || left.rawDeal?.createdAt || 0).getTime()
-        const timeB = new Date(right.createdAt || right.dealDate || right.rawDeal?.createdAt || 0).getTime()
+        const timeA = getDealTopSortTime(left.rawDeal || left)
+        const timeB = getDealTopSortTime(right.rawDeal || right)
         if (timeA !== timeB) return timeB - timeA
         const leftId = Number(left.id || left.rawDeal?.id || left.rawDeal?._id) || 0
         const rightId = Number(right.id || right.rawDeal?.id || right.rawDeal?._id) || 0
@@ -2300,12 +2401,12 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
         companyCustomerName: getDealCompanyCustomerName(deal, linkedCustomer),
         accountName: deal.linkedAccountName || deal.accountName || getDealCompanyCustomerName(deal, linkedCustomer),
         companyProfile: deal.companyProfile || '',
-        dealDate: formatGridDate(deal.quotationDate || deal.dealDate || deal.createdAt || ''),
+        dealDate: getDealEffectiveDate(deal),
         dealOwner: deal.dealOwnerDisplay || getCrmOwnerDisplay(deal.dealOwner || deal.ownerName || '') || deal.dealOwner || deal.ownerName || '',
         dealType: toDealGridValue(deal.dealType || deal.customerCategory || deal.stage || '', { uppercase: true }),
         dealName: deal.name || '',
         dealCoOwners: deal.dealCoOwners || '',
-        dealStatus: capitalize(String(deal.status || '').replace(/_/g, ' ')),
+        dealStatus: formatDealDisplayStatus(deal.status || deal.stage),
         dealValue: toDealGridValue(deal.value, { numeric: true }),
         quotationCustomerStatus: toDealGridValue(deal.quotationCustomerStatus, { uppercase: true }),
         orderCustomerStatusOld: toDealGridValue(deal.orderCustomerStatusOld || deal.oldStatus, { uppercase: true }),
@@ -2346,12 +2447,12 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
           companyCustomerName: getDealCompanyCustomerName(deal, linkedCustomer),
           accountName: deal.linkedAccountName || deal.accountName || getDealCompanyCustomerName(deal, linkedCustomer),
           companyProfile: deal.companyProfile || '',
-          dealDate: formatGridDate(deal.quotationDate || deal.dealDate || deal.createdAt || ''),
+          dealDate: getDealEffectiveDate(deal),
           dealOwner: deal.dealOwnerDisplay || getCrmOwnerDisplay(deal.dealOwner || deal.ownerName || '') || deal.dealOwner || deal.ownerName || '',
           dealType: toDealGridValue(deal.dealType || deal.customerCategory || deal.stage || '', { uppercase: true }),
           dealName: deal.name || '',
           dealCoOwners: deal.dealCoOwners || '',
-          dealStatus: capitalize(String(deal.status || '').replace(/_/g, ' ')),
+          dealStatus: formatDealDisplayStatus(deal.status || deal.stage),
           dealValue: toDealGridValue(deal.value, { numeric: true }),
           quotationCustomerStatus: toDealGridValue(deal.quotationCustomerStatus, { uppercase: true }),
           orderCustomerStatusOld: toDealGridValue(deal.orderCustomerStatusOld || deal.oldStatus, { uppercase: true }),
@@ -2389,12 +2490,12 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
         companyCustomerName: getDealCompanyCustomerName(deal, linkedCustomer),
         accountName: deal.linkedAccountName || deal.accountName || getDealCompanyCustomerName(deal, linkedCustomer),
         companyProfile: deal.companyProfile || '',
-        dealDate: formatGridDate(deal.quotationDate || deal.dealDate || deal.createdAt || ''),
+        dealDate: getDealEffectiveDate(deal),
         dealOwner: deal.dealOwnerDisplay || getCrmOwnerDisplay(deal.dealOwner || deal.ownerName || '') || deal.dealOwner || deal.ownerName || '',
         dealType: toDealGridValue(deal.dealType || deal.customerCategory || deal.stage || '', { uppercase: true }),
         dealName: deal.name || '',
         dealCoOwners: deal.dealCoOwners || '',
-        dealStatus: capitalize(String(deal.status || '').replace(/_/g, ' ')),
+        dealStatus: formatDealDisplayStatus(deal.status || deal.stage),
         dealValue: toDealGridValue(deal.value, { numeric: true }),
         quotationCustomerStatus: toDealGridValue(deal.quotationCustomerStatus, { uppercase: true }),
         orderCustomerStatusOld: toDealGridValue(deal.orderCustomerStatusOld || deal.oldStatus, { uppercase: true }),
@@ -2433,12 +2534,12 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
         companyCustomerName: getDealCompanyCustomerName(deal, linkedCustomer),
         accountName: deal.linkedAccountName || deal.accountName || getDealCompanyCustomerName(deal, linkedCustomer),
         companyProfile: deal.companyProfile || '',
-        dealDate: formatGridDate(deal.quotationDate || deal.dealDate || deal.createdAt || ''),
+        dealDate: getDealEffectiveDate(deal),
         dealOwner: deal.dealOwnerDisplay || getCrmOwnerDisplay(deal.dealOwner || deal.ownerName || '') || deal.dealOwner || deal.ownerName || '',
         dealType: toDealGridValue(deal.dealType || deal.customerCategory || deal.stage || '', { uppercase: true }),
         dealName: deal.name || '',
         dealCoOwners: deal.dealCoOwners || '',
-        dealStatus: capitalize(String(deal.status || '').replace(/_/g, ' ')),
+        dealStatus: formatDealDisplayStatus(deal.status || deal.stage),
         dealValue: toDealGridValue(deal.value, { numeric: true }),
         quotationCustomerStatus: toDealGridValue(deal.quotationCustomerStatus, { uppercase: true }),
         orderCustomerStatusOld: toDealGridValue(deal.orderCustomerStatusOld || deal.oldStatus, { uppercase: true }),
@@ -2602,8 +2703,8 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
         const leftId = Number(left.legacyId || left.id || left.rawDeal?.legacyId || left.rawDeal?.id) || 0
         const rightId = Number(right.legacyId || right.id || right.rawDeal?.legacyId || right.rawDeal?.id) || 0
         if (leftId !== rightId && leftId > 0 && rightId > 0) return rightId - leftId
-        const timeA = new Date(left.createdAt || left.dealDate || left.rawDeal?.createdAt || 0).getTime()
-        const timeB = new Date(right.createdAt || right.dealDate || right.rawDeal?.createdAt || 0).getTime()
+        const timeA = getDealTopSortTime(left.rawDeal || left)
+        const timeB = getDealTopSortTime(right.rawDeal || right)
         if (timeA !== timeB) return timeB - timeA
         return String(right.id || '').localeCompare(String(left.id || ''), undefined, { numeric: true })
       })
@@ -2636,17 +2737,12 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
     [ownerScopedCurrentPageSafe, ownerScopedTotalPages]
   )
 
-  const totalPages = (isServerPaginatedDealView && serverDealPageData)
-    ? serverDealPageData.totalPages
-    : Math.max(1, Math.ceil(sortedGridRows.length / ROWS_PER_PAGE))
+  const totalPages = Math.max(1, Math.ceil(sortedGridRows.length / ROWS_PER_PAGE))
   const currentPageSafe = Math.min(currentPage, totalPages)
   const paginatedGridRows = useMemo(() => {
-    if (isServerPaginatedDealView && serverDealPageData?.records) {
-      return serverDealPageData.records
-    }
     const startIndex = (currentPageSafe - 1) * ROWS_PER_PAGE
     return sortedGridRows.slice(startIndex, startIndex + ROWS_PER_PAGE)
-  }, [currentPageSafe, sortedGridRows, isServerPaginatedDealView, serverDealPageData?.records])
+  }, [currentPageSafe, sortedGridRows])
   const visiblePages = useMemo(() => buildVisiblePages(currentPageSafe, totalPages), [currentPageSafe, totalPages])
   const requiredVisibleFieldKeys = isSearchAdminView ? SEARCH_DEAL_REQUIRED_GRID_KEYS : ['dealNumber']
   const isRequiredVisibleFieldKey = (key) => requiredVisibleFieldKeys.includes(key)
@@ -4357,7 +4453,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
     {
       key: 'dealDate',
       label: 'Deal Date',
-      render: (value, row) => formatDate(value || row.createdAt || '') || '-',
+      render: (value, row) => getDealEffectiveDate(row?.rawDeal || row) || formatDate(value || row.createdAt || '') || '-',
     },
     {
       key: 'dealOwner',
@@ -4479,7 +4575,10 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
     }
 
     if (columnKey === 'dealDate') {
-      return row.dealDate || formatDate(row.rawDeal?.quotationDate || row.rawDeal?.dealDate || row.rawDeal?.createdAt || '') || '-'
+      const effectiveDate = getDealEffectiveDate(row?.rawDeal || row)
+      if (effectiveDate) return effectiveDate
+      const rawDate = row.dealDate || row.rawDeal?.dealDate || row.data?.dealDate || row.rawDeal?.data?.dealDate || row.accountDate || row.createdAt || row.rawDeal?.createdAt || row.data?.createdAt
+      return formatGridDate(rawDate) || formatDate(rawDate) || (rawDate ? String(rawDate) : '-')
     }
 
     if (columnKey === 'projectName') {
@@ -4566,6 +4665,10 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
           />
         </div>
       )
+    }
+
+        if (columnKey === 'dealStatus' || columnKey === 'status') {
+      return formatDealDisplayStatus(row.dealStatus || row.status || row.rawDeal?.status || row.rawDeal?.stage)
     }
 
     const rawVal = row[columnKey]
@@ -5389,7 +5492,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
               </div>
 
               <div className="deals-crm-footer">
-                <div className="deals-crm-legend">
+                <div className="deals-crm-legend" style={{ display: 'none' }}>
                   <span className="deals-crm-legend-title">Legend:</span>
                   <span className="deals-crm-legend-item">
                     <span className="deals-crm-legend-swatch deals-crm-legend-swatch-primary" />
@@ -5768,7 +5871,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
             })}
           </div>
 
-          <div className="deals-board-footer">
+          <div className="deals-board-footer" style={{ display: 'none' }}>
             <span className="deals-board-footer-title">Legend:</span>
             <span className="deals-board-footer-item">
               <span className="deals-board-footer-swatch deals-board-footer-swatch-primary" />
@@ -6208,7 +6311,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
               </div>
 
               <div className="deals-crm-footer">
-                <div className="deals-crm-legend">
+                <div className="deals-crm-legend" style={{ display: 'none' }}>
                   <span className="deals-crm-legend-title">Legend:</span>
                   <span className="deals-crm-legend-item">
                     <span className="deals-crm-legend-swatch deals-crm-legend-swatch-primary" />
@@ -6222,7 +6325,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
 
                 <div className="deals-crm-footer-right">
                   <div className="deals-crm-footer-total">
-                    Total records: <strong>{isServerPaginatedDealView && serverDealPageData ? serverDealPageData.total : sortedGridRows.length}</strong>
+                    Total records: <strong>{sortedGridRows.length}</strong>
                   </div>
 
                   <div className="deals-crm-pagination">
@@ -6288,7 +6391,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
   return (
     <div className="deals-page">
       <div className="deals-crm-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h1>{viewConfig.title} - {isServerPaginatedDealView && serverDealPageData ? serverDealPageData.total : displayedDeals.length} records</h1>
+        <h1>{viewConfig.title} - {displayedDeals.length} records</h1>
       </div>
       <Card
         title={viewConfig.title}

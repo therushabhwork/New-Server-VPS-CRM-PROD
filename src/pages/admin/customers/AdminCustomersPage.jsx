@@ -1333,10 +1333,10 @@ const AdminCustomersPage = ({
   }, [filteredRows, orderRules])
   const activeTableSearchColumns = useMemo(() => {
     const isSearchCustomerView = variantKey === 'search'
-    const isCrmAdmin = user?.role === 'admin' || user?.role === 'super_admin'
+    const isCrmAdmin = (user?.role === 'admin' || user?.role === 'super_admin') && window.location.pathname.startsWith('/admin')
 
-    if (isSearchCustomerView && !isCrmAdmin) {
-      return searchCustomerNonAdminColumns
+    if (!isCrmAdmin || user?.role === 'user') {
+      return tableSearchColumns.filter((col) => !['email', 'phone', 'customerType'].includes(col.key))
     }
 
     return tableSearchColumns

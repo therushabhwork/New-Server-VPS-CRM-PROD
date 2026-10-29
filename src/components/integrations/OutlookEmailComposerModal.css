@@ -22,13 +22,19 @@
 }
 
 .oec-page-shell {
-  min-height: calc(100vh - 80px);
+  min-height: calc(100vh - 70px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
   padding: 1rem;
   background: var(--surface-app, #f8fafc);
 }
 
 .oec-page-card {
-  width: min(100%, 900px);
+  width: min(100%, 1080px);
+  border: 1px solid #e2e8f0;
+  box-sizing: border-box;
   margin: 0 auto;
   background: #ffffff;
   border-radius: 14px;

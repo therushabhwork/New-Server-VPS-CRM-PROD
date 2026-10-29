@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { 
   FaRegBuilding, FaLayerGroup, FaUserAlt, FaMapMarkerAlt, FaRegFileAlt, FaRegMap, 
   FaCalendarAlt, FaCodeBranch, FaRegUser, FaUserTie, FaBuilding, FaHashtag, 
-  FaCalendarDay, FaIndustry, FaBriefcase, FaHardHat 
+  FaCalendarDay, FaIndustry, FaBriefcase, FaHardHat, FaPhoneAlt, FaPlus 
 } from 'react-icons/fa'
 import { useData } from '../../context/DataContext'
 import { useAuth } from '../../context/AuthContext'
@@ -91,10 +91,10 @@ const initialFormData = {
   address: '',
   customerName: '',
   accountDate: new Date().toISOString().slice(0, 10),
-  accountCategory: '',
+  accountCategory: 'SWATI',
   accountSource: '',
   accountState: '',
-  customerType: '',
+  customerType: 'SWATI',
   productCategory: '',
   panelAssemblies: [],
   industryType: '',
@@ -108,6 +108,8 @@ const initialFormData = {
   contactEmail: '',
   contactPhone: '',
   contactMobile: '',
+  secondaryPhone: '',
+  secondaryPhoneNumber: '',
   reminderDate: '',
   reminderMode: '',
   remark: '',
@@ -190,7 +192,7 @@ const fieldGroups = {
   ],
   contactsRight: [
     { name: 'contactEmail', label: 'Contact Email', type: 'email', icon: <FaRegFileAlt /> },
-    { name: 'contactMobile', label: 'Contact Mobile', type: 'tel', required: true, icon: <FaHashtag /> },
+    { name: 'contactMobile', label: 'Contact Mobile', type: 'tel', required: true, icon: <FaPhoneAlt /> },
   ],
   reminderLeft: [
     { name: 'reminderDate', label: 'Reminder Date', type: 'date', icon: <FaCalendarAlt /> },
@@ -208,6 +210,15 @@ const AddAccountWizard = () => {
   const { user } = useAuth()
   const [currentStep, setCurrentStep] = useState(0)
   const [formData, setFormData] = useState(initialFormData)
+  const [showSecondaryPhone, setShowSecondaryPhone] = useState(
+    () => Boolean(initialFormData?.secondaryPhone || initialFormData?.secondaryPhoneNumber)
+  )
+
+  useEffect(() => {
+    if (formData.secondaryPhone || formData.secondaryPhoneNumber) {
+      setShowSecondaryPhone(true)
+    }
+  }, [formData.secondaryPhone, formData.secondaryPhoneNumber])
   const [errors, setErrors] = useState({})
   const [validationNotice, setValidationNotice] = useState([])
   const [saving, setSaving] = useState(false)
@@ -371,11 +382,15 @@ const AddAccountWizard = () => {
         jobNo: account.jobNo || account.formData?.jobNo || '',
         projectName: account.projectName || account.formData?.projectName || '',
         productCategory: account.productCategory || account.formData?.productCategory || '',
+        secondaryPhone: account.secondaryPhone || account.secondaryPhoneNumber || account.formData?.secondaryPhone || account.formData?.secondaryPhoneNumber || '',
+        secondaryPhoneNumber: account.secondaryPhone || account.secondaryPhoneNumber || account.formData?.secondaryPhone || account.formData?.secondaryPhoneNumber || '',
         contacts: Array.isArray(account.contacts) && account.contacts.length > 0 ? account.contacts : [
           {
             contactPerson: account.contactPerson || account.contactName || account.formData?.contactPerson || '',
             phone: account.contactPhone || account.phone || account.formData?.contactPhone || account.formData?.phone || '',
             mobile: account.contactMobile || account.mobile || account.contactPhone || account.phone || account.formData?.contactMobile || '',
+            secondaryPhone: account.secondaryPhone || account.secondaryPhoneNumber || account.formData?.secondaryPhone || account.formData?.secondaryPhoneNumber || '',
+            secondaryPhoneNumber: account.secondaryPhone || account.secondaryPhoneNumber || account.formData?.secondaryPhone || account.formData?.secondaryPhoneNumber || '',
             email: account.contactEmail || account.email || account.formData?.contactEmail || account.formData?.email || '',
             designation: account.contactDesignation || account.designation || account.formData?.contactDesignation || '',
           },
@@ -501,6 +516,11 @@ const AddAccountWizard = () => {
       return next
     })
 
+    const resolvedSecondaryPhone = customer.secondaryPhone || primaryContact.secondaryPhone || customer.secondaryPhoneNumber || primaryContact.secondaryPhoneNumber || ''
+    if (resolvedSecondaryPhone) {
+      setShowSecondaryPhone(true)
+    }
+
     setFormData((prev) => ({
       ...prev,
       accountName: customer.accountName || customer.customerName || prev.accountName,
@@ -514,6 +534,8 @@ const AddAccountWizard = () => {
       contactPerson: primaryContact.contactPerson || primaryContact.name || prev.contactPerson,
       contactPhone: primaryContact.phone || prev.contactPhone,
       contactMobile: primaryContact.mobile || prev.contactMobile,
+      secondaryPhone: resolvedSecondaryPhone || prev.secondaryPhone || '',
+      secondaryPhoneNumber: resolvedSecondaryPhone || prev.secondaryPhoneNumber || '',
       contactEmail: primaryContact.email || prev.contactEmail,
       contactDesignation: primaryContact.designation || prev.contactDesignation,
       consultantName: customer.consultantName || prev.consultantName,
@@ -780,6 +802,9 @@ const AddAccountWizard = () => {
       department: user?.department || '',
       userEmail: user?.email || '',
       ...formData,
+      accountCategory: (formData.accountCategory && formData.accountCategory !== 'TENDER ENQUIRY' && formData.accountCategory !== 'PURCHASE ENQUIRY') ? formData.accountCategory : 'SWATI',
+      customerCategory: (formData.accountCategory && formData.accountCategory !== 'TENDER ENQUIRY' && formData.accountCategory !== 'PURCHASE ENQUIRY') ? formData.accountCategory : 'SWATI',
+      customerType: (formData.customerType && formData.customerType !== 'TENDER ENQUIRY' && formData.customerType !== 'PURCHASE ENQUIRY') ? formData.customerType : ((formData.accountCategory && formData.accountCategory !== 'TENDER ENQUIRY') ? formData.accountCategory : 'SWATI'),
       accountName: formData.accountName,
       customerName: resolvedCustomerName,
       projectName: projectLabel,
@@ -787,6 +812,8 @@ const AddAccountWizard = () => {
       company: projectLabel,
       accountOwner: finalOwnerName,
       accountOwnerCode: finalOwnerCode,
+      secondaryPhone: formData.secondaryPhone || formData.secondaryPhoneNumber || '',
+      secondaryPhoneNumber: formData.secondaryPhone || formData.secondaryPhoneNumber || '',
       contacts: [
         {
           name: formData.contactPerson,
@@ -794,6 +821,8 @@ const AddAccountWizard = () => {
           email: formData.contactEmail,
           phone: formData.contactMobile || formData.contactPhone,
           mobile: formData.contactMobile,
+          secondaryPhone: formData.secondaryPhone || formData.secondaryPhoneNumber || '',
+          secondaryPhoneNumber: formData.secondaryPhone || formData.secondaryPhoneNumber || '',
         },
       ],
       projects: [
@@ -821,14 +850,19 @@ const AddAccountWizard = () => {
 
       // Also mirror account to MongoDB customers collection with identical customerName
       if (formData.accountName) {
+        const resolvedCategory = (formData.accountCategory && formData.accountCategory !== 'TENDER ENQUIRY' && formData.accountCategory !== 'PURCHASE ENQUIRY') ? formData.accountCategory : 'SWATI'
+        const resolvedCustomerType = (formData.customerType && formData.customerType !== 'TENDER ENQUIRY' && formData.customerType !== 'PURCHASE ENQUIRY') ? formData.customerType : resolvedCategory
         customerService.saveCustomer({
           customerName: resolvedCustomerName,
           customerOwner: finalOwnerName,
-          customerCategory: formData.accountCategory || '',
+          customerCategory: resolvedCategory,
+          customerType: resolvedCustomerType,
           address: formData.address || '',
           gstin: formData.gstin || '',
           industryType: formData.industryType || '',
           state: formData.state || '',
+          secondaryPhone: formData.secondaryPhone || formData.secondaryPhoneNumber || '',
+          secondaryPhoneNumber: formData.secondaryPhone || formData.secondaryPhoneNumber || '',
           contacts: accountPayload.contacts || [],
         }).catch((err) => console.warn('Customer mirror save warning:', err))
       }
@@ -862,6 +896,8 @@ const AddAccountWizard = () => {
           customerRefDate: formData.customerRefDate || '',
           gstin: formData.gstin || '',
           jobNo: formData.jobNo || '',
+          secondaryPhone: formData.secondaryPhone || formData.secondaryPhoneNumber || '',
+          secondaryPhoneNumber: formData.secondaryPhone || formData.secondaryPhoneNumber || '',
           orderCustomerStatus: formData.customerOrderStatus || '',
           status: isExistingCustomer ? 'pending' : (formData.dealStatus || 'pending'),
           stage: isExistingCustomer ? 'new' : (formData.dealStage || 'new'),
@@ -875,6 +911,8 @@ const AddAccountWizard = () => {
               email: formData.contactEmail,
               phone: formData.contactPhone,
               mobile: formData.contactMobile,
+              secondaryPhone: formData.secondaryPhone || formData.secondaryPhoneNumber || '',
+              secondaryPhoneNumber: formData.secondaryPhone || formData.secondaryPhoneNumber || '',
             }
           ]
         }
@@ -1245,7 +1283,73 @@ const AddAccountWizard = () => {
                 {renderFieldGroup(fieldGroups.contactsLeft, { layout: 'inline' })}
               </div>
               <div className="add-account-mockup-column">
-                {renderFieldGroup(fieldGroups.contactsRight, { layout: 'inline' })}
+                <LegacyFormField
+                  label="Contact Email"
+                  name="contactEmail"
+                  type="email"
+                  value={formData.contactEmail}
+                  onChange={handleChange}
+                  error={errors.contactEmail}
+                  layout="inline"
+                  icon={<FaRegFileAlt />}
+                />
+                <div style={{ position: 'relative' }}>
+                  <LegacyFormField
+                    label="Contact Mobile"
+                    name="contactMobile"
+                    type="tel"
+                    required={true}
+                    value={formData.contactMobile}
+                    onChange={handleChange}
+                    error={errors.contactMobile}
+                    layout="inline"
+                    fieldClassName="pr-9"
+                    icon={<FaPhoneAlt />}
+                  />
+                  {!showSecondaryPhone ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowSecondaryPhone(true)}
+                      style={{
+                        position: 'absolute',
+                        right: '8px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        background: '#f1f5f9',
+                        border: '1px solid #cbd5e1',
+                        color: '#c60016',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        zIndex: 2,
+                      }}
+                      title="Add Secondary Phone"
+                      aria-label="Add Secondary Phone"
+                    >
+                      <FaPlus />
+                    </button>
+                  ) : null}
+                </div>
+                {showSecondaryPhone ? (
+                  <LegacyFormField
+                    label="Secondary Phone"
+                    name="secondaryPhone"
+                    type="tel"
+                    value={formData.secondaryPhone || formData.secondaryPhoneNumber || ''}
+                    onChange={(name, val) => {
+                      handleChange('secondaryPhone', val)
+                      handleChange('secondaryPhoneNumber', val)
+                    }}
+                    placeholder="Enter secondary phone"
+                    layout="inline"
+                    icon={<FaPhoneAlt />}
+                  />
+                ) : null}
               </div>
             </div>
           </div>

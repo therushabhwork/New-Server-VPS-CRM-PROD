@@ -128,7 +128,8 @@ const getAccountFrontendCacheKey = (user) => (
   user ? `${ACCOUNT_FRONTEND_CACHE_PREFIX}_${user.role || 'user'}_${user.id || 'anonymous'}` : ''
 )
 
-const readAccountFrontendCache = (user) => {
+const readAccountFrontendCache = () => []
+const _unused_readAccountFrontendCache = (user) => {
   const cacheKey = getAccountFrontendCacheKey(user)
   if (!cacheKey || typeof window === 'undefined') return []
 
@@ -141,7 +142,8 @@ const readAccountFrontendCache = (user) => {
   }
 }
 
-const writeAccountFrontendCache = (user, records = []) => {
+const writeAccountFrontendCache = () => {}
+const _unused_writeAccountFrontendCache = (user, records = []) => {
   const cacheKey = getAccountFrontendCacheKey(user)
   if (!cacheKey || typeof window === 'undefined') return
 

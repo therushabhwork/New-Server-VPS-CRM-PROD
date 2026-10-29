@@ -9,6 +9,7 @@ import {
   FaUserPlus,
 } from 'react-icons/fa'
 import { FiEdit2, FiCheck, FiLoader } from 'react-icons/fi'
+import { useAuth } from '../../../../../context/AuthContext'
 import { ACCOUNT_CATEGORY_OPTIONS } from '../../../../../features/accounts/config/accountDropdownOptions'
 
 const formatDateDisplay = (value) => {
@@ -35,6 +36,8 @@ export default function AccountSnapshotStrip({
   onAutoSave,
   canEdit = true,
 }) {
+  const { user } = useAuth()
+  const effectiveCanEdit = Boolean(canEdit || user?.role === 'admin' || user?.role === 'super_admin')
   const accountDate = form.accountDate || account.accountDate || account.createdAt || ''
   const category = form.accountCategory || account.accountCategory || account.category || ''
   const status = form.status || account.status || account.stage || ''
@@ -64,7 +67,7 @@ export default function AccountSnapshotStrip({
   }, [saveStatus])
 
   const startEdit = (fieldKey, val) => {
-    if (!canEdit || saveStatus === 'saving') return
+    if (!effectiveCanEdit || saveStatus === 'saving') return
     setEditingField(fieldKey)
     setFieldValue(val || '')
   }
@@ -119,13 +122,29 @@ export default function AccountSnapshotStrip({
       type: 'select',
       options: ACCOUNT_CATEGORY_OPTIONS,
     },
-    {
+        {
       id: 'status',
       label: 'Status',
       icon: FaInfoCircle,
       value: status,
       isPill: true,
       pillType: 'new',
+      editable: true,
+      type: 'select',
+      options: [
+        { value: 'new', label: 'New' },
+        { value: 'priority_1', label: 'Priority 1' },
+        { value: 'priority_2', label: 'Priority 2' },
+        { value: 'follow_up', label: 'Follow-Up' },
+        { value: 'technical_offer', label: 'Technical Offer' },
+        { value: 'commercial_offer', label: 'Commercial Offer' },
+        { value: 'quotation_sent', label: 'Quotation Sent' },
+        { value: 'quote_revision', label: 'Quotation Revision' },
+        { value: 'order_received', label: 'Order Received' },
+        { value: 'not_quoted', label: 'Not Quoted' },
+        { value: 'convert_to_po', label: 'Convert To PO' },
+        { value: 'rejected', label: 'Rejected' },
+      ],
     },
     {
       id: 'state',
@@ -168,7 +187,7 @@ export default function AccountSnapshotStrip({
             <div className="ad-snapshot-label-row">
               <Icon style={{ fontSize: '0.68rem', color: 'var(--color-primary, #c60016)' }} />
               <span>{item.label}</span>
-              {item.editable && canEdit && !isThisEditing && (
+              {item.editable && effectiveCanEdit && !isThisEditing && (
                 <button
                   type="button"
                   className="ad-field-edit-btn"
@@ -226,15 +245,57 @@ export default function AccountSnapshotStrip({
                 )}
               </div>
             ) : item.value ? (
-              item.isPill ? (
-                <span
-                  className={`ad-status-pill ${
-                    item.pillType === 'new' ? 'ad-status-pill--new' : 'ad-status-pill--warm'
-                  }`}
-                  style={{ alignSelf: 'flex-start', marginTop: '2px' }}
-                >
-                  {item.value}
-                </span>
+                            item.isPill ? (
+                <div style={{ display: 'inline-flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
+                  <span
+                    className={`ad-status-pill ${
+                      item.pillType === 'new' ? 'ad-status-pill--new' : 'ad-status-pill--warm'
+                    }`}
+                    style={{ alignSelf: 'flex-start', marginTop: '2px' }}
+                  >
+                    {(function(v){
+                      if (!v) return 'New'
+                      const s = String(v).trim().toLowerCase()
+                      if (s === 'not_quoted' || s === 'not quoted') return 'Not Quoted'
+                      if (s === 'rejected') return 'Rejected'
+                      if (s === 'quotation_sent' || s === 'quotation sent') return 'Quotation Sent'
+                      if (s === 'priority_1' || s === 'priority 1') return 'Priority 1'
+                      if (s === 'priority_2' || s === 'priority 2') return 'Priority 2'
+                      if (s === 'follow_up' || s === 'follow-up' || s === 'follow up') return 'Follow-Up'
+                      if (s === 'technical_offer' || s === 'technical offer') return 'Technical Offer'
+                      if (s === 'commercial_offer' || s === 'commercial offer') return 'Commercial Offer'
+                      if (s === 'quote_revision' || s === 'quotation revision' || s === 'quote revision') return 'Quotation Revision'
+                      if (s === 'order_received' || s === 'order received') return 'Order Received'
+                      if (s === 'convert_to_po' || s === 'convert to po' || s === 'po_converted' || s === 'po converted') return 'Convert To PO'
+                      if (s === 'new') return 'New'
+                      return String(v).replace(/_/g, ' ')
+                    })(item.value)}
+                  </span>
+                  {false && (
+                    <button
+                      type="button"
+                      className="ad-change-status-btn-hidden"
+
+                      onClick={() => startEdit(item.id, item.value)}
+                      title="Change Status"
+                      style={{
+                        fontSize: '0.68rem',
+                        color: 'var(--color-primary, #c60016)',
+                        cursor: 'pointer',
+                        background: '#fff1f2',
+                        border: '1px solid #fecdd3',
+                        borderRadius: '4px',
+                        padding: '1px 6px',
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                      }}
+                    >
+                      <FiEdit2 style={{ fontSize: '0.65rem' }} /> Change Status
+                    </button>
+                  )}
+                </div>
               ) : (
                 <span className="ad-snapshot-value" title={String(item.value)}>
                   {item.value}

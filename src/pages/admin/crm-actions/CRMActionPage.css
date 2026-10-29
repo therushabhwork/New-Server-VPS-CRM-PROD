@@ -315,7 +315,7 @@
 }
 
 .crm-action-input-error {
-  border-color:  var(--border-subtle);
+  border-color: var(--border-subtle);
   background: var(--surface-card);
 }
 
@@ -489,7 +489,7 @@
   padding: 0.18rem 0.55rem;
   border: 1px solid var(--border-subtle);
   border-radius: 0.25rem;
-  background: linear-gradient(180deg, #54afe0 0%, #288fcb 100%);
+  background: linear-gradient(180deg, #e53935 0%, #c60016 100%);
   color: #ffffff;
   font: inherit;
   font-size: 0.72rem;
@@ -499,7 +499,7 @@
 }
 
 .crm-action-reassign-chip-active {
-  outline: 2px solid rgba(16, 92, 148, 0.28);
+  outline: 2px solid rgba(198, 0, 22, 0.35);
   outline-offset: 1px;
 }
 
@@ -557,7 +557,8 @@
 }
 
 .crm-action-reassign-footer .btn-outline {
-  border-color:  var(--border-subtle);
+  color: var(--text-primary) !important;
+  border-color: var(--border-subtle);
   background: var(--surface-card);
   color: #ffffff;
 }

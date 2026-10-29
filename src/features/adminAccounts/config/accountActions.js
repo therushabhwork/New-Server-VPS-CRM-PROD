@@ -40,6 +40,15 @@ const actionConfig = [
     description: 'Attach document information to the selected account.',
   },
   {
+    key: 'send-mail',
+    order: 4.5,
+    label: 'Send Mail',
+    route: `${actionBaseRoute}/send-mail`,
+    placeholderTitle: 'Send Mail',
+    heading: 'Send Mail',
+    description: 'Send an email regarding the selected account.',
+  },
+  {
     key: 're-assign-account',
     order: 5,
     label: 'Re-Assign Account',
@@ -128,6 +137,7 @@ const userAccountActionKeys = [
   'add-reminder',
   'change-status',
   'add-document',
+  'send-mail',
   're-assign-account',
   'generate-quotation',
   'view-quotations',

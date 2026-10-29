@@ -23,6 +23,7 @@ const COLLECTION_INDEXES = {
     { fields: { status: 1 } },
     { fields: { stage: 1 } },
     { fields: { frontendDeleted: 1, stage: 1 } },
+    { fields: { frontendDeleted: 1, stage: 1, createdAt: -1 } },
     { fields: { updatedAt: -1 } },
   ],
   accounts: [
@@ -51,6 +52,7 @@ const COLLECTION_INDEXES = {
     { fields: { 'data.dealNumber': 1 }, options: { sparse: true } },
     { fields: { stage: 1 } },
     { fields: { frontendDeleted: 1, stage: 1 } },
+    { fields: { frontendDeleted: 1, stage: 1, createdAt: -1 } },
     { fields: { updatedAt: -1 } },
   ],
   converted_deals: [

@@ -87,7 +87,7 @@ export const AuthProvider = ({ children }) => {
   const [currentSessionId, setCurrentSessionId] = useState(() => localStorage.getItem('crm_session_id') || '')
   const [showExpiryModal, setShowExpiryModal] = useState(false)
   const [modalMessage, setModalMessage] = useState('')
-  const [remainingModalSeconds, setRemainingModalSeconds] = useState(300)
+  const [remainingModalSeconds, setRemainingModalSeconds] = useState(3600)
   const [autoLogoutOnZero, setAutoLogoutOnZero] = useState(false)
   const showExpiryModalRef = useRef(false)
   const lastActivityTimeRef = useRef(Date.now())
@@ -297,11 +297,11 @@ export const AuthProvider = ({ children }) => {
     const handleSimulateEvent = () => {
       isModalLockedRef.current = true
       showExpiryModalRef.current = true
-      setModalMessage('You have been away / page minimized for 5 minutes. Click Continue to keep working.')
-      setRemainingModalSeconds(300)
-      setAutoLogoutOnZero(false)
+      setModalMessage('You have been away / page minimized for 20 minutes. Click Continue to keep working.')
+      setRemainingModalSeconds(3600)
+      setAutoLogoutOnZero(true)
       setShowExpiryModal(true)
-      console.log('%c[TEST SIMULATION] ⏱️ 5-Minute Minimize Popup Simulated', 'color: #c60016; font-weight: bold;')
+      console.log('%c[TEST SIMULATION] ⏱️ 20-Minute Minimize Popup Simulated (60m Counter)', 'color: #c60016; font-weight: bold;')
       const sid = currentSessionId || localStorage.getItem('crm_session_id') || 'active_user'
       authApi.logSessionEvent(sid, {
         event: 'popup_arrived',
@@ -320,11 +320,11 @@ export const AuthProvider = ({ children }) => {
     }
   }, [previewExpiryModal, currentSessionId, user])
 
-  // Inactivity & Dual-Event Minimized Page Monitor (5m Minimized, 5m/10m/30m Idle, 60m Auto-Logout)
+  // Inactivity & Dual-Event Minimized Page Monitor (20m Minimized trigger, 60m Countdown & Auto-Logout)
   useEffect(() => {
     if (!user) return undefined
 
-    const triggerPopup = (stage, message, remainingSec = 300, shouldAutoLogout = false) => {
+    const triggerPopup = (stage, message, remainingSec = 3600, shouldAutoLogout = true) => {
       isModalLockedRef.current = true
       showExpiryModalRef.current = true
       setModalMessage(message)
@@ -359,26 +359,27 @@ export const AuthProvider = ({ children }) => {
     }
 
     // Instant check when window is restored / focused (BEFORE any mouse events can reset)
+    // Triggers only when user was away / minimized for >= 20 minutes (1200s)
     const checkAwayOnRestore = () => {
       const stored = localStorage.getItem('crm_minimized_at') || localStorage.getItem('crm_page_away_start')
       const awayStart = stored ? Number(stored) : pageHiddenTimeRef.current
       if (!awayStart) return
 
       const awaySeconds = Math.floor((Date.now() - awayStart) / 1000)
-      if (awaySeconds >= 300 && !dismissedStagesRef.current.has('5m_minimized') && !showExpiryModalRef.current) {
-        dismissedStagesRef.current.add('5m_minimized')
+      if (awaySeconds >= 1200 && !dismissedStagesRef.current.has('20m_minimized') && !showExpiryModalRef.current) {
+        dismissedStagesRef.current.add('20m_minimized')
         localStorage.removeItem('crm_minimized_at')
         localStorage.removeItem('crm_page_away_start')
         triggerPopup(
-          '5m_minimized',
-          `You have been away / page minimized for ${Math.floor(awaySeconds / 60)} minutes. Click Continue to keep working.`,
-          300,
-          false // autoLogoutOnZero = false ("did not aauto")
+          '20m_minimized',
+          `You have been away / page minimized for ${Math.floor(awaySeconds / 60)} minutes. For your security, your CRM session will automatically end in:`,
+          3600, // 60 minutes countdown
+          true  // Automatically log out when 60 minutes countdown finishes
         )
       }
     }
 
-    // Mouse movement threshold guard (15px) to prevent optical mouse jitter from resetting timer
+    // Mouse movement threshold guard (15px) and keyboard tracking to reset activity and prevent false triggers
     const updateActivity = (e) => {
       if (showExpiryModalRef.current || isModalLockedRef.current) return
 
@@ -389,7 +390,7 @@ export const AuthProvider = ({ children }) => {
         lastMousePosRef.current = { x: e.clientX, y: e.clientY }
       }
 
-      // Check if user was away/minimized >= 5m before mouse reset
+      // Check if user was away/minimized >= 20m before mouse/key reset
       checkAwayOnRestore()
 
       lastActivityTimeRef.current = Date.now()
@@ -415,15 +416,11 @@ export const AuthProvider = ({ children }) => {
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
     // Global Test Helper for Developer / Console testing
-    window.testInactivityPopup = (stage = '5m') => {
-      if (stage === '10m') {
-        triggerPopup('10m_idle', 'Test Mode: You have been inactive for 10 minutes. Click Continue to keep working.', 300, false)
-      } else if (stage === '30m') {
-        triggerPopup('30m_idle', 'Test Mode: You have been inactive for 30 minutes. Auto-logout in 30 minutes.', 1800, false)
-      } else if (stage === '1h') {
+    window.testInactivityPopup = (stage = '20m') => {
+      if (stage === '1h' || stage === '60m') {
         handleSessionModalLogout('inactivity_timeout')
       } else {
-        triggerPopup('5m_minimized', 'Test Mode: You have been away / page minimized for 5 minutes. Click Continue to keep working.', 300, false)
+        triggerPopup('20m_minimized', 'Test Mode: You have been away / page minimized for 20 minutes. For your security, your CRM session will automatically end in:', 3600, true)
       }
     }
 
@@ -441,61 +438,17 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      // 0. Stage 0: Page Minimized / Away for >= 5 minutes (300 seconds)
+      // Check if window returned after >= 20 minutes away
       const stored = localStorage.getItem('crm_minimized_at') || localStorage.getItem('crm_page_away_start')
       const awayStart = stored ? Number(stored) : pageHiddenTimeRef.current
       const awaySeconds = Math.floor((now - awayStart) / 1000)
 
-      if (awaySeconds >= 300 && !dismissedStagesRef.current.has('5m_minimized') && !showExpiryModalRef.current) {
-        dismissedStagesRef.current.add('5m_minimized')
-        localStorage.removeItem('crm_minimized_at')
-        localStorage.removeItem('crm_page_away_start')
-        triggerPopup(
-          '5m_minimized',
-          'You have been away / page minimized for 5 minutes. Click Continue to keep working.',
-          300,
-          false
-        )
+      if (document.visibilityState === 'visible' && awaySeconds >= 1200 && !dismissedStagesRef.current.has('20m_minimized') && !showExpiryModalRef.current) {
+        checkAwayOnRestore()
       }
 
-      // 1. Stage 1: 5 minutes idle at desk (300 seconds)
-      if (idleSeconds >= 300 && idleSeconds < 600) {
-        if (!dismissedStagesRef.current.has('5m_idle') && !showExpiryModalRef.current) {
-          dismissedStagesRef.current.add('5m_idle')
-          triggerPopup(
-            '5m_idle',
-            'You have been inactive for 5 minutes. Click Continue to keep working.',
-            300,
-            false
-          )
-        }
-      }
-      // 2. Stage 2: 10 minutes idle (600 seconds)
-      else if (idleSeconds >= 600 && idleSeconds < 1800) {
-        if (!dismissedStagesRef.current.has('10m_idle') && !showExpiryModalRef.current) {
-          dismissedStagesRef.current.add('10m_idle')
-          triggerPopup(
-            '10m_idle',
-            'You have been inactive for 10 minutes. Click Continue to keep working.',
-            300,
-            false
-          )
-        }
-      }
-      // 3. Stage 3: 30 minutes idle (1800 seconds)
-      else if (idleSeconds >= 1800 && idleSeconds < 3600) {
-        if (!dismissedStagesRef.current.has('30m_idle') && !showExpiryModalRef.current) {
-          dismissedStagesRef.current.add('30m_idle')
-          triggerPopup(
-            '30m_idle',
-            'You have been inactive for 30 minutes. Your session will automatically end at 1 hour.',
-            1800,
-            false
-          )
-        }
-      }
-      // 4. Stage 4: 60 minutes (1 Hour Exact) — Guaranteed Auto-Logout
-      else if (idleSeconds >= 3600) {
+      // Fallback: 60 minutes inactive without modal open -> auto logout
+      if (idleSeconds >= 3600 && !showExpiryModalRef.current) {
         showExpiryModalRef.current = false
         setShowExpiryModal(false)
         setModalMessage('')

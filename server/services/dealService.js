@@ -108,8 +108,12 @@ const buildPayload = (body = {}, actor, existing) => {
     contactPerson: asTrimmedStringOrNull(pickFirstDefined(body.contactPerson, body.contactName, existing?.contactPerson, existing?.contactName)),
     contactName: asTrimmedStringOrNull(pickFirstDefined(body.contactName, body.contactPerson, existing?.contactName, existing?.contactPerson)),
     contactMobile: asTrimmedStringOrNull(pickFirstDefined(body.contactMobile, body.phone, existing?.contactMobile, existing?.phone)),
+    secondaryPhone: asTrimmedStringOrNull(pickFirstDefined(body.secondaryPhone, body.secondaryPhoneNumber, body.contacts?.[0]?.secondaryPhone, body.contacts?.[0]?.secondaryPhoneNumber, existing?.secondaryPhone, existing?.secondaryPhoneNumber, existing?.data?.secondaryPhone)),
+    secondaryPhoneNumber: asTrimmedStringOrNull(pickFirstDefined(body.secondaryPhoneNumber, body.secondaryPhone, body.contacts?.[0]?.secondaryPhoneNumber, body.contacts?.[0]?.secondaryPhone, existing?.secondaryPhoneNumber, existing?.secondaryPhone, existing?.data?.secondaryPhoneNumber)),
     contactPhone: asTrimmedStringOrNull(pickFirstDefined(body.contactPhone, body.phone, existing?.contactPhone, existing?.phone)),
     phone: asTrimmedStringOrNull(pickFirstDefined(body.phone, body.contactMobile, body.contactPhone, existing?.phone, existing?.contactMobile, existing?.contactPhone)),
+    secondaryPhone: asTrimmedStringOrNull(pickFirstDefined(body.secondaryPhone, body.secondaryPhoneNumber, body.contacts?.[0]?.secondaryPhone, body.contacts?.[0]?.secondaryPhoneNumber, existing?.secondaryPhone, existing?.secondaryPhoneNumber)),
+    secondaryPhoneNumber: asTrimmedStringOrNull(pickFirstDefined(body.secondaryPhoneNumber, body.secondaryPhone, body.contacts?.[0]?.secondaryPhoneNumber, body.contacts?.[0]?.secondaryPhone, existing?.secondaryPhoneNumber, existing?.secondaryPhone)),
     contactEmail: asTrimmedStringOrNull(pickFirstDefined(body.contactEmail, body.email, existing?.contactEmail, existing?.email)),
     email: asTrimmedStringOrNull(pickFirstDefined(body.email, body.contactEmail, existing?.email, existing?.contactEmail)),
     address: asTrimmedStringOrNull(pickFirstDefined(body.address, existing?.address)),
@@ -501,6 +505,126 @@ module.exports = {
         ...(custName ? [{ customerName: custName }, { name: custName }] : []),
       ]
 
+      // Dynamic reassignedDateX sync across deals and leads collections
+      const reassignedKeysInBody = Object.keys(enhancedBody).filter((k) => /^reassignedDate\d+$/i.test(k))
+      const isReassignment = Boolean(
+        enhancedBody.assignedTo !== undefined ||
+        enhancedBody.assignedUserId !== undefined ||
+        enhancedBody.ownerUserId !== undefined ||
+        enhancedBody.dealOwner !== undefined ||
+        reassignedKeysInBody.length > 0
+      )
+
+      if (isReassignment) {
+        let existingDealDoc = null
+        if (Deal && dealMatchFilters.length > 0) {
+          existingDealDoc = await Deal.findOne({ $or: dealMatchFilters }).lean().catch(() => null)
+        }
+        let maxReassignedIdx = 0
+        const docKeys = [
+          ...Object.keys(existing || {}),
+          ...Object.keys(existing?.data || {}),
+          ...Object.keys(existingDealDoc || {}),
+          ...Object.keys(existingDealDoc?.data || {}),
+          ...reassignedKeysInBody,
+        ]
+        for (const k of docKeys) {
+          const m = k.match(/^reassignedDate(\d+)$/i)
+          if (m) {
+            const num = parseInt(m[1], 10)
+            if (num > maxReassignedIdx) maxReassignedIdx = num
+          }
+        }
+        const targetReassignedKey = reassignedKeysInBody[0] || `reassignedDate${maxReassignedIdx + 1}`
+        const targetReassignedVal = enhancedBody[targetReassignedKey] || nowIso
+
+        const reassignUpdateSet = {
+          reassignedDate: targetReassignedVal,
+          reassignDate: targetReassignedVal,
+          [targetReassignedKey]: targetReassignedVal,
+          'data.reassignedDate': targetReassignedVal,
+          'data.reassignDate': targetReassignedVal,
+          [`data.${targetReassignedKey}`]: targetReassignedVal,
+          'formData.reassignedDate': targetReassignedVal,
+          'formData.reassignDate': targetReassignedVal,
+          [`formData.${targetReassignedKey}`]: targetReassignedVal,
+          updatedAt: nowIso,
+          'data.updatedAt': nowIso,
+        }
+
+        if (Deal && dealMatchFilters.length > 0) {
+          await Deal.updateMany(
+            { $or: dealMatchFilters },
+            { $set: reassignUpdateSet }
+          ).catch(() => {})
+        }
+
+        if (Lead && leadMatchFilters.length > 0) {
+          await Lead.updateMany(
+            { $or: leadMatchFilters },
+            { $set: reassignUpdateSet }
+          ).catch(() => {})
+        }
+      }
+
+      // Dynamic secondaryPhoneNumber sync across deals and leads collections
+      const secPhone = enhancedBody.secondaryPhoneNumber !== undefined
+        ? enhancedBody.secondaryPhoneNumber
+        : enhancedBody.secondaryPhone
+      if (secPhone !== undefined) {
+        const phoneUpdateSet = {
+          secondaryPhoneNumber: secPhone,
+          secondaryPhone: secPhone,
+          'data.secondaryPhoneNumber': secPhone,
+          'data.secondaryPhone': secPhone,
+          'formData.secondaryPhoneNumber': secPhone,
+          'formData.secondaryPhone': secPhone,
+        }
+        if (Deal && dealMatchFilters.length > 0) {
+          await Deal.updateMany({ $or: dealMatchFilters }, { $set: phoneUpdateSet }).catch(() => {})
+        }
+        if (Lead && leadMatchFilters.length > 0) {
+          await Lead.updateMany({ $or: leadMatchFilters }, { $set: phoneUpdateSet }).catch(() => {})
+        }
+      }
+
+      if (enhancedBody.alternatePhone !== undefined) {
+        const altPhone = enhancedBody.alternatePhone
+        const altPhoneUpdateSet = {
+          alternatePhone: altPhone,
+          'data.alternatePhone': altPhone,
+          'formData.alternatePhone': altPhone,
+        }
+        if (Deal && dealMatchFilters.length > 0) {
+          await Deal.updateMany({ $or: dealMatchFilters }, { $set: altPhoneUpdateSet }).catch(() => {})
+        }
+        if (Lead && leadMatchFilters.length > 0) {
+          await Lead.updateMany({ $or: leadMatchFilters }, { $set: altPhoneUpdateSet }).catch(() => {})
+        }
+      }
+
+      if (enhancedBody.dealType !== undefined || enhancedBody.dealSource !== undefined || enhancedBody.source !== undefined) {
+        const val = enhancedBody.dealType || enhancedBody.dealSource || enhancedBody.source || ''
+        const typeUpdateSet = {
+          dealType: val,
+          dealSource: val,
+          source: val,
+          customerCategory: val,
+          'data.dealType': val,
+          'data.dealSource': val,
+          'data.source': val,
+          'formData.dealType': val,
+          'formData.dealSource': val,
+          'formData.source': val,
+        }
+        if (Deal && dealMatchFilters.length > 0) {
+          await Deal.updateMany({ $or: dealMatchFilters }, { $set: typeUpdateSet }).catch(() => {})
+        }
+        if (Lead && leadMatchFilters.length > 0) {
+          await Lead.updateMany({ $or: leadMatchFilters }, { $set: typeUpdateSet }).catch(() => {})
+        }
+      }
+
       if (isPoConversionTarget) {
         const poVal = updatedDeal.poValue ?? enhancedBody.poValue ?? existing?.poValue ?? 0
         const orderStatus = updatedDeal.statusAsPerOrderReceived || enhancedBody.statusAsPerOrderReceived || ''
@@ -751,7 +875,31 @@ module.exports = {
           ).catch(() => {})
         }
       } else {
-        // Standard non-Won non-Lost update to Customer
+        // Standard non-Won non-Lost update to Customer and Lead
+        const targetDealStage = updatedDeal.stage || updatedDeal.status || enhancedBody.stage || enhancedBody.status || ''
+        const targetDealStatusLabel = updatedDeal.statusLabel || enhancedBody.statusLabel || (targetDealStage ? String(targetDealStage).replace(/_/g, ' ') : '')
+        if (Lead && leadMatchFilters.length > 0 && targetDealStage) {
+          await Lead.updateMany(
+            { $or: leadMatchFilters },
+            {
+              $set: {
+                stage: targetDealStage,
+                status: targetDealStage,
+                accountStatus: targetDealStatusLabel,
+                accountState: targetDealStatusLabel,
+                updatedAt: new Date().toISOString(),
+                'formData.stage': targetDealStage,
+                'formData.status': targetDealStage,
+                'formData.accountStatus': targetDealStatusLabel,
+                'formData.accountState': targetDealStatusLabel,
+                'data.stage': targetDealStage,
+                'data.status': targetDealStage,
+                'data.accountStatus': targetDealStatusLabel,
+                'data.accountState': targetDealStatusLabel,
+              }
+            }
+          ).catch(() => {})
+        }
         if (Customer && customerMatchFilters.length > 0) {
           const targetCustStatus = updatedDeal.stage || updatedDeal.status || 'staged'
           await Customer.updateMany(

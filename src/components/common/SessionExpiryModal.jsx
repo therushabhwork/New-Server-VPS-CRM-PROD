@@ -4,7 +4,7 @@ import './SessionExpiryModal.css'
 
 export const SessionExpiryModal = ({
   isOpen = false,
-  remainingSeconds = 300,
+  remainingSeconds = 3600,
   message = '',
   autoLogoutOnZero = false,
   onContinue,

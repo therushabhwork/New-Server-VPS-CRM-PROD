@@ -2685,7 +2685,7 @@ export function RevisionsListModal({
             style={{ marginBottom: '12px', cursor: 'pointer' }}
             onClick={onClose}
           >
-            &larr; Back To Quotations List
+            &larr; Back To Quotation
           </button>
           <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#0f172a', fontWeight: 700 }}>
             Revision History — {companyName} ({activeDisplayQuoteNo})

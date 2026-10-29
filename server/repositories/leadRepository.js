@@ -1,4 +1,4 @@
-﻿const { getMongoModel } = require('../models/mongoModels')
+const { getMongoModel } = require('../models/mongoModels')
 const { createCrudRepository } = require('./crudRepositoryFactory')
 const { buildScopedMongoFilter, byLegacyId, mergeFilters } = require('./mongoQueryHelpers')
 
@@ -223,7 +223,7 @@ const mapLeadRow = (record) => {
 }
 
 const listAllLeads = async () => {
-  const records = await Lead.find(visibleFilter).sort({ accountNo: 1, legacyId: 1 }).lean()
+  const records = await Lead.find(visibleFilter).sort({ createdAt: -1, legacyId: -1 }).lean()
   return records.map(mapLeadRow).filter(Boolean)
 }
 
@@ -318,7 +318,7 @@ const listLeadsForActor = async (actor, options = {}) => {
     visibleFilter
   )
 
-  let query = Lead.find(filter).sort({ accountNo: 1, legacyId: 1 })
+  let query = Lead.find(filter).sort({ createdAt: -1, legacyId: -1 })
 
   if (limit > 0) {
     const total = await Lead.countDocuments(filter)
@@ -343,7 +343,7 @@ const listLeadsForActor = async (actor, options = {}) => {
 const listAssignedLeads = async (userId) => {
   const records = await Lead
     .find(mergeFilters({ $or: [{ assignedTo: userId }, { createdBy: userId }] }, visibleFilter))
-    .sort({ accountNo: 1, legacyId: 1 })
+    .sort({ createdAt: -1, legacyId: -1 })
     .lean()
 
   return records.map(mapLeadRow).filter(Boolean)
@@ -394,7 +394,7 @@ const listCreatedLeadsForActor = async (actor, filters = {}) => {
     visibleFilter
   )
 
-  let query = Lead.find(filter).sort({ accountNo: 1, legacyId: 1 })
+  let query = Lead.find(filter).sort({ createdAt: -1, legacyId: -1 })
 
   if (limit > 0) {
     const total = await Lead.countDocuments(filter)

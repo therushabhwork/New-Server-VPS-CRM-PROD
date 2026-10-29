@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { FiChevronDown } from 'react-icons/fi'
@@ -22,7 +22,7 @@ import { getAccountById } from '../../../features/adminAccounts/selectors/getAcc
 import { getAccountsBoardData } from '../../../features/adminAccounts/selectors/getAccountsBoardData'
 import { getAccountSourceBoardData } from '../../../features/adminAccounts/selectors/getAccountSourceBoardData'
 import { getConvertedAccountsBoardData } from '../../../features/adminAccounts/selectors/getConvertedAccountsBoardData'
-import { getMyAccountsBoardData } from '../../../features/adminAccounts/selectors/getMyAccountsBoardData'
+import { getMyAccountsBoardData, isOwnedByCurrentUser } from '../../../features/adminAccounts/selectors/getMyAccountsBoardData'
 import { getSwBarodaMumBoardData } from '../../../features/adminAccounts/selectors/getSwBarodaMumBoardData'
 import { getUserWiseLeadsBoardData } from '../../../features/adminAccounts/selectors/getUserWiseLeadsBoardData'
 import { getWeeklyReportsAllBoardData } from '../../../features/adminAccounts/selectors/getWeeklyReportsAllBoardData'
@@ -48,6 +48,7 @@ const SEARCH_ACCOUNT_NON_ADMIN_COLUMN_KEYS = [
   'name',
   'accountDate',
   'accountOwner',
+  'status',
   'projectName',
   'quotationNumber',
   'quotationOwnerName',
@@ -179,6 +180,29 @@ const getAccountRowsWithRequiredFields = (rows = [], deals = []) => rows.map((ro
   }
   const resolvedPoValue = resolveRowPo()
 
+    const rawRowStatus = String(row.status || row.accountStatus || raw.status || raw.accountStatus || raw.stage || '').trim().toLowerCase()
+  let isRowNotQuoted = rawRowStatus === 'not_quoted' || rawRowStatus === 'not quoted'
+  if (!isRowNotQuoted && Array.isArray(deals) && deals.length > 0) {
+    const rId = String(row.id || raw.id || raw._id || raw.legacyId || '')
+    const rAccNo = String(row.accountNumber || row.accountNo || raw.accountNumber || raw.accountNo || '').trim()
+    const rAccName = String(row.accountName || row.name || raw.accountName || raw.name || '').trim().toLowerCase()
+    const matchingDealForStatus = deals.find((d) => {
+      const dAccId = String(d.accountId || d.raw?.accountId || '')
+      if (rId && dAccId && dAccId === rId) return true
+      const dAccNo = String(d.linkedAccountNumber || d.accountNumber || d.accountNo || '').trim()
+      if (rAccNo && dAccNo && dAccNo === rAccNo) return true
+      const dAccName = String(d.linkedAccountName || d.accountName || d.customerName || '').trim().toLowerCase()
+      if (rAccName && dAccName && dAccName === rAccName) return true
+      return false
+    })
+    if (matchingDealForStatus) {
+      const dealStat = String(matchingDealForStatus.status || matchingDealForStatus.stage || matchingDealForStatus.data?.status || matchingDealForStatus.data?.stage || '').trim().toLowerCase()
+      if (dealStat === 'not_quoted' || dealStat === 'not quoted') {
+        isRowNotQuoted = true
+      }
+    }
+  }
+
   return {
     ...row,
     dealName,
@@ -188,6 +212,7 @@ const getAccountRowsWithRequiredFields = (rows = [], deals = []) => rows.map((ro
     accountOwnerDisplay: row.accountOwnerDisplay || cleanAccountOwner,
     poValue: resolvedPoValue || row.poValue || '',
     dealValue: resolvedPoValue || row.dealValue || '',
+    ...(isRowNotQuoted ? { status: 'Not Quoted', accountStatus: 'Not Quoted' } : {}),
   }
 })
 
@@ -369,8 +394,24 @@ const getConvertedAccountsFieldText = (row = {}, fieldKey = '') => {
     case 'accountDate': return row.accountDateDisplay || formatDisplayDate(row.accountDate) || formatDisplayDate(row.createdAt) || formatDisplayDate(row.created_at) || ''
     case 'accountCategory': return row.accountCategory || ''
     case 'accountOwner': return row.accountOwnerDisplay || row.accountOwnerName || row.accountOwner || ''
-    case 'status':
-    case 'accountStatus': return row.accountStatus || row.status || ''
+        case 'status':
+    case 'accountStatus': {
+      const val = String(row.accountStatus || row.status || row.stage || row.raw?.accountStatus || row.raw?.status || row.raw?.stage || row.accountState || '').trim()
+      const lower = val.toLowerCase()
+      if (lower === 'not_quoted' || lower === 'not quoted') return 'Not Quoted'
+      if (lower === 'rejected') return 'Rejected'
+      if (lower === 'quotation_sent' || lower === 'quotation sent') return 'Quotation Sent'
+      if (lower === 'priority_1' || lower === 'priority 1') return 'Priority 1'
+      if (lower === 'priority_2' || lower === 'priority 2') return 'Priority 2'
+      if (lower === 'follow_up' || lower === 'follow-up' || lower === 'follow up') return 'Follow-Up'
+      if (lower === 'technical_offer' || lower === 'technical offer') return 'Technical Offer'
+      if (lower === 'commercial_offer' || lower === 'commercial offer') return 'Commercial Offer'
+      if (lower === 'quote_revision' || lower === 'quotation revision' || lower === 'quote revision') return 'Quotation Revision'
+      if (lower === 'order_received' || lower === 'order received') return 'Order Received'
+      if (lower === 'convert_to_po' || lower === 'convert to po' || lower === 'po_converted' || lower === 'po converted') return 'Convert To PO'
+      if (lower === 'new' || lower === 'pending') return 'New'
+      return row.accountStatus || row.status || ''
+    }
     case 'accountSource': return row.accountSource || ''
     case 'accountState': return row.accountState || ''
     case 'contactPerson': return row.contactPerson || ''
@@ -728,9 +769,6 @@ const MyGroupAccountsPage = ({ variantKey = 'myGroup' }) => {
   }, []);
   const [searchParams, setSearchParams] = useSearchParams()
   const searchQuery = searchParams.get('query') || new URLSearchParams(location.search).get('query') || ''
-  const isServerPaginatedVariant = variantKey === 'searchAccount' || variantKey === 'myAccounts'
-  const [serverPageData, setServerPageData] = useState(null)
-  const [isServerPageLoading, setIsServerPageLoading] = useState(false)
   const view = getAdminAccountsBoardView(variantKey)
   const isAdminPortal = location.pathname.startsWith('/admin')
   const showStageTabs = view.showStageTabs !== false
@@ -878,27 +916,8 @@ const activeStageParam = searchParams.get('stage')
     [activeStage, boardData.rowsByStage, deals]
   )
 
-  useEffect(() => {
-    if (!isServerPaginatedVariant) return
-    let isCancelled = false
-    setIsServerPageLoading(true)
-    leadApi.getPaginatedLeads({
-      page: requestedPage || 1,
-      limit: DEFAULT_ROWS_PER_PAGE,
-      stage: activeStage,
-      query: searchQuery || '',
-    }).then((res) => {
-      if (!isCancelled && res) {
-        setServerPageData(res)
-      }
-    }).catch((err) => {
-      console.warn('Paginated leads fetch warning:', err.message)
-    }).finally(() => {
-      if (!isCancelled) setIsServerPageLoading(false)
-    })
-    return () => { isCancelled = true }
-  }, [isServerPaginatedVariant, requestedPage, activeStage, searchQuery])
-  const boardRows = showStageTabs ? stageRows : convertedBoardRecords
+  const shouldShowAllStageRecords = variantKey === 'myAccounts' || variantKey === 'searchAccount' || !showStageTabs
+  const boardRows = shouldShowAllStageRecords ? convertedBoardRecords : stageRows
   const convertedFieldOptions = useMemo(() => (
     CONVERTED_ACCOUNT_FIELD_DEFINITIONS.filter((field) => field.key)
   ), [])
@@ -985,7 +1004,8 @@ const activeStageParam = searchParams.get('stage')
     () => boardRows
       .filter((row) => matchesSectionSearch(row, [
         'accountNumber', 'accountNo', 'name', 'accountName', 'projectName',
-        'accountOwner', 'accountDate', 'accountCategory', 'status', 'accountStatus',
+        'accountOwner',
+  'status', 'accountDate', 'accountCategory', 'status', 'accountStatus',
         'accountState', 'phone', 'email', 'contactPerson', 'poValue', 'jobNo',
         'company', 'companyName', 'customerName', 'latestRemark', 'description', 'address',
       ], searchQuery))
@@ -1002,7 +1022,8 @@ const activeStageParam = searchParams.get('stage')
     () => convertedBoardRecords
       .filter((row) => matchesSectionSearch(row, [
         'accountNumber', 'accountNo', 'name', 'accountName', 'projectName',
-        'accountOwner', 'accountDate', 'accountCategory', 'status', 'accountStatus',
+        'accountOwner',
+  'status', 'accountDate', 'accountCategory', 'status', 'accountStatus',
         'accountState', 'phone', 'email', 'contactPerson', 'poValue', 'jobNo',
         'company', 'companyName', 'customerName', 'latestRemark', 'description', 'address',
       ], searchQuery))
@@ -1016,25 +1037,16 @@ const activeStageParam = searchParams.get('stage')
     [convertedBoardRecords, filterColumnDefinitions, filters, matchesConvertedFilterRules, variantKey, cityFilter, ownerFilter, searchQuery]
   )
 
-  const serverPaginatedRows = useMemo(() => {
-    if (!isServerPaginatedVariant || !serverPageData?.records) return null
-    return getAccountRowsWithRequiredFields(serverPageData.records, deals)
-  }, [isServerPaginatedVariant, serverPageData?.records, deals])
-
   const rowsPerPage = DEFAULT_ROWS_PER_PAGE
-  const totalPages = (isServerPaginatedVariant && serverPageData)
-    ? serverPageData.totalPages
-    : Math.max(1, Math.ceil(filteredRows.length / rowsPerPage))
-  const totalItemsCount = (isServerPaginatedVariant && serverPageData)
-    ? serverPageData.total
-    : filteredRows.length
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage))
+  const totalItemsCount = filteredRows.length
   const currentPage = Number.isFinite(requestedPage) && requestedPage > 0
     ? Math.min(requestedPage, totalPages)
     : 1
   const menuResetKey = `${activeStage}-${currentPage}-${JSON.stringify(filters)}`
   const pageStart = totalItemsCount === 0 ? 0 : ((currentPage - 1) * rowsPerPage) + 1
   const pageEnd = Math.min(totalItemsCount, currentPage * rowsPerPage)
-  const paginatedRows = serverPaginatedRows || filteredRows.slice(pageStart > 0 ? pageStart - 1 : 0, pageEnd)
+  const paginatedRows = filteredRows.slice(pageStart > 0 ? pageStart - 1 : 0, pageEnd)
   const selectedAccounts = useMemo(() => {
     const selectedIds = new Set(selectedAccountIds.map((id) => String(id)))
     return filteredAllStageRows.filter((row) => selectedIds.has(String(row.id)))
@@ -1569,9 +1581,7 @@ const activeStageParam = searchParams.get('stage')
     }
   }, [isKevalVShah, navigate, variantKey])
 
-  const displayTotalRecords = (isServerPaginatedVariant && serverPageData)
-    ? serverPageData.total
-    : boardData.totalRecords
+  const displayTotalRecords = boardData.totalRecords
   const pageTitle = showRecordCountInHeroTitle
     ? `${view.heroTitle} - ${displayTotalRecords} records`
     : view.heroTitle
@@ -1717,16 +1727,16 @@ const activeStageParam = searchParams.get('stage')
           <div>
             <p className="admin-accounts-board-subtitle">
               {view.summaryMode === 'source'
-                ? `Total ${activeStageMeta?.label || activeStage} Records: ${filteredRows.length}`
+                ? `Total ${activeStageMeta?.label || activeStage} Records: ${totalItemsCount}`
                 : view.summaryMode === 'converted'
-                ? `Showing ${filteredRows.length} converted accounts.`
+                ? `Showing ${totalItemsCount} converted accounts.`
                 : view.summaryMode === 'owner'
-                ? `Total Records: ${filteredRows.length}`
+                ? `Total Records: ${totalItemsCount}`
                 : view.summaryMode === 'weekly'
-                ? `Showing ${filteredRows.length} records from the last 7 days.`
+                ? `Showing ${totalItemsCount} records from the last 7 days.`
                 : showStageTabs
-                ? `Stage: ${visibleStages.find((s) => s.key === activeStage)?.label || activeStage} - ${filteredRows.length} records`
-                : `${filteredRows.length} records`}
+                ? `Stage: ${visibleStages.find((s) => s.key === activeStage)?.label || activeStage} - ${totalItemsCount} records`
+                : `${totalItemsCount} records`}
             </p>
           </div>
 

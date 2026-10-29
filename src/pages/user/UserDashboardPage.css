@@ -829,8 +829,17 @@
   }
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1366px) {
   .ud-monitoring-side-by-side {
+    grid-template-columns: 1fr !important;
+  }
+  .ud-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .ud-welcome-section {
+    flex-wrap: wrap;
+  }
+  .ud-dashboard-main-grid {
     grid-template-columns: 1fr !important;
   }
 }

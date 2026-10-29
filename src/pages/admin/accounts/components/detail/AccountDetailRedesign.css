@@ -519,11 +519,15 @@
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
-  background: #ffffff !important;
+  background: #c60016 !important;
   border: 1.5px solid #ef4444 !important;
-  color: var(--color-gray-700, #334155) !important;
+  color: #ffffff !important;
   box-shadow: none !important;
-  transition: all 0.15s ease-in-out;
+  transition: all 0.15s ease-in-out; }
+.ad-action-pill-btn svg { color: #ffffff !important; fill: #ffffff !important; }
+.deal-quick-actions--non-admin .ad-action-pill-btn svg { color: #c60016 !important; fill: #c60016 !important; }
+.ad-assignment-btn[hidden] { display: none !important; }
+.ad-assignment-btn--reviewed { background: #16a34a !important; color: #ffffff !important; border-color: #16a34a !important;
 }
 
 .ad-action-pill-btn:hover {
@@ -537,9 +541,9 @@
 .ad-action-pill-btn--green,
 .ad-action-pill-btn--purple,
 .ad-action-pill-btn--subtle {
-  background: #ffffff !important;
+  background: #c60016 !important;
   border: 1.5px solid #ef4444 !important;
-  color: var(--color-gray-700, #334155) !important;
+  color: #ffffff !important;
 }
 
 .ad-action-pill-btn--blue:hover,
@@ -585,11 +589,15 @@
   height: 28px;
   border-radius: 4px;
   border: 1.5px solid #ef4444 !important;
-  background: #ffffff !important;
+  background: #c60016 !important;
   color: #ef4444 !important;
   cursor: pointer;
   font-size: 0.85rem;
-  transition: all 0.15s ease-in-out;
+  transition: all 0.15s ease-in-out; }
+.ad-action-pill-btn svg { color: #ffffff !important; fill: #ffffff !important; }
+.deal-quick-actions--non-admin .ad-action-pill-btn svg { color: #c60016 !important; fill: #c60016 !important; }
+.ad-assignment-btn[hidden] { display: none !important; }
+.ad-assignment-btn--reviewed { background: #16a34a !important; color: #ffffff !important; border-color: #16a34a !important;
   flex-shrink: 0;
 }
 
@@ -628,7 +636,7 @@
 }
 
 .ad-assignment-bell {
-  color: var(--color-gray-700, #334155) !important;
+  color: #ffffff !important;
   font-size: 1.15rem;
   flex-shrink: 0;
 }
@@ -670,11 +678,15 @@
   height: 28px;
   border-radius: 6px;
   border: 1.5px solid #ef4444 !important;
-  background: #ffffff !important;
-  color: var(--color-gray-700, #334155) !important;
+  background: #c60016 !important;
+  color: #ffffff !important;
   font-size: 0.78rem;
   cursor: pointer;
-  transition: all 0.15s ease-in-out;
+  transition: all 0.15s ease-in-out; }
+.ad-action-pill-btn svg { color: #ffffff !important; fill: #ffffff !important; }
+.deal-quick-actions--non-admin .ad-action-pill-btn svg { color: #c60016 !important; fill: #c60016 !important; }
+.ad-assignment-btn[hidden] { display: none !important; }
+.ad-assignment-btn--reviewed { background: #16a34a !important; color: #ffffff !important; border-color: #16a34a !important;
 }
 
 .ad-assignment-btn:hover {
@@ -1103,4 +1115,10 @@
 
 .c-account-stage-connector--active {
   color: #c60016;
+}
+
+
+.ad-assignment-bell.ad-assignment-bell--reviewed,
+.ad-assignment-bell--reviewed {
+  color: #16a34a !important;
 }

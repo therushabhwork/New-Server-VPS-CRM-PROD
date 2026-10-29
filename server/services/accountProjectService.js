@@ -16,6 +16,11 @@ const numberValue = (...values) => {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+const sanitizeCategory = (val) => {
+  const s = String(val || '').trim().toUpperCase()
+  return (s === 'LUMOS' || s === 'SWATI') ? s : ''
+}
+
 const getRecordId = (record = {}) => String(record.id || record._id || record.legacyId || '')
 
 const getData = (record = {}) => (
@@ -59,7 +64,7 @@ const normalizeSourceRecord = (sourceType, record = {}) => {
     customerNumber: text(record.customerNumber, record.accountNumber, record.accountNo, record.dealNumber, formData.accountNumber, formData.accountNo),
     customerOwner: ownerName,
     customerOwnerDisplay: ownerName,
-    customerCategory: text(record.customerCategory, record.accountCategory, record.dealType, data.customerCategory, data.accountCategory, formData.accountCategory),
+    customerCategory: sanitizeCategory(record.customerCategory) || sanitizeCategory(record.accountCategory) || sanitizeCategory(data.customerCategory) || sanitizeCategory(data.accountCategory) || sanitizeCategory(formData.accountCategory) || 'SWATI',
     customerStatus: text(record.customerStatus, record.accountStatus, record.accountState, record.status, data.status, formData.accountState),
     address: text(record.address, data.address, formData.address),
     state: text(record.state, data.state, formData.state),
@@ -75,10 +80,14 @@ const normalizeSourceRecord = (sourceType, record = {}) => {
     jobNo: text(record.jobNo, data.jobNo, formData.jobNo),
     poValue: numberValue(record.poValue, data.poValue, formData.poValue),
     dealValue: numberValue(record.dealValue, record.value, record.amount, data.dealValue, data.value, formData.dealValue, formData.projectValue),
+    secondaryPhone: text(record.secondaryPhone, record.secondaryPhoneNumber, data.secondaryPhone, data.secondaryPhoneNumber, formData.secondaryPhone, formData.secondaryPhoneNumber),
+    secondaryPhoneNumber: text(record.secondaryPhone, record.secondaryPhoneNumber, data.secondaryPhone, data.secondaryPhoneNumber, formData.secondaryPhone, formData.secondaryPhoneNumber),
     contacts: [{
       contactPerson: text(record.contactPerson, record.contactName, contact.contactPerson, contact.name, data.contactPerson, formData.contactPerson),
       phone: text(record.contactPhone, record.phone, contact.phone, data.contactPhone, formData.contactPhone),
       mobile: text(record.contactMobile, record.mobile, record.phone, contact.mobile, contact.phone, data.contactMobile, formData.contactMobile),
+      secondaryPhone: text(record.secondaryPhone, record.secondaryPhoneNumber, contact.secondaryPhone, contact.secondaryPhoneNumber, data.secondaryPhone, data.secondaryPhoneNumber, formData.secondaryPhone, formData.secondaryPhoneNumber),
+      secondaryPhoneNumber: text(record.secondaryPhone, record.secondaryPhoneNumber, contact.secondaryPhone, contact.secondaryPhoneNumber, data.secondaryPhone, data.secondaryPhoneNumber, formData.secondaryPhone, formData.secondaryPhoneNumber),
       email: text(record.contactEmail, record.email, contact.email, data.contactEmail, formData.contactEmail),
       designation: text(record.contactDesignation, contact.designation, data.contactDesignation, formData.contactDesignation),
     }],
@@ -98,6 +107,7 @@ const matchesSearch = (record = {}, searchValue) => {
     record.gstin,
     record.contacts?.[0]?.email,
     record.contacts?.[0]?.mobile,
+    record.contacts?.[0]?.secondaryPhone,
     record.contacts?.[0]?.phone,
     record.contacts?.[0]?.contactPerson,
   ].join(' ').toLowerCase()
@@ -109,17 +119,21 @@ const searchSources = async (actor, query = {}) => {
   const searchValue = String(query.q || query.search || '').trim().toLowerCase()
   if (!searchValue) return []
 
-  const [leads, deals, customers] = await Promise.all([
-    leadService.listLeads(actor, { accountName: searchValue, limit: 100000 }).catch(() => []),
+  const [leadsRes, dealsRes, customersRes] = await Promise.all([
+    leadService.listLeads(actor, { search: searchValue, query: searchValue, q: searchValue, limit: 1000 }).catch(() => []),
     dealService.list(actor, { q: searchValue, limit: 100000 }).catch(() => []),
     customerService.list(actor, { q: searchValue, limit: 100000 }).catch(() => []),
   ])
+
+  const leads = Array.isArray(leadsRes) ? leadsRes : (Array.isArray(leadsRes?.records) ? leadsRes.records : [])
+  const deals = Array.isArray(dealsRes) ? dealsRes : (Array.isArray(dealsRes?.records) ? dealsRes.records : [])
+  const customers = Array.isArray(customersRes) ? customersRes : (Array.isArray(customersRes?.records) ? customersRes.records : [])
 
   const normalized = [
     ...leads.map((record) => normalizeSourceRecord('lead', record)),
     ...deals.map((record) => normalizeSourceRecord('deal', record)),
     ...customers.map((record) => normalizeSourceRecord('customer', record)),
-  ].filter((record) => record.customerName && matchesSearch(record, searchValue))
+  ].filter((record) => (record.customerName || record.accountName) && matchesSearch(record, searchValue))
 
   const seen = new Set()
   return normalized.filter((record) => {
@@ -191,8 +205,8 @@ const buildSharedPayload = (source, formData = {}, actor = {}) => {
     accountOwnerCode: text(formData.accountOwnerCode, source.accountOwnerCode, actor.ownerCode),
     source: text(formData.accountSource, formData.dealSource, source.sourceType),
     accountSource: text(formData.accountSource, formData.dealSource, source.sourceType),
-    accountCategory: text(formData.accountCategory, source.customerCategory, formData.dealType),
-    customerType: text(formData.customerType, source.customerCategory),
+    accountCategory: sanitizeCategory(formData.accountCategory) || sanitizeCategory(source.customerCategory) || 'SWATI',
+    customerType: text(formData.customerType, sanitizeCategory(formData.accountCategory), sanitizeCategory(source.customerCategory), 'SWATI'),
     state: text(formData.state, source.state),
     address: text(formData.address, source.address),
     gstin: text(formData.gstin, source.gstin),

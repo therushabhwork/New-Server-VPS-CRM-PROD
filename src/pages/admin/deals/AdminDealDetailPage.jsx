@@ -30,6 +30,7 @@ import { useData } from '../../../context/DataContext'
 import { buildAdminManageDealUrl } from '../../../features/adminDeals/config/adminDealViews'
 import { buildCrmDealActionUrl } from '../crm-actions/CRMActionPage'
 import { authService } from '../../../services/authService'
+import { getCachedAccountOwnerOptions, loadAccountOwnerOptions } from '../../../features/adminAccounts/utils/accountOwnerOptions'
 import { customerService } from '../../../services/customerService'
 import { remarkApi } from '../../../services/remarkApi'
 import { getCrmOwnerDisplay } from '../../../features/users/crmUserDirectory'
@@ -118,7 +119,14 @@ const buildNormalizedDeal = ({ deal, accounts, customers, users, currentUser }) 
   if (!deal) return null
 
   const userDirectory = users.reduce((lookup, entry) => {
-    lookup[String(entry.id)] = entry.name
+    const displayName = entry.ownerDisplayName || entry.name || entry.label || entry.username || ''
+    if (displayName) {
+      if (entry.id !== undefined && entry.id !== null) lookup[String(entry.id)] = displayName
+      if (entry._id !== undefined && entry._id !== null) lookup[String(entry._id)] = displayName
+      if (entry.value !== undefined && entry.value !== null) lookup[String(entry.value)] = displayName
+      if (entry.ownerCode !== undefined && entry.ownerCode !== null) lookup[String(entry.ownerCode)] = displayName
+      if (entry.userId !== undefined && entry.userId !== null) lookup[String(entry.userId)] = displayName
+    }
     return lookup
   }, {})
 
@@ -179,7 +187,17 @@ const buildNormalizedDeal = ({ deal, accounts, customers, users, currentUser }) 
     dealValue: Number(deal.value || 0),
     dealScore: deal.dealScore,
     probability: Number(deal.probability || 0),
-    addedBy: deal.createdBy || ownerName,
+    addedBy: (
+      userDirectory[String(deal.addedBy || deal.createdBy || deal.created_by || deal.data?.addedBy || deal.data?.createdBy || '').trim()]
+      || deal.createdByName
+      || deal.addedByName
+      || deal.authorName
+      || linkedAccount?.createdByName
+      || linkedAccount?.addedBy
+      || userDirectory[String(linkedAccount?.createdBy || '')]
+      || (deal.createdBy && isNaN(Number(deal.createdBy)) ? deal.createdBy : '')
+      || ownerName
+    ),
     lastUpdated: deal.updatedAt || deal.createdAt || '',
     customerName: deal.customerName || deal.linkedAccountName || deal.accountName || linkedCustomer?.customerName || linkedAccount?.customerName || linkedAccount?.name || '',
     customerNumber: deal.customerNumber || linkedCustomer?.customerNumber || linkedAccount?.accountNumber || '',
@@ -190,12 +208,13 @@ const buildNormalizedDeal = ({ deal, accounts, customers, users, currentUser }) 
     dealSubsource: deal.dealSubsource || deal.subsource || '',
     contactName: deal.contactPerson || linkedAccount?.contactPerson || '',
     phone: deal.contactMobile || deal.contactPhone || linkedAccount?.contactMobile || linkedAccount?.contactPhone || linkedAccount?.phone || '',
+    secondaryPhoneNumber: deal.secondaryPhoneNumber || deal.secondaryPhone || deal.alternatePhone || linkedAccount?.secondaryPhoneNumber || linkedAccount?.secondaryPhone || linkedAccount?.alternatePhone || '',
     email: deal.contactEmail || linkedAccount?.contactEmail || linkedAccount?.email || '',
     address: deal.address || linkedAccount?.address || linkedCustomer?.address || '',
     description: deal.description || deal.remark || '',
     poValue: deal.poValue,
     customerReferenceDate: deal.customerReferenceDate || '',
-    productCategory: deal.productCategory || deal.customerCategory || linkedAccount?.accountCategory || '',
+    productCategory: deal.productCategory || '',
     customerReferenceNumber: deal.customerReferenceNumber || '',
     consultantName: deal.consultantName || linkedAccount?.consultantName || '',
     gstin: deal.gstin || linkedAccount?.gstin || '',
@@ -231,10 +250,28 @@ const AdminDealDetailPage = () => {
   const setIsLoadingHistory = setIsLoadingDealHistory
   const [historyModalTitle, setHistoryModalTitle] = useState('')
 
-  const availableUsers = useMemo(
-    () => authService.getAvailableUsers().filter((entry) => entry.name !== 'System Administrator'),
-    []
-  )
+  const [availableUsers, setAvailableUsers] = useState(() => (
+    getCachedAccountOwnerOptions().filter((entry) => entry.name !== 'System Administrator')
+  ))
+
+  useEffect(() => {
+    let isMounted = true
+    loadAccountOwnerOptions()
+      .then((options) => {
+        if (isMounted && Array.isArray(options) && options.length > 0) {
+          setAvailableUsers(options.filter((entry) => entry.name !== 'System Administrator'))
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setAvailableUsers(getCachedAccountOwnerOptions().filter((entry) => entry.name !== 'System Administrator'))
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
   const customers = useMemo(() => customerService.getCustomers(), [])
   const sourceDeal = useMemo(() => {
     const foundInDeals = deals.find((entry) => (
@@ -292,7 +329,14 @@ const AdminDealDetailPage = () => {
     navigate(routeActionUrl)
   }
 
-  const handleSendMail = () => handleOpenDealActionPage('send-mail')
+  const handleSendMail = () => {
+    if (!deal?.id) return
+    const isAdminPortal = window.location.pathname.startsWith('/admin')
+    const prefix = isAdminPortal ? '/admin' : ''
+    const recipientEmail = deal.contactEmail || deal.email || deal.rawDeal?.contactEmail || deal.rawDeal?.email || ''
+    const currentPath = window.location.pathname + window.location.search
+    navigate(`${prefix}/email/compose/deal/${deal.id}?to=${encodeURIComponent(recipientEmail)}&returnTo=${encodeURIComponent(currentPath)}`)
+  }
   const handleUploadQuotation = () => handleOpenDealActionPage('upload-deal-quotation')
   const handleReassignDeal = () => handleOpenDealActionPage('re-assign-deal')
 
@@ -347,7 +391,8 @@ const AdminDealDetailPage = () => {
     setIsSavingProbability(true)
     const result = await updateDeal(deal.sourceDealId || deal.source_deal_id || deal.id, {
       dealType: nextDealType,
-      customerCategory: nextDealType,
+      dealSource: nextDealType,
+      source: nextDealType,
       updatedAt: new Date().toISOString(),
     })
     setIsSavingProbability(false)
@@ -647,16 +692,16 @@ const AdminDealDetailPage = () => {
       updatePayload = { actualClosureDate: editValue }
     } else if (key === 'dealStatus') {
       updatePayload = { dealStatus: editValue, status: editValue, stage: editValue }
-    } else if (key === 'dealType') {
-      updatePayload = { dealType: editValue, customerCategory: editValue }
-    } else if (key === 'dealSource') {
-      updatePayload = { dealSource: editValue, source: editValue }
+    } else if (key === 'dealType' || key === 'dealSource' || key === 'source') {
+      updatePayload = { dealType: editValue, dealSource: editValue, source: editValue }
     } else if (key === 'dealSubsource') {
       updatePayload = { dealSubsource: editValue, subsource: editValue }
     } else if (key === 'contactName') {
       updatePayload = { contactName: editValue, contactPerson: editValue }
     } else if (key === 'phone') {
       updatePayload = { phone: editValue, contactPhone: editValue, contactMobile: editValue }
+    } else if (key === 'secondaryPhoneNumber' || key === 'secondaryPhone') {
+      updatePayload = { secondaryPhoneNumber: editValue, secondaryPhone: editValue, alternatePhone: editValue }
     } else if (key === 'email') {
       updatePayload = { email: editValue, contactEmail: editValue }
     } else if (key === 'address') {
@@ -729,6 +774,7 @@ const AdminDealDetailPage = () => {
   const contactItems = [
     { key: 'contactName', label: 'Contact Name', value: deal.contactName, rawValue: deal.contactName, type: 'text', icon: <FaUser /> },
     { key: 'phone', label: 'Phone', value: deal.phone, rawValue: deal.phone, type: 'text', icon: <FaPhone /> },
+    { key: 'secondaryPhoneNumber', label: 'Secondary Phone', value: deal.secondaryPhoneNumber, rawValue: deal.secondaryPhoneNumber, type: 'text', icon: <FaPhone /> },
     { key: 'email', label: 'Email', value: deal.email, rawValue: deal.email, type: 'text', icon: <FaEnvelope /> },
     { key: 'address', label: 'Address', value: deal.address, rawValue: deal.address, type: 'text', icon: <FaMapMarkerAlt /> },
   ]
@@ -746,7 +792,7 @@ const AdminDealDetailPage = () => {
     { key: 'lastUpdated', label: 'Last Updated', value: deal.lastUpdated ? formatDate(deal.lastUpdated, 'long') : '', readonly: true },
     { key: 'addedBy', label: 'Added By', value: deal.addedBy, readonly: true },
     { key: 'aging', label: 'Aging', value: computedAging, readonly: true },
-    { key: 'dealSource', label: 'Deal Source', value: deal.dealSource, rawValue: deal.dealSource, type: 'select', options: DEAL_SOURCE_SELECT_OPTIONS },
+    { key: 'dealSource', label: 'Deal Type', value: deal.dealSource || deal.dealType || '', rawValue: deal.dealSource || deal.dealType || '', type: 'select', options: DEAL_SOURCE_SELECT_OPTIONS },
   ]
 
   // Section 5 — Other Details Items (Structured in 3 Columns)
@@ -1001,6 +1047,7 @@ const AdminDealDetailPage = () => {
                 deal={deal}
                 remarks={dealHistoryRemarks}
                 reminders={dealReminders}
+                users={availableUsers}
               />
             </section>
           </article>

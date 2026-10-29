@@ -1,4 +1,4 @@
-﻿const leadRepository = require('../repositories/leadRepository')
+const leadRepository = require('../repositories/leadRepository')
 const userRepository = require('../repositories/userRepository')
 const dealService = require('./dealService')
 const customerService = require('./customerService')
@@ -279,8 +279,16 @@ const buildLeadPayload = async (payload = {}, actor, existingLead = null) => {
     ? (sanitizedPayload.statusDate || nowIso)
     : (sanitizedPayload.statusDate || existingLead?.statusDate || existingLead?.formData?.statusDate || null)
 
+  const rawCategory = String(sanitizedPayload.accountCategory || sanitizedPayload.customerCategory || existingLead?.accountCategory || existingLead?.customerCategory || '').trim().toUpperCase()
+  const resolvedCategory = (rawCategory === 'LUMOS' || rawCategory === 'SWATI') ? rawCategory : 'SWATI'
+  const rawCustomerType = String(sanitizedPayload.customerType || existingLead?.customerType || '').trim().toUpperCase()
+  const resolvedCustomerType = (rawCustomerType === 'LUMOS' || rawCustomerType === 'SWATI') ? rawCustomerType : resolvedCategory
+
   const normalizedPayload = applyOwnershipMetadata(actor, {
     ...sanitizedPayload,
+    accountCategory: resolvedCategory,
+    customerCategory: resolvedCategory,
+    customerType: resolvedCustomerType,
     poValue: resolvedExplicitPoValue,
     dealValue: resolvedExplicitPoValue,
     customerName: sanitizedPayload.customerName !== undefined
@@ -298,7 +306,16 @@ const buildLeadPayload = async (payload = {}, actor, existingLead = null) => {
     architectName: sanitizedPayload.architectName !== undefined
       ? sanitizedPayload.architectName
       : (existingLead?.architectName || existingLead?.formData?.architectName || ''),
-    mobile: sanitizedPayload.alternatePhone || sanitizedPayload.mobile || existingLead?.mobile || '',
+    mobile: sanitizedPayload.mobile !== undefined ? sanitizedPayload.mobile : (existingLead?.mobile || ''),
+    alternatePhone: sanitizedPayload.alternatePhone !== undefined
+      ? sanitizedPayload.alternatePhone
+      : (existingLead?.alternatePhone || existingLead?.formData?.alternatePhone || ''),
+    secondaryPhone: sanitizedPayload.secondaryPhone !== undefined
+      ? sanitizedPayload.secondaryPhone
+      : (sanitizedPayload.secondaryPhoneNumber !== undefined ? sanitizedPayload.secondaryPhoneNumber : (existingLead?.secondaryPhone || existingLead?.secondaryPhoneNumber || existingLead?.formData?.secondaryPhone || '')),
+    secondaryPhoneNumber: sanitizedPayload.secondaryPhoneNumber !== undefined
+      ? sanitizedPayload.secondaryPhoneNumber
+      : (sanitizedPayload.secondaryPhone !== undefined ? sanitizedPayload.secondaryPhone : (existingLead?.secondaryPhoneNumber || existingLead?.secondaryPhone || existingLead?.formData?.secondaryPhoneNumber || '')),
     email: sanitizedPayload.email ?? sanitizedPayload.contactEmail ?? sanitizedPayload.alternateEmail ?? existingLead?.email ?? existingLead?.contactEmail ?? '',
     contactEmail: sanitizedPayload.contactEmail ?? sanitizedPayload.email ?? existingLead?.contactEmail ?? existingLead?.email ?? '',
     company: sanitizedPayload.projectName !== undefined ? sanitizedPayload.projectName : (sanitizedPayload.company || existingLead?.company || ''),
@@ -336,6 +353,9 @@ const buildLeadPayload = async (payload = {}, actor, existingLead = null) => {
     formData: {
       ...(existingLead || {}),
       ...sanitizedPayload,
+      accountCategory: resolvedCategory,
+      customerCategory: resolvedCategory,
+      customerType: resolvedCustomerType,
       accountNumber: accountNo,
       accountNo,
       account_no: accountNo,
@@ -499,7 +519,8 @@ const augmentLeadWithOwnerCode = async (lead) => {
 
 const listLeads = async (actor, query = {}) => {
   let leads = []
-  if (!isPrivilegedRole(actor.role) && leadRepository.listCreatedLeadsForActor) {
+  const isMyAccountsOnly = query.myAccounts === 'true' || query.myAccounts === true || query.scope === 'mine'
+  if ((isMyAccountsOnly || !isPrivilegedRole(actor.role)) && leadRepository.listCreatedLeadsForActor) {
     leads = await leadRepository.listCreatedLeadsForActor(actor, query)
   } else {
     const scope = await resolveAccountScope(actor)
@@ -709,6 +730,40 @@ const updateLead = async (actor, leadId, payload) => {
       directSet.pmcName = payload.pmcName
       directSet['formData.pmcName'] = payload.pmcName
     }
+    if (payload.description !== undefined) {
+      directSet.description = payload.description
+      directSet['formData.description'] = payload.description
+      directSet['data.description'] = payload.description
+
+      const User = getMongoModel('users')
+      let resolvedAuthorName = payload.lastUpdatedByName || actor?.name || actor?.username || 'User'
+      if (User && actor?.id) {
+        const userDoc = await User.findOne({
+          $or: [
+            { id: actor.id },
+            { legacyId: actor.id },
+            { _id: actor.id },
+            ...(actor.username ? [{ username: actor.username }] : []),
+            ...(actor.email ? [{ email: actor.email }] : []),
+          ],
+          frontendDeleted: { $ne: true },
+        }).lean().catch(() => null)
+        if (userDoc?.name) resolvedAuthorName = userDoc.name
+      }
+      directSet.lastUpdatedByName = resolvedAuthorName
+      directSet['data.lastUpdatedByName'] = resolvedAuthorName
+      directSet['formData.lastUpdatedByName'] = resolvedAuthorName
+      directSet.updatedBy = actor?.id || null
+    }
+    if (payload.isReviewed !== undefined) {
+      directSet.isReviewed = Boolean(payload.isReviewed)
+      directSet.reviewedAt = payload.reviewedAt || new Date().toISOString()
+      directSet.reviewedByName = payload.reviewedByName || actor?.name || actor?.username || 'User'
+      directSet['formData.isReviewed'] = Boolean(payload.isReviewed)
+      directSet['formData.reviewedAt'] = directSet.reviewedAt
+      directSet['formData.reviewedByName'] = directSet.reviewedByName
+      directSet['data.isReviewed'] = Boolean(payload.isReviewed)
+    }
     if (payload.architectName !== undefined) {
       directSet.architectName = payload.architectName
       directSet['formData.architectName'] = payload.architectName
@@ -761,6 +816,78 @@ const updateLead = async (actor, leadId, payload) => {
     }
   }
 
+  if (payload.secondaryPhoneNumber !== undefined || payload.secondaryPhone !== undefined) {
+    const nextSecondary = String(payload.secondaryPhoneNumber !== undefined ? payload.secondaryPhoneNumber : payload.secondaryPhone).trim()
+    const { getMongoModel } = require('../models/mongoModels')
+    const Lead = getMongoModel('leads')
+    const Deal = getMongoModel('deals')
+    if (Lead) {
+      await Lead.updateMany(
+        { $or: buildLeadIdMatchFilters(leadId) },
+        {
+          $set: {
+            secondaryPhoneNumber: nextSecondary,
+            secondaryPhone: nextSecondary,
+            'formData.secondaryPhoneNumber': nextSecondary,
+            'formData.secondaryPhone': nextSecondary,
+            'data.secondaryPhoneNumber': nextSecondary,
+            'data.secondaryPhone': nextSecondary,
+            updatedAt: new Date().toISOString(),
+          },
+        }
+      ).catch(() => {})
+    }
+    if (Deal) {
+      await Deal.updateMany(
+        { $or: [{ accountId: normalizeLeadId(leadId) }, { accountId: String(leadId) }], frontendDeleted: { $ne: true } },
+        {
+          $set: {
+            secondaryPhoneNumber: nextSecondary,
+            secondaryPhone: nextSecondary,
+            'data.secondaryPhoneNumber': nextSecondary,
+            'data.secondaryPhone': nextSecondary,
+            'formData.secondaryPhoneNumber': nextSecondary,
+            'formData.secondaryPhone': nextSecondary,
+            updatedAt: new Date().toISOString(),
+          },
+        }
+      ).catch(() => {})
+    }
+  }
+
+  if (payload.alternatePhone !== undefined) {
+    const nextAlternate = String(payload.alternatePhone).trim()
+    const { getMongoModel } = require('../models/mongoModels')
+    const Lead = getMongoModel('leads')
+    const Deal = getMongoModel('deals')
+    if (Lead) {
+      await Lead.updateMany(
+        { $or: buildLeadIdMatchFilters(leadId) },
+        {
+          $set: {
+            alternatePhone: nextAlternate,
+            'formData.alternatePhone': nextAlternate,
+            'data.alternatePhone': nextAlternate,
+            updatedAt: new Date().toISOString(),
+          },
+        }
+      ).catch(() => {})
+    }
+    if (Deal) {
+      await Deal.updateMany(
+        { $or: [{ accountId: normalizeLeadId(leadId) }, { accountId: String(leadId) }], frontendDeleted: { $ne: true } },
+        {
+          $set: {
+            alternatePhone: nextAlternate,
+            'data.alternatePhone': nextAlternate,
+            'formData.alternatePhone': nextAlternate,
+            updatedAt: new Date().toISOString(),
+          },
+        }
+      ).catch(() => {})
+    }
+  }
+
   if (payload.projectName !== undefined || payload.dealName !== undefined) {
     const nextProjectName = payload.projectName !== undefined ? payload.projectName : payload.dealName
     const { getMongoModel } = require('../models/mongoModels')
@@ -778,6 +905,83 @@ const updateLead = async (actor, leadId, payload) => {
           },
         }
       ).catch(() => {})
+    }
+  }
+
+  // Status label dictionary for all supported stages
+  const KNOWN_STATUS_LABELS = {
+    new: 'New',
+    priority_1: 'Priority 1',
+    priority_2: 'Priority 2',
+    follow_up: 'Follow-Up',
+    technical_offer: 'Technical Offer',
+    commercial_offer: 'Commercial Offer',
+    quotation_sent: 'Quotation Sent',
+    quote_revision: 'Quotation Revision',
+    order_received: 'Order Received',
+    not_quoted: 'Not Quoted',
+    convert_to_po: 'Convert To PO',
+    rejected: 'Rejected',
+  }
+  const normalizedTargetStage = String(targetStage || '').trim().toLowerCase()
+  const resolvedStatusLabel = KNOWN_STATUS_LABELS[normalizedTargetStage] || (targetStage ? String(targetStage).replace(/_/g, ' ') : '')
+
+  // Multi-collection status sync for remaining statuses (excluding convert_to_po and quotation_sent which have dedicated handlers)
+  if (normalizedTargetStage && normalizedTargetStage !== 'convert_to_po' && normalizedTargetStage !== 'quotation_sent') {
+    const { getMongoModel } = require('../models/mongoModels')
+    const LeadModel = getMongoModel('leads')
+    const DealModel = getMongoModel('deals')
+
+    if (LeadModel) {
+      await LeadModel.updateMany(
+        { $or: buildLeadIdMatchFilters(leadId) },
+        {
+          $set: {
+            stage: normalizedTargetStage,
+            status: normalizedTargetStage,
+            accountStatus: resolvedStatusLabel || normalizedTargetStage,
+            accountState: resolvedStatusLabel || normalizedTargetStage,
+            'formData.stage': normalizedTargetStage,
+            'formData.status': normalizedTargetStage,
+            'formData.accountStatus': resolvedStatusLabel || normalizedTargetStage,
+            'data.stage': normalizedTargetStage,
+            'data.status': normalizedTargetStage,
+            'data.accountStatus': resolvedStatusLabel || normalizedTargetStage,
+            updatedAt: new Date().toISOString(),
+          },
+        }
+      ).catch(() => {})
+    }
+
+    // Conditional Deal Sync: Only sync to deals if matching deal already exists
+    if (DealModel) {
+      const matchingDealCount = await DealModel.countDocuments({
+        $or: [{ accountId: normalizeLeadId(leadId) }, { accountId: String(leadId) }],
+        frontendDeleted: { $ne: true },
+      }).catch(() => 0)
+
+      if (matchingDealCount > 0) {
+        await DealModel.updateMany(
+          { $or: [{ accountId: normalizeLeadId(leadId) }, { accountId: String(leadId) }], frontendDeleted: { $ne: true } },
+          {
+            $set: {
+              stage: normalizedTargetStage,
+              status: normalizedTargetStage,
+              dealStage: normalizedTargetStage,
+              accountStatus: resolvedStatusLabel || normalizedTargetStage,
+              'formData.stage': normalizedTargetStage,
+              'formData.status': normalizedTargetStage,
+              'formData.dealStage': normalizedTargetStage,
+              'formData.accountStatus': resolvedStatusLabel || normalizedTargetStage,
+              'data.stage': normalizedTargetStage,
+              'data.status': normalizedTargetStage,
+              'data.dealStage': normalizedTargetStage,
+              'data.accountStatus': resolvedStatusLabel || normalizedTargetStage,
+              updatedAt: new Date().toISOString(),
+            },
+          }
+        ).catch(() => {})
+      }
     }
   }
 
@@ -1245,6 +1449,7 @@ const buildDealPayloadFromAccount = (account = {}, actor = {}) => {
     amount: account.dealValue || account.projectValue || account.value || account.amount || null,
     value: account.dealValue || account.projectValue || account.value || account.amount || null,
     currency: account.currency || 'INR',
+    dealDate: account.dealDate || account.accountDate || account.createdAt || new Date().toISOString().split('T')[0],
     stage: (account.stage === 'convert_to_po' || account.status === 'convert_to_po' || account.accountStatus === 'PO Converted')
       ? 'convert_to_po'
       : ((account.stage === 'rejected' || account.status === 'rejected' || account.accountStatus === 'Rejected') ? 'rejected' : 'staged'),

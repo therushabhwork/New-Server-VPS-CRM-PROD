@@ -567,14 +567,14 @@
   text-align: right;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1366px) {
   .analytics-kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .analytics-grid--charts,
   .analytics-grid--tables {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
 }
 
@@ -588,7 +588,7 @@
   }
 
   .analytics-kpi-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
 }
 

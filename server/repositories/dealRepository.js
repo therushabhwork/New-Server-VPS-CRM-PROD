@@ -1,4 +1,4 @@
-﻿const { getMongoModel } = require('../models/mongoModels')
+const { getMongoModel } = require('../models/mongoModels')
 const { toNumberOrNull } = require('../security/accessScope')
 const { createCrudRepository } = require('./crudRepositoryFactory')
 const { buildScopedMongoFilter, byLegacyId, mergeFilters, regexSearch } = require('./mongoQueryHelpers')
@@ -10,6 +10,7 @@ const baseRepository = createCrudRepository({
 
 const Deal = getMongoModel('deals')
 const Lead = getMongoModel('leads')
+const User = getMongoModel('users')
 const visibleFilter = { frontendDeleted: { $ne: true } }
 
 const normalizeDealCityForFilter = (value) => {
@@ -34,17 +35,37 @@ const normalizeMappedDeal = async (record, accountMap = null) => {
   let linkedAccountNumber = mapped.linkedAccountNumber || mapped.accountNumber || mapped.account_number || data.linkedAccountNumber || data.accountNumber || data.account_number || data.accountNo || data.account_no || ''
 
   const accountId = toNumberOrNull(mapped.accountId)
-  if (accountId !== null && (!linkedAccountName || !linkedAccountNumber)) {
-    let account = accountMap ? accountMap.get(accountId) : null
+  let account = null
+  let formData = {}
+  if (accountId !== null) {
+    account = accountMap ? accountMap.get(accountId) : null
     if (!account && !accountMap) {
       account = await Lead.findOne(byLegacyId(accountId)).lean()
     }
     if (account) {
-      const formData = account?.formData && typeof account.formData === 'object' ? account.formData : {}
-      linkedAccountName = linkedAccountName || account?.accountName || formData.accountName || account?.customerName || formData.customerName || (account?.company !== account?.projectName ? account?.company : '') || ''
-      linkedAccountNumber = linkedAccountNumber || formData.accountNumber || formData.accountNo || account?.accountNo || ''
+      formData = account?.formData && typeof account.formData === 'object' ? account.formData : {}
+      if (!linkedAccountName) {
+        linkedAccountName = account?.accountName || formData.accountName || account?.customerName || formData.customerName || (account?.company !== account?.projectName ? account?.company : '') || ''
+      }
+      if (!linkedAccountNumber) {
+        linkedAccountNumber = formData.accountNumber || formData.accountNo || account?.accountNo || ''
+      }
     }
   }
+
+  const dynamicReassignedDates = []
+  const scanTargets = [mapped, data, record]
+  for (const target of scanTargets) {
+    if (!target || typeof target !== 'object') continue
+    for (const [k, v] of Object.entries(target)) {
+      if (/^reassignedDate\d*$/i.test(k) && v) {
+        dynamicReassignedDates.push(v)
+      }
+    }
+  }
+  const resolvedReassignedDate = dynamicReassignedDates.length > 0
+    ? dynamicReassignedDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
+    : latestText(data.reassignedDate, mapped.reassignedDate, data.reassignDate, mapped.reassignDate)
 
   return {
     ...mapped,
@@ -66,7 +87,7 @@ const normalizeMappedDeal = async (record, accountMap = null) => {
     expectedClosureDate: latestText(data.expectedClosureDate, data.expectedCloseDate, data.closeDate, mapped.expectedClosureDate, mapped.expectedCloseDate, mapped.closeDate),
     closeDate: latestText(data.closeDate, data.expectedCloseDate, mapped.closeDate, mapped.expectedCloseDate),
     actualClosureDate: latestText(data.actualClosureDate, data.actual_closure_date, mapped.actualClosureDate, mapped.actual_closure_date),
-    dealDate: latestText(data.dealDate, data.deal_date, mapped.dealDate, mapped.deal_date),
+    dealDate: latestText(data.dealDate, data.deal_date, mapped.dealDate, mapped.deal_date, data.accountDate, mapped.accountDate, data.createdAt, mapped.createdAt),
     dealType: latestText(data.dealType, data.deal_type, mapped.dealType, mapped.deal_type, data.customerCategory, data.customer_category, mapped.customerCategory, mapped.customer_category),
     dealSource: latestText(data.dealSource, data.deal_source, data.source, mapped.dealSource, mapped.deal_source, mapped.source),
     source: latestText(data.source, data.dealSource, mapped.source, mapped.dealSource),
@@ -96,6 +117,11 @@ const normalizeMappedDeal = async (record, accountMap = null) => {
     contactMobile: latestText(data.contactMobile, data.phone, mapped.contactMobile, mapped.phone),
     contactPhone: latestText(data.contactPhone, data.phone, mapped.contactPhone, mapped.phone),
     phone: latestText(data.phone, data.contactMobile, data.contactPhone, mapped.phone, mapped.contactMobile, mapped.contactPhone),
+    secondaryPhoneNumber: latestText(data.secondaryPhoneNumber, data.secondaryPhone, data.alternatePhone, mapped.secondaryPhoneNumber, mapped.secondaryPhone, mapped.alternatePhone, account?.secondaryPhoneNumber, account?.secondaryPhone, account?.alternatePhone, formData?.secondaryPhoneNumber, formData?.secondaryPhone, formData?.alternatePhone),
+    secondaryPhone: latestText(data.secondaryPhoneNumber, data.secondaryPhone, data.alternatePhone, mapped.secondaryPhoneNumber, mapped.secondaryPhone, mapped.alternatePhone, account?.secondaryPhoneNumber, account?.secondaryPhone, account?.alternatePhone, formData?.secondaryPhoneNumber, formData?.secondaryPhone, formData?.alternatePhone),
+    alternatePhone: latestText(data.secondaryPhoneNumber, data.secondaryPhone, data.alternatePhone, mapped.secondaryPhoneNumber, mapped.secondaryPhone, mapped.alternatePhone, account?.secondaryPhoneNumber, account?.secondaryPhone, account?.alternatePhone, formData?.secondaryPhoneNumber, formData?.secondaryPhone, formData?.alternatePhone),
+    reassignedDate: resolvedReassignedDate,
+    reassignDate: resolvedReassignedDate,
     contactEmail: latestText(data.contactEmail, data.email, mapped.contactEmail, mapped.email),
     email: latestText(data.email, data.contactEmail, mapped.email, mapped.contactEmail),
     address: latestText(data.address, mapped.address),
@@ -182,7 +208,7 @@ const sortFromFilters = (filters = {}) => {
   }
 
   if (!sortBy) {
-    return { createdAt: -1, legacyId: -1 }
+    return { updatedAt: -1, createdAt: -1, legacyId: -1 }
   }
 
   return {
@@ -203,13 +229,119 @@ const listWithFilters = async (actor, filters = {}, { companyWide = false, scope
     ? 0
     : Math.min(5000, Math.max(1, Number.parseInt(rawLimit, 10) || 5000))
 
+  const isMineOnly = filters.scope === 'mine' || filters.myDeals === 'true' || filters.myDeals === true
+  const effectiveCompanyWide = isMineOnly ? false : companyWide
+
+  let mineFilter = {}
+  if (isMineOnly) {
+    let resolvedOwnerName = String(actor?.name || actor?.username || '').trim()
+    let resolvedOwnerEmail = String(actor?.email || '').trim().toLowerCase()
+
+    if (User) {
+      const userCriteria = []
+      if (actor?.id) userCriteria.push({ id: actor.id }, { legacyId: actor.id })
+      if (actor?.email) userCriteria.push({ email: actor.email })
+      if (actor?.name) userCriteria.push({ name: actor.name })
+      if (actor?.username) userCriteria.push({ username: actor.username })
+      if (userCriteria.length > 0) {
+        const userDoc = await User.findOne({ $or: userCriteria }).lean().catch(() => null)
+        if (userDoc) {
+          if (userDoc.name) resolvedOwnerName = String(userDoc.name).trim()
+          if (userDoc.email) resolvedOwnerEmail = String(userDoc.email).trim().toLowerCase()
+        }
+      }
+    }
+
+    let linkedAccountIds = []
+    if (Lead && (resolvedOwnerName || resolvedOwnerEmail)) {
+      const leadQuery = []
+      if (resolvedOwnerName) {
+        const nameEscaped = resolvedOwnerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const nameRegex = new RegExp(`^${nameEscaped}$`, 'i')
+        leadQuery.push(
+          { accountOwner: nameRegex },
+          { 'formData.accountOwner': nameRegex },
+          { assignedUserName: nameRegex },
+          { ownerName: nameRegex }
+        )
+      }
+      if (resolvedOwnerEmail) {
+        const emailEscaped = resolvedOwnerEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const emailRegex = new RegExp(`^${emailEscaped}$`, 'i')
+        leadQuery.push(
+          { email: emailRegex },
+          { contactEmail: emailRegex },
+          { 'formData.email': emailRegex },
+          { 'formData.contactEmail': emailRegex },
+          { userEmail: emailRegex }
+        )
+      }
+      if (leadQuery.length > 0) {
+        const matchedLeads = await Lead.find({ $or: leadQuery }, { legacyId: 1, id: 1 }).lean().catch(() => [])
+        linkedAccountIds = matchedLeads.map((l) => l.legacyId ?? l.id).filter(Boolean)
+      }
+    }
+
+    const mineClauses = []
+    if (resolvedOwnerName) {
+      const nameEscaped = resolvedOwnerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const nameRegex = new RegExp(nameEscaped, 'i')
+      mineClauses.push(
+        { dealOwner: nameRegex },
+        { ownerName: nameRegex },
+        { addedBy: nameRegex },
+        { addedByName: nameRegex },
+        { createdByName: nameRegex },
+        { 'data.dealOwner': nameRegex },
+        { 'data.ownerName': nameRegex },
+        { 'data.addedBy': nameRegex },
+        { 'data.addedByName': nameRegex },
+        { 'data.createdByName': nameRegex }
+      )
+    }
+    if (resolvedOwnerEmail) {
+      const emailEscaped = resolvedOwnerEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const emailRegex = new RegExp(`^${emailEscaped}$`, 'i')
+      mineClauses.push(
+        { email: emailRegex },
+        { userEmail: emailRegex },
+        { ownerEmail: emailRegex },
+        { createdByEmail: emailRegex },
+        { contactEmail: emailRegex },
+        { 'data.email': emailRegex },
+        { 'data.userEmail': emailRegex },
+        { 'data.ownerEmail': emailRegex },
+        { 'data.createdByEmail': emailRegex },
+        { 'data.contactEmail': emailRegex }
+      )
+    }
+    if (linkedAccountIds.length > 0) {
+      mineClauses.push(
+        { accountId: { $in: linkedAccountIds } },
+        { 'data.accountId': { $in: linkedAccountIds } }
+      )
+    }
+    if (actor?.ownerCode) {
+      mineClauses.push(
+        { ownerCode: actor.ownerCode },
+        { dealOwnerCode: actor.ownerCode },
+        { 'data.ownerCode': actor.ownerCode },
+        { 'data.dealOwnerCode': actor.ownerCode }
+      )
+    }
+
+    if (mineClauses.length > 0) {
+      mineFilter = { $or: mineClauses }
+    }
+  }
+
   const filter = mergeFilters(
-    companyWide ? {} : buildScopedMongoFilter({
+    isMineOnly ? mineFilter : (effectiveCompanyWide ? {} : buildScopedMongoFilter({
       actor,
-      ownerFields: ['ownerUserId', 'assignedTo', 'createdBy', 'owner_user_id', 'assigned_to', 'created_by'],
-      companyWide,
+      ownerFields: ['ownerUserId', 'assignedTo', 'createdBy', 'owner_user_id', 'assigned_to', 'created_by', 'reassignedTo', 'reassignOwnerId', 'reassignUserId'],
+      companyWide: effectiveCompanyWide,
       scopeUserIds,
-    }),
+    })),
     buildSearchFilter(filters.search ?? filters.q),
     visibleFilter,
     ownerUserId === null ? {} : { ownerUserId },
@@ -254,12 +386,15 @@ const findById = async (id) => {
 }
 
 const findByIdForActor = async (id, actor, { companyWide = false, scopeUserIds = null } = {}) => {
+  const filters = {}
+  const isMineOnly = filters.scope === 'mine' || filters.myDeals === 'true' || filters.myDeals === true
+  const effectiveCompanyWide = isMineOnly ? false : companyWide
   const filter = mergeFilters(
     byLegacyId(id),
     buildScopedMongoFilter({
       actor,
-      ownerFields: ['ownerUserId', 'assignedTo', 'createdBy', 'owner_user_id', 'assigned_to', 'created_by'],
-      companyWide,
+      ownerFields: ['ownerUserId', 'assignedTo', 'createdBy', 'owner_user_id', 'assigned_to', 'created_by', 'reassignedTo', 'reassignOwnerId', 'reassignUserId'],
+      companyWide: effectiveCompanyWide,
       scopeUserIds,
     }),
     visibleFilter
@@ -270,11 +405,14 @@ const findByIdForActor = async (id, actor, { companyWide = false, scopeUserIds =
 }
 
 const findConvertedFromAccount = async (accountId, actor, { companyWide = false, scopeUserIds = null } = {}) => {
+  const filters = {}
   const normalizedAccountId = toNumberOrNull(accountId)
   if (normalizedAccountId === null) {
     return null
   }
 
+  const isMineOnly = filters.scope === 'mine' || filters.myDeals === 'true' || filters.myDeals === true
+  const effectiveCompanyWide = isMineOnly ? false : companyWide
   const filter = mergeFilters(
     { accountId: normalizedAccountId },
     {
@@ -289,8 +427,8 @@ const findConvertedFromAccount = async (accountId, actor, { companyWide = false,
     },
     buildScopedMongoFilter({
       actor,
-      ownerFields: ['ownerUserId', 'assignedTo', 'createdBy', 'owner_user_id', 'assigned_to', 'created_by'],
-      companyWide,
+      ownerFields: ['ownerUserId', 'assignedTo', 'createdBy', 'owner_user_id', 'assigned_to', 'created_by', 'reassignedTo', 'reassignOwnerId', 'reassignUserId'],
+      companyWide: effectiveCompanyWide,
       scopeUserIds,
     }),
     visibleFilter

@@ -175,7 +175,24 @@ const formatCustomerTypeDisplay = (value, row = {}) => {
 }
 
 const formatAccountStatusDisplay = (value, row = {}) => {
-  const raw = String(value || row.status || row.accountStatus || row.accountState || row.raw?.status || row.raw?.accountStatus || '').trim()
+  const raw = String(value || row.accountStatus || row.status || row.stage || row.accountState || row.raw?.accountStatus || row.raw?.stage || row.raw?.status || row.formData?.accountStatus || row.formData?.stage || '').trim()
+  const lower = raw.toLowerCase().replace(/[\s-]+/g, '_')
+  if (lower === 'not_quoted') return 'Not Quoted'
+  if (lower === 'rejected') return 'Rejected'
+  if (lower === 'quotation_sent' || lower === 'quote_sent' || lower === 'quotation_shared') return 'Quotation Sent'
+  if (lower === 'priority_1') return 'Priority 1'
+  if (lower === 'priority_2') return 'Priority 2'
+  if (lower === 'follow_up') return 'Follow-Up'
+  if (lower === 'technical_offer') return 'Technical Offer'
+  if (lower === 'commercial_offer') return 'Commercial Offer'
+  if (lower === 'quote_revision' || lower === 'quotation_revision') return 'Quotation Revision'
+  if (lower === 'order_received') return 'Order Received'
+  if (lower === 'convert_to_po' || lower === 'po_converted') return 'Convert To PO'
+  if (lower === 'new' || lower === 'pending') return 'New'
+  return raw || emptyValue
+}
+
+const dummyUnusedStatus = (raw = '') => {
   const lower = raw.toLowerCase().replace(/[\s-]+/g, '_')
   if (lower === 'quotation_sent' || lower === 'quote_sent' || lower === 'quotation_shared') {
     return 'Quotation Sent'
@@ -333,6 +350,16 @@ export const ACCOUNT_LIST_BOARD_COLUMNS = [
     exportable: true,
     cellFormatter: formatDealTypeDisplay,
     exportFormatter: formatDealTypeDisplay,
+  },
+  {
+    key: 'status',
+    label: 'Account Status',
+    filterPlaceholder: 'Search Account Status',
+    width: '150px',
+    searchable: true,
+    exportable: true,
+    cellFormatter: formatAccountStatusDisplay,
+    exportFormatter: formatAccountStatusDisplay,
   },
   {
     key: 'accountOwner',

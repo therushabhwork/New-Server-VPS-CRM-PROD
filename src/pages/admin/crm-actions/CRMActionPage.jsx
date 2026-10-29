@@ -526,6 +526,9 @@ const CRMActionPage = () => {
 
 
   const returnTo = searchParams.get('returnTo') || location.state?.returnTo || '/admin/deals/view'
+  const isDealStatusWhiteTheme = recordModule === 'deal'
+    && (actionKey === 'change-status' || actionKey === 'change-deal-status')
+    && (returnTo === '/deals/view' || returnTo.startsWith('/deals/view') || decodeURIComponent(returnTo).includes('/deals/view'))
 
   const recordOptions = useMemo(() => (
     (moduleRecords[recordModule] || []).map((record) => ({
@@ -780,7 +783,25 @@ const CRMActionPage = () => {
       ? getCurrentTimeKey()
       : (reassignForm.reminderTimeSlot === 'Custom Time' || reassignForm.reminderTimeSlot === 'Other') ? reassignForm.customTime : reassignForm.reminderTimeSlot
 
+        // Calculate dynamic reassignedDateX
+    const allDealKeys = [
+      ...Object.keys(selectedDeal || {}),
+      ...Object.keys(selectedDeal?.data || {}),
+      ...Object.keys(selectedDeal?.formData || {}),
+    ]
+    let maxReassignedIdx = 0
+    for (const k of allDealKeys) {
+      const match = k.match(/^reassignedDate(\d+)$/i)
+      if (match) {
+        const num = parseInt(match[1], 10)
+        if (num > maxReassignedIdx) maxReassignedIdx = num
+      }
+    }
+    const nextReassignedKey = `reassignedDate${maxReassignedIdx + 1}`
+    const reassignedDateIso = new Date().toISOString()
+
     const result = await updateDeal(selectedDeal.id, {
+      [nextReassignedKey]: reassignedDateIso,
       ...(apiOwnerId ? {
         ownerUserId: apiOwnerId,
         ownerId: apiOwnerId,
@@ -824,7 +845,7 @@ const CRMActionPage = () => {
         reminderDate,
         reminderTime,
         reminderMode: 'Ownership Follow Up',
-        assignedTo: nextOwnerId,
+        assignedTo: apiOwnerId || resolvedOwnerId || '',
         relatedEntityType: 'deal',
         relatedEntityId: selectedDeal.id,
       }
@@ -847,6 +868,12 @@ const CRMActionPage = () => {
     appendAudit('Re-Assign Deal', `Deal owner changed from ${previousOwner} to ${nextOwnerName}.`, 'Deal', selectedDeal)
     addNotification('success', 'Re-Assign Deal', 'Deal reassigned, reminder/history/audit updated.')
     setSuccessMessage('Deal reassigned successfully. Notification, reminder, ownership history, and audit trail updated.')
+    const isAdminContext = window.location.pathname.startsWith('/admin') || user?.role === 'admin'
+    let targetReturn = returnTo || (isAdminContext ? '/admin/deals/view' : '/deals/view')
+    if (!isAdminContext && targetReturn.startsWith('/admin/deals/')) {
+      targetReturn = targetReturn.replace(/^\/admin/, '')
+    }
+    navigate(targetReturn)
   }
 
   const handleSaveDealStatus = async (event) => {
@@ -1745,7 +1772,7 @@ const CRMActionPage = () => {
   }
 
   return (
-    <div className="crm-action-page">
+    <div className={`crm-action-page ${isDealStatusWhiteTheme ? 'crm-action-page--deal-white-theme' : ''}`}>
       <section className="crm-action-card">
         <div className="crm-action-header">
           <div>

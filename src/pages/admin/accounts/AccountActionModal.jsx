@@ -4,6 +4,7 @@ import { FaSave } from 'react-icons/fa'
 import AddRemarksModal from '../../../components/common/AddRemarksModal'
 import AddReminderModal from '../../../components/common/AddReminderModal'
 import Button from '../../../components/common/Button'
+import OutlookEmailComposerModal from '../../../components/integrations/OutlookEmailComposerModal'
 import { useData } from '../../../context/DataContext'
 import { remarkApi } from '../../../services/remarkApi'
 import { reminderApi } from '../../../services/reminderApi'
@@ -38,7 +39,7 @@ const AccountActionModal = ({ account, actionKey, onClose, onSaved }) => {
   const location = useLocation()
   const isAdminRoute = location.pathname.startsWith('/admin')
   const { addNotification, updateAccount } = useData()
-  const action = ACCOUNT_ACTION_MAP[actionKey]
+  const action = ACCOUNT_ACTION_MAP[actionKey] || (actionKey === 'send-mail' ? { key: 'send-mail', label: 'Send Mail', heading: 'Send Mail' } : null)
   const [stage, setStage] = useState(ACCOUNT_CHANGE_STATUS_OPTIONS[0]?.value || 'new')
   const [statusNote, setStatusNote] = useState('')
   const [poValue, setPoValue] = useState('')
@@ -99,6 +100,26 @@ const AccountActionModal = ({ account, actionKey, onClose, onSaved }) => {
   }, [account, ownerOptions])
 
   if (!account || !actionKey || !action) return null
+
+  if (actionKey === 'send-mail') {
+    return (
+      <OutlookEmailComposerModal
+        isOpen={Boolean(actionKey)}
+        onClose={onClose}
+        recipientEmail={account.email || account.contactEmail || account.formData?.email || account.formData?.contactEmail || ''}
+        targetType="account"
+        targetId={account.id || account.legacyId || ''}
+        defaultSubject={`Inquiry regarding ${account.name || account.customerName || 'Account'}`}
+        onSuccess={() => {
+          if (typeof addNotification === 'function') {
+            addNotification('success', 'Email Sent', 'Email sent successfully via Microsoft Graph API.')
+          }
+          if (typeof onSaved === 'function') onSaved()
+          onClose()
+        }}
+      />
+    )
+  }
 
   const showPoDetails = actionKey === 'change-status' && shouldShowAccountPoDetails(stage)
 
@@ -242,8 +263,8 @@ const AccountActionModal = ({ account, actionKey, onClose, onSaved }) => {
       updates = {
         stage: targetStageKey,
         status: isQuotationSent ? 'quotation_sent' : (isNotQuoted ? 'not_quoted' : selectedStatusLabel),
-        accountStatus: isQuotationSent ? 'Quotation Sent' : (isNotQuoted ? 'not_quoted' : (targetStageKey === 'convert_to_po' ? 'convert_to_po' : selectedStatusLabel)),
-        accountState: isQuotationSent ? 'Quotation Sent' : (isNotQuoted ? 'not_quoted' : (targetStageKey === 'convert_to_po' ? 'convert_to_po' : (accountState || selectedStatusLabel))),
+        accountStatus: isQuotationSent ? 'Quotation Sent' : (isNotQuoted ? 'Not Quoted' : (targetStageKey === 'convert_to_po' ? 'convert_to_po' : selectedStatusLabel)),
+        accountState: isQuotationSent ? 'Quotation Sent' : (isNotQuoted ? 'Not Quoted' : (targetStageKey === 'convert_to_po' ? 'convert_to_po' : (accountState || selectedStatusLabel))),
         latestRemark: statusNote.trim() || account.latestRemark,
         ...(targetStage === 'rejected' ? {
           stage: 'rejected',
