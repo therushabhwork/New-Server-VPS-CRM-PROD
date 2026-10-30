@@ -172,18 +172,47 @@ const resolveAccountNumber = (entity) => (
   || '-'
 )
 
+const resolveProjectName = (entity) => (
+  entity?.projectName
+  || entity?.dealName
+  || entity?.name
+  || entity?.title
+  || entity?.data?.projectName
+  || entity?.data?.dealName
+  || entity?.formData?.projectName
+  || entity?.formData?.dealName
+  || entity?.raw?.projectName
+  || entity?.raw?.dealName
+  || resolveAccountName(entity)
+)
+
+const resolveDealNumber = (entity) => (
+  entity?.dealNumber
+  || entity?.deal_number
+  || entity?.data?.dealNumber
+  || entity?.data?.deal_number
+  || entity?.formData?.dealNumber
+  || entity?.formData?.deal_number
+  || entity?.raw?.dealNumber
+  || entity?.raw?.deal_number
+  || entity?.id
+  || resolveAccountNumber(entity)
+)
+
 const AddRemarksModal = ({
   isOpen,
   onClose,
   accountData,
   dealData,
+  isDeal = false,
   onSave,
   onSaveAccountField,
   isLoading = false,
   hideAccountInfo = false,
   compactModal = false,
 }) => {
-  const targetEntity = accountData || dealData
+  const effectiveIsDeal = Boolean(isDeal || (dealData && !accountData) || (dealData && (dealData.dealNumber || dealData.dealName || dealData.data?.dealNumber)))
+  const targetEntity = dealData || accountData
   const [category, setCategory] = useState('call-log')
   const [content, setContent] = useState('')
   const [startTime, setStartTime] = useState('09:00')
@@ -549,18 +578,32 @@ const AddRemarksModal = ({
       className="add-remarks-modal-dialog"
     >
       <form onSubmit={handleSubmit} className="add-remarks-form add-remarks-form--compact">
-        {/* Top bar with Account Name & Account Number data only */}
-        <div className="remarks-account-topbar">
-          <div className="remarks-account-item">
-            <span className="remarks-account-label">Account Name:</span>
-            <strong className="remarks-account-value">{resolveAccountName(targetEntity)}</strong>
+        {/* Top bar with Account Name & Account Number (or Project Name & Deal Number for Deals) */}
+        {effectiveIsDeal ? (
+          <div className="remarks-account-topbar">
+            <div className="remarks-account-item">
+              <span className="remarks-account-label">Project Name:</span>
+              <strong className="remarks-account-value">{resolveProjectName(targetEntity)}</strong>
+            </div>
+            <div className="remarks-account-divider">•</div>
+            <div className="remarks-account-item">
+              <span className="remarks-account-label">Deal Number:</span>
+              <strong className="remarks-account-value">{resolveDealNumber(targetEntity)}</strong>
+            </div>
           </div>
-          <div className="remarks-account-divider">•</div>
-          <div className="remarks-account-item">
-            <span className="remarks-account-label">Account Number:</span>
-            <strong className="remarks-account-value">{resolveAccountNumber(targetEntity)}</strong>
+        ) : (
+          <div className="remarks-account-topbar">
+            <div className="remarks-account-item">
+              <span className="remarks-account-label">Account Name:</span>
+              <strong className="remarks-account-value">{resolveAccountName(targetEntity)}</strong>
+            </div>
+            <div className="remarks-account-divider">•</div>
+            <div className="remarks-account-item">
+              <span className="remarks-account-label">Account Number:</span>
+              <strong className="remarks-account-value">{resolveAccountNumber(targetEntity)}</strong>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Remark Category Tabs (Single Row) */}
         <div className="remark-section remark-section--category">

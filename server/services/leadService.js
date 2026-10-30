@@ -391,6 +391,8 @@ const buildLeadPayload = async (payload = {}, actor, existingLead = null) => {
       dealName: sanitizedPayload.dealName !== undefined ? sanitizedPayload.dealName : (sanitizedPayload.projectName !== undefined ? sanitizedPayload.projectName : (existingLead?.dealName || existingLead?.projectName || '')),
       reasonForLost: resolvedReasonForLost,
       reasonForLostOrder: resolvedReasonForLost,
+      secondaryPhone: (sanitizedPayload.secondaryPhone || sanitizedPayload.secondaryPhoneNumber || sanitizedPayload.contacts?.[0]?.secondaryPhone || sanitizedPayload.contacts?.[0]?.secondaryPhoneNumber || sanitizedPayload.formData?.secondaryPhone || sanitizedPayload.formData?.secondaryPhoneNumber || existingLead?.secondaryPhone || existingLead?.secondaryPhoneNumber || existingLead?.formData?.secondaryPhone || existingLead?.formData?.secondaryPhoneNumber || ''),
+      secondaryPhoneNumber: (sanitizedPayload.secondaryPhoneNumber || sanitizedPayload.secondaryPhone || sanitizedPayload.contacts?.[0]?.secondaryPhoneNumber || sanitizedPayload.contacts?.[0]?.secondaryPhone || sanitizedPayload.formData?.secondaryPhoneNumber || sanitizedPayload.formData?.secondaryPhone || existingLead?.secondaryPhoneNumber || existingLead?.secondaryPhone || existingLead?.formData?.secondaryPhoneNumber || existingLead?.formData?.secondaryPhone || ''),
     },
   }, existingLead)
 
@@ -881,6 +883,39 @@ const updateLead = async (actor, leadId, payload) => {
             alternatePhone: nextAlternate,
             'data.alternatePhone': nextAlternate,
             'formData.alternatePhone': nextAlternate,
+            updatedAt: new Date().toISOString(),
+          },
+        }
+      ).catch(() => {})
+    }
+  }
+
+  if (payload.accountDate !== undefined) {
+    const nextAccountDate = String(payload.accountDate || '').trim()
+    const { getMongoModel } = require('../models/mongoModels')
+    const Lead = getMongoModel('leads')
+    const Deal = getMongoModel('deals')
+    if (Lead) {
+      await Lead.updateMany(
+        { $or: buildLeadIdMatchFilters(leadId) },
+        {
+          $set: {
+            accountDate: nextAccountDate,
+            'formData.accountDate': nextAccountDate,
+            'data.accountDate': nextAccountDate,
+            updatedAt: new Date().toISOString(),
+          },
+        }
+      ).catch(() => {})
+    }
+    if (Deal) {
+      await Deal.updateMany(
+        { $or: [{ accountId: normalizeLeadId(leadId) }, { accountId: String(leadId) }], frontendDeleted: { $ne: true } },
+        {
+          $set: {
+            accountDate: nextAccountDate,
+            'data.accountDate': nextAccountDate,
+            'formData.accountDate': nextAccountDate,
             updatedAt: new Date().toISOString(),
           },
         }

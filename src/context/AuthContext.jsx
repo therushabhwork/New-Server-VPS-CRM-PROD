@@ -348,7 +348,7 @@ export const AuthProvider = ({ children }) => {
       })
     }
 
-    // Dual Detection: Record exact timestamp when window is minimized or blurred or tab is switched
+    // Minimize Detection: Record exact timestamp ONLY when window is minimized or tab is hidden
     const recordAwayStart = () => {
       const now = Date.now()
       pageHiddenTimeRef.current = now
@@ -358,7 +358,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('crm_page_away_start', String(now))
     }
 
-    // Instant check when window is restored / focused (BEFORE any mouse events can reset)
+    // Instant check when window is restored / focused
     // Triggers only when user was away / minimized for >= 20 minutes (1200s)
     const checkAwayOnRestore = () => {
       const stored = localStorage.getItem('crm_minimized_at') || localStorage.getItem('crm_page_away_start')
@@ -370,12 +370,18 @@ export const AuthProvider = ({ children }) => {
         dismissedStagesRef.current.add('20m_minimized')
         localStorage.removeItem('crm_minimized_at')
         localStorage.removeItem('crm_page_away_start')
+        pageHiddenTimeRef.current = null
         triggerPopup(
           '20m_minimized',
           `You have been away / page minimized for ${Math.floor(awaySeconds / 60)} minutes. For your security, your CRM session will automatically end in:`,
           3600, // 60 minutes countdown
           true  // Automatically log out when 60 minutes countdown finishes
         )
+      } else if (awaySeconds < 1200) {
+        // Returned before 20 minutes: immediately clear minimize tracking so it cannot false trigger later
+        localStorage.removeItem('crm_minimized_at')
+        localStorage.removeItem('crm_page_away_start')
+        pageHiddenTimeRef.current = null
       }
     }
 
@@ -393,17 +399,19 @@ export const AuthProvider = ({ children }) => {
       // Check if user was away/minimized >= 20m before mouse/key reset
       checkAwayOnRestore()
 
-      lastActivityTimeRef.current = Date.now()
+      // User is active in page: ensure away markers are cleared
       if (!showExpiryModalRef.current) {
+        localStorage.removeItem('crm_minimized_at')
+        localStorage.removeItem('crm_page_away_start')
+        pageHiddenTimeRef.current = null
         dismissedStagesRef.current.clear()
       }
+
+      lastActivityTimeRef.current = Date.now()
     }
 
     const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart']
     events.forEach((evt) => window.addEventListener(evt, updateActivity, { passive: true }))
-
-    window.addEventListener('blur', recordAwayStart)
-    window.addEventListener('focus', checkAwayOnRestore)
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
@@ -439,12 +447,20 @@ export const AuthProvider = ({ children }) => {
       }
 
       // Check if window returned after >= 20 minutes away
-      const stored = localStorage.getItem('crm_minimized_at') || localStorage.getItem('crm_page_away_start')
-      const awayStart = stored ? Number(stored) : pageHiddenTimeRef.current
-      const awaySeconds = Math.floor((now - awayStart) / 1000)
+      if (document.visibilityState === 'visible') {
+        const stored = localStorage.getItem('crm_minimized_at') || localStorage.getItem('crm_page_away_start')
+        if (stored) {
+          const awayStart = Number(stored)
+          const awaySeconds = Math.floor((now - awayStart) / 1000)
 
-      if (document.visibilityState === 'visible' && awaySeconds >= 1200 && !dismissedStagesRef.current.has('20m_minimized') && !showExpiryModalRef.current) {
-        checkAwayOnRestore()
+          if (awaySeconds >= 1200 && !dismissedStagesRef.current.has('20m_minimized') && !showExpiryModalRef.current) {
+            checkAwayOnRestore()
+          } else if (awaySeconds < 1200) {
+            localStorage.removeItem('crm_minimized_at')
+            localStorage.removeItem('crm_page_away_start')
+            pageHiddenTimeRef.current = null
+          }
+        }
       }
 
       // Fallback: 60 minutes inactive without modal open -> auto logout
@@ -458,8 +474,6 @@ export const AuthProvider = ({ children }) => {
 
     return () => {
       events.forEach((evt) => window.removeEventListener(evt, updateActivity))
-      window.removeEventListener('blur', recordAwayStart)
-      window.removeEventListener('focus', checkAwayOnRestore)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       clearInterval(checkInterval)
     }

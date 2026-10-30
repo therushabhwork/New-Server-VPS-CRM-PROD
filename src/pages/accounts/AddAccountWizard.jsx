@@ -380,7 +380,8 @@ const AddAccountWizard = () => {
         industryType: account.industryType || account.industry || account.formData?.industryType || '',
         consultantName: account.consultantName || account.formData?.consultantName || '',
         jobNo: account.jobNo || account.formData?.jobNo || '',
-        projectName: account.projectName || account.formData?.projectName || '',
+        projectName: account.projectName || account.dealName || account.formData?.projectName || account.formData?.dealName || '',
+        dealName: account.dealName || account.projectName || account.formData?.dealName || account.formData?.projectName || '',
         productCategory: account.productCategory || account.formData?.productCategory || '',
         secondaryPhone: account.secondaryPhone || account.secondaryPhoneNumber || account.formData?.secondaryPhone || account.formData?.secondaryPhoneNumber || '',
         secondaryPhoneNumber: account.secondaryPhone || account.secondaryPhoneNumber || account.formData?.secondaryPhone || account.formData?.secondaryPhoneNumber || '',
@@ -432,7 +433,8 @@ const AddAccountWizard = () => {
           customerNumber: deal.customerNumber || deal.dealNumber || '',
           customerOwner: deal.dealOwner || deal.ownerName || deal.data?.dealOwner || '',
           customerOwnerDisplay: deal.dealOwner || deal.ownerName || deal.data?.dealOwner || '',
-          projectName: deal.projectName || deal.dealName || deal.name || deal.data?.projectName || '',
+          projectName: deal.projectName || deal.dealName || deal.name || deal.data?.projectName || deal.data?.dealName || '',
+          dealName: deal.dealName || deal.projectName || deal.name || deal.data?.dealName || deal.data?.projectName || '',
           customerCategory: deal.dealType || deal.customerCategory || deal.data?.dealType || '',
           customerStatus: deal.status || deal.data?.status || '',
           address: deal.address || deal.data?.address || '',
@@ -521,6 +523,8 @@ const AddAccountWizard = () => {
       setShowSecondaryPhone(true)
     }
 
+    const resolvedProjectName = customer.projectName || customer.dealName || customer.data?.projectName || customer.data?.dealName || customer.formData?.projectName || customer.formData?.dealName || ''
+
     setFormData((prev) => ({
       ...prev,
       accountName: customer.accountName || customer.customerName || prev.accountName,
@@ -541,7 +545,7 @@ const AddAccountWizard = () => {
       consultantName: customer.consultantName || prev.consultantName,
       architectName: customer.architectName || prev.architectName,
       pmcName: customer.pmcName || prev.pmcName,
-      projectName: customer.projectName || prev.projectName,
+      projectName: resolvedProjectName || customer.projectName || customer.dealName || prev.projectName,
       accountCategory: customer.customerCategory || customer.accountCategory || prev.accountCategory,
       productCategory: customer.productCategory || prev.productCategory,
       customerRefNo: customer.customerRefNo || prev.customerRefNo,
@@ -549,7 +553,7 @@ const AddAccountWizard = () => {
       jobNo: customer.jobNo || prev.jobNo,
       poValue: customer.poValue || prev.poValue,
       dealValue: customer.dealValue || customer.projectValue || prev.dealValue,
-      dealName: `${customer.customerName || 'Account'} Deal`,
+      dealName: resolvedProjectName || customer.dealName || customer.projectName || prev.dealName,
       dealType: customer.customerCategory || prev.dealType,
       dealOwner: customer.customerOwner || customer.accountOwner || prev.dealOwner,
     }))
@@ -623,6 +627,15 @@ const AddAccountWizard = () => {
       const next = { ...prev, [name]: value }
       if (name === 'projectName') {
         next.dealName = value
+      }
+      if (name === 'dealName') {
+        next.projectName = value
+      }
+      if (name === 'secondaryPhone') {
+        next.secondaryPhoneNumber = value
+      }
+      if (name === 'secondaryPhoneNumber') {
+        next.secondaryPhone = value
       }
       if (name === 'dealOwner' && value) {
         next.accountOwner = value
@@ -721,7 +734,7 @@ const AddAccountWizard = () => {
 
     if (isExistingCustomer) {
       try {
-        const typedProjectName = String(formData.dealName || '').trim()
+        const typedProjectName = String(formData.dealName || formData.projectName || '').trim()
         const result = await accountProjectApi.createExistingSourceProject({
           sourceType: selectedSource?.sourceType,
           sourceId: selectedSource?.sourceId,
@@ -1341,10 +1354,7 @@ const AddAccountWizard = () => {
                     name="secondaryPhone"
                     type="tel"
                     value={formData.secondaryPhone || formData.secondaryPhoneNumber || ''}
-                    onChange={(name, val) => {
-                      handleChange('secondaryPhone', val)
-                      handleChange('secondaryPhoneNumber', val)
-                    }}
+                    onChange={handleChange}
                     placeholder="Enter secondary phone"
                     layout="inline"
                     icon={<FaPhoneAlt />}

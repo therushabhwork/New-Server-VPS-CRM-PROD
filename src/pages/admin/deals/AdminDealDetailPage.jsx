@@ -211,7 +211,7 @@ const buildNormalizedDeal = ({ deal, accounts, customers, users, currentUser }) 
     secondaryPhoneNumber: deal.secondaryPhoneNumber || deal.secondaryPhone || deal.alternatePhone || linkedAccount?.secondaryPhoneNumber || linkedAccount?.secondaryPhone || linkedAccount?.alternatePhone || '',
     email: deal.contactEmail || linkedAccount?.contactEmail || linkedAccount?.email || '',
     address: deal.address || linkedAccount?.address || linkedCustomer?.address || '',
-    description: deal.description || deal.remark || '',
+    description: deal.description || '',
     poValue: deal.poValue,
     customerReferenceDate: deal.customerReferenceDate || '',
     productCategory: deal.productCategory || '',
@@ -668,67 +668,68 @@ const AdminDealDetailPage = () => {
     setEditValue('')
   }
 
-  const handleSaveField = async (key) => {
+  const handleSaveField = async (key, forcedVal) => {
     if (!deal?.id || isSavingField) return
     setIsSavingField(true)
 
-    let updatePayload = { [key]: editValue }
+    const valToUse = forcedVal !== undefined ? forcedVal : editValue
+    let updatePayload = { [key]: valToUse }
 
     if (key === 'dealName') {
-      updatePayload = { dealName: editValue, projectName: editValue, title: editValue, name: editValue }
+      updatePayload = { dealName: valToUse, projectName: valToUse, title: valToUse, name: valToUse }
     } else if (key === 'dealValue') {
-      const val = editValue ? Number(editValue) : 0
+      const val = valToUse ? Number(valToUse) : 0
       updatePayload = { dealValue: val, value: val, amount: val }
     } else if (key === 'dealScore' || key === 'poValue') {
-      updatePayload[key] = editValue ? Number(editValue) : 0
+      updatePayload[key] = valToUse ? Number(valToUse) : 0
     } else if (key === 'probability') {
-      const prob = clampProbability(editValue)
+      const prob = clampProbability(valToUse)
       updatePayload = { probability: prob }
     } else if (key === 'dealDate') {
-      updatePayload = { dealDate: editValue }
+      updatePayload = { dealDate: valToUse }
     } else if (key === 'expectedClosureDate') {
-      updatePayload = { expectedClosureDate: editValue, expectedCloseDate: editValue, closeDate: editValue }
+      updatePayload = { expectedClosureDate: valToUse, expectedCloseDate: valToUse, closeDate: valToUse }
     } else if (key === 'actualClosureDate') {
-      updatePayload = { actualClosureDate: editValue }
-    } else if (key === 'dealStatus') {
-      updatePayload = { dealStatus: editValue, status: editValue, stage: editValue }
+      updatePayload = { actualClosureDate: valToUse }
+    } else if (key === 'dealStatus' || key === 'dealStatusOther') {
+      updatePayload = { dealStatus: valToUse, status: valToUse, stage: valToUse }
     } else if (key === 'dealType' || key === 'dealSource' || key === 'source') {
-      updatePayload = { dealType: editValue, dealSource: editValue, source: editValue }
+      updatePayload = { dealType: valToUse, dealSource: valToUse, source: valToUse }
     } else if (key === 'dealSubsource') {
-      updatePayload = { dealSubsource: editValue, subsource: editValue }
+      updatePayload = { dealSubsource: valToUse, subsource: valToUse }
     } else if (key === 'contactName') {
-      updatePayload = { contactName: editValue, contactPerson: editValue }
+      updatePayload = { contactName: valToUse, contactPerson: valToUse }
     } else if (key === 'phone') {
-      updatePayload = { phone: editValue, contactPhone: editValue, contactMobile: editValue }
+      updatePayload = { phone: valToUse, contactPhone: valToUse, contactMobile: valToUse }
     } else if (key === 'secondaryPhoneNumber' || key === 'secondaryPhone') {
-      updatePayload = { secondaryPhoneNumber: editValue, secondaryPhone: editValue, alternatePhone: editValue }
+      updatePayload = { secondaryPhoneNumber: valToUse, secondaryPhone: valToUse, alternatePhone: valToUse }
     } else if (key === 'email') {
-      updatePayload = { email: editValue, contactEmail: editValue }
+      updatePayload = { email: valToUse, contactEmail: valToUse }
     } else if (key === 'address') {
-      updatePayload = { address: editValue }
+      updatePayload = { address: valToUse }
     } else if (key === 'customerReferenceDate') {
-      updatePayload = { customerReferenceDate: editValue, customerRefDate: editValue }
+      updatePayload = { customerReferenceDate: valToUse, customerRefDate: valToUse }
     } else if (key === 'customerReferenceNumber') {
-      updatePayload = { customerReferenceNumber: editValue, customerRefNo: editValue }
-    } else if (key === 'productCategory') {
-      updatePayload = { productCategory: editValue }
-    } else if (key === 'projectName') {
-      updatePayload = { projectName: editValue }
-    } else if (key === 'jobNo') {
-      updatePayload = { jobNo: editValue }
+      updatePayload = { customerReferenceNumber: valToUse, customerRefNo: valToUse }
+    } else if (key === 'productCategory' || key === 'productCategoryOther') {
+      updatePayload = { productCategory: valToUse }
+    } else if (key === 'projectName' || key === 'projectNameOther') {
+      updatePayload = { projectName: valToUse }
+    } else if (key === 'jobNo' || key === 'jobNoOther') {
+      updatePayload = { jobNo: valToUse }
     } else if (key === 'consultantName') {
-      updatePayload = { consultantName: editValue }
+      updatePayload = { consultantName: valToUse }
     } else if (key === 'gstin') {
-      updatePayload = { gstin: editValue }
+      updatePayload = { gstin: valToUse }
     } else if (key === 'orderCustomerStatus') {
-      updatePayload = { orderCustomerStatus: editValue }
+      updatePayload = { orderCustomerStatus: valToUse }
     } else if (key === 'quotationCustomerStatus') {
-      updatePayload = { quotationCustomerStatus: editValue }
+      updatePayload = { quotationCustomerStatus: valToUse }
     } else if (key === 'description') {
-      updatePayload = { description: editValue, remark: editValue }
+      updatePayload = { description: valToUse }
     }
 
-    const targetDealId = deal.sourceDealId || deal.source_deal_id || deal.dealId || deal.id
+    const targetDealId = deal.sourceDealId || deal.source_deal_id || deal.dealId || deal.id || dealId
     const result = await updateDeal(targetDealId, updatePayload)
     setIsSavingField(false)
 
@@ -1059,7 +1060,8 @@ const AdminDealDetailPage = () => {
         isOpen={isRemarksOpen}
         onClose={() => setIsRemarksOpen(false)}
         dealData={deal}
-        accountData={deal}
+        accountData={null}
+        isDeal={true}
         onSave={handleSaveRemark}
         onSaveAccountField={handleSaveRemarkField}
         isLoading={isSavingRemark}

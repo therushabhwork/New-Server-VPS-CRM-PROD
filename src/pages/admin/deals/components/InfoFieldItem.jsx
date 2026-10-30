@@ -41,7 +41,7 @@ const InfoFieldItem = ({
     if (e.key === 'Enter') {
       e.preventDefault()
       if (!isSaving && onSave) {
-        onSave(itemKey)
+        onSave(itemKey, editValue)
       }
     } else if (e.key === 'Escape') {
       e.preventDefault()

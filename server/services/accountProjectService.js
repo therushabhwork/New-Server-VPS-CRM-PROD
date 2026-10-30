@@ -74,6 +74,7 @@ const normalizeSourceRecord = (sourceType, record = {}) => {
     architectName: text(record.architectName, data.architectName, formData.architectName),
     pmcName: text(record.pmcName, data.pmcName, formData.pmcName),
     projectName,
+    dealName: text(record.dealName, record.projectName, data.dealName, data.projectName, formData.dealName, formData.projectName),
     productCategory: text(record.productCategory, data.productCategory, formData.productCategory),
     customerRefNo: text(record.customerRefNo, record.customerReferenceNumber, data.customerRefNo, data.customerReferenceNumber, formData.customerRefNo),
     customerRefDate: text(record.customerRefDate, record.customerReferenceDate, data.customerRefDate, data.customerReferenceDate, formData.customerRefDate),
@@ -183,16 +184,19 @@ const findSourceRecord = async (actor, sourceType, sourceId) => {
 }
 
 const buildSharedPayload = (source, formData = {}, actor = {}) => {
+  const secPhone = text(formData.secondaryPhone, formData.secondaryPhoneNumber, source.secondaryPhone, source.secondaryPhoneNumber, source.contacts?.[0]?.secondaryPhone, source.contacts?.[0]?.secondaryPhoneNumber)
   const primaryContact = {
     name: text(formData.contactPerson, source.contacts?.[0]?.contactPerson),
     designation: text(formData.contactDesignation, source.contacts?.[0]?.designation),
     email: text(formData.contactEmail, source.contacts?.[0]?.email),
     phone: text(formData.contactPhone, source.contacts?.[0]?.phone),
     mobile: text(formData.contactMobile, source.contacts?.[0]?.mobile),
+    secondaryPhone: secPhone,
+    secondaryPhoneNumber: secPhone,
   }
   const accountName = text(source.customerName, formData.accountName, formData.customerName)
-  const projectName = text(formData.projectName, formData.dealName, source.projectName)
-  const dealName = text(formData.dealName, projectName)
+  const projectName = text(formData.projectName, formData.dealName, source.projectName, source.dealName)
+  const dealName = text(formData.dealName, formData.projectName, projectName)
   const ownerName = text(formData.dealOwner, formData.accountOwner, source.customerOwner, actor.name, actor.username)
 
   return {
@@ -232,6 +236,8 @@ const buildSharedPayload = (source, formData = {}, actor = {}) => {
     valueCurrency: text(formData.valueCurrency, 'INR'),
     customerQuotationStatus: text(formData.customerQuotationStatus),
     customerOrderStatus: text(formData.customerOrderStatus),
+    secondaryPhone: secPhone,
+    secondaryPhoneNumber: secPhone,
     contactPerson: primaryContact.name,
     contactDesignation: primaryContact.designation,
     contactEmail: primaryContact.email,

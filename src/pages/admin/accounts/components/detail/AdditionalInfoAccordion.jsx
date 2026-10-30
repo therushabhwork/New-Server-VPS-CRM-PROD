@@ -15,7 +15,6 @@ export default function AdditionalInfoAccordion({
   const architectName = form.architectName || account.architectName || ''
   const alternatePhone = form.alternatePhone || account.alternatePhone || ''
   const alternateEmail = form.alternateEmail || account.alternateEmail || ''
-  const landline = form.landline || account.landline || form.phone2 || account.phone2 || ''
 
   return (
     <div className="ad-card ad-accordion-card">
@@ -79,16 +78,6 @@ export default function AdditionalInfoAccordion({
           value={alternateEmail}
           type="email"
           placeholder="Enter alternate email"
-          canEdit={canEdit}
-          onSave={onAutoSave}
-        />
-
-        <InlineAutoSaveField
-          label="Landline"
-          fieldKey="landline"
-          value={landline}
-          type="tel"
-          placeholder="Enter landline"
           canEdit={canEdit}
           onSave={onAutoSave}
         />

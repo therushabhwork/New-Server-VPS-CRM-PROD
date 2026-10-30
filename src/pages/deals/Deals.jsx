@@ -6758,6 +6758,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
           isOpen={Boolean(remarkModalDeal)}
           onClose={() => setRemarkModalDeal(null)}
           dealData={remarkModalDeal}
+          isDeal={true}
           onSave={handleSaveDealRemark}
           isLoading={isSavingRemark}
         />

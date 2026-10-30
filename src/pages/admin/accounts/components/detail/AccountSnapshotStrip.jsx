@@ -66,10 +66,10 @@ export default function AccountSnapshotStrip({
     return () => clearTimeout(timer)
   }, [saveStatus])
 
-  const startEdit = (fieldKey, val) => {
+  const startEdit = (fieldKey, val, rawVal) => {
     if (!effectiveCanEdit || saveStatus === 'saving') return
     setEditingField(fieldKey)
-    setFieldValue(val || '')
+    setFieldValue(rawVal !== undefined ? rawVal : (val || ''))
   }
 
   const handleCommit = async (fieldKey, origVal, forcedVal) => {
@@ -112,6 +112,9 @@ export default function AccountSnapshotStrip({
       label: 'Account Date',
       icon: FaCalendarAlt,
       value: formatDateDisplay(accountDate),
+      rawValue: accountDate ? String(accountDate).slice(0, 10) : '',
+      editable: true,
+      type: 'date',
     },
     {
       id: 'accountCategory',
@@ -191,7 +194,7 @@ export default function AccountSnapshotStrip({
                 <button
                   type="button"
                   className="ad-field-edit-btn"
-                  onClick={() => startEdit(item.id, item.value)}
+                  onClick={() => startEdit(item.id, item.value, item.rawValue)}
                   title={`Edit ${item.label}`}
                 >
                   <FiEdit2 />
@@ -215,10 +218,10 @@ export default function AccountSnapshotStrip({
                     onChange={(e) => {
                       const val = e.target.value
                       setFieldValue(val)
-                      handleCommit(item.id, item.value, val)
+                      handleCommit(item.id, item.rawValue || item.value, val)
                     }}
-                    onBlur={() => handleCommit(item.id, item.value)}
-                    onKeyDown={(e) => handleKeyDown(e, item.id, item.value)}
+                    onBlur={() => handleCommit(item.id, item.rawValue || item.value)}
+                    onKeyDown={(e) => handleKeyDown(e, item.id, item.rawValue || item.value)}
                   >
                     <option value="">-- Select --</option>
                     {(item.options || []).map((opt) => {
@@ -231,6 +234,17 @@ export default function AccountSnapshotStrip({
                       )
                     })}
                   </select>
+                ) : item.type === 'date' ? (
+                  <input
+                    ref={inputRef}
+                    type="date"
+                    className="ad-inline-input"
+                    style={{ fontSize: '0.78rem', padding: '2px 4px' }}
+                    value={fieldValue}
+                    onChange={(e) => setFieldValue(e.target.value)}
+                    onBlur={() => handleCommit(item.id, item.rawValue || item.value)}
+                    onKeyDown={(e) => handleKeyDown(e, item.id, item.rawValue || item.value)}
+                  />
                 ) : (
                   <input
                     ref={inputRef}
@@ -239,8 +253,8 @@ export default function AccountSnapshotStrip({
                     style={{ fontSize: '0.78rem', padding: '2px 4px' }}
                     value={fieldValue}
                     onChange={(e) => setFieldValue(e.target.value)}
-                    onBlur={() => handleCommit(item.id, item.value)}
-                    onKeyDown={(e) => handleKeyDown(e, item.id, item.value)}
+                    onBlur={() => handleCommit(item.id, item.rawValue || item.value)}
+                    onKeyDown={(e) => handleKeyDown(e, item.id, item.rawValue || item.value)}
                   />
                 )}
               </div>
