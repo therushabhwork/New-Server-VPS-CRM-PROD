@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { getCachedAccountOwnerOptions, loadAccountOwnerOptions, getAccountOwnerOptionLabel } from '../../../../features/adminAccounts/utils/accountOwnerOptions'
 import { getCrmOwnerDisplay } from '../../../../features/users/crmUserDirectory'
 import {
@@ -66,15 +66,9 @@ export default function DealQuickActionsCard({
   const assignedDate = deal.dealDate || deal.createdAt || ''
   const assignedOwner = resolveOwnerName(deal.dealOwner || deal.ownerName || deal.addedBy || 'You')
 
-  const banners = Array.isArray(reminders) && reminders.length > 0
-    ? reminders.map((r) => ({
-        id: r.id || r._id,
-        date: r.reminderDate || r.dueDate || r.createdAt,
-        owner: resolveOwnerName(r.ownerName || r.assignedTo || assignedOwner),
-        message: r.title || r.message || r.content || r.note || 'Follow up required',
-        reminder: r,
-      }))
-    : [
+  const banners = useMemo(() => {
+    if (!Array.isArray(reminders) || reminders.length === 0) {
+      return [
         {
           id: 'default-assigned',
           date: assignedDate,
@@ -83,6 +77,31 @@ export default function DealQuickActionsCard({
           reminder: null,
         },
       ]
+    }
+    const seen = new Set()
+    const list = []
+    for (const r of reminders) {
+      const rid = String(r.id || r._id || r.legacyId || '')
+      if (rid && seen.has(rid)) continue
+      if (rid) seen.add(rid)
+      list.push({
+        id: rid || `rem-${list.length}`,
+        date: r.reminderDate || r.dueDate || r.createdAt,
+        owner: resolveOwnerName(r.ownerName || r.assignedTo || assignedOwner),
+        message: r.title || r.message || r.content || r.note || 'Follow up required',
+        reminder: r,
+      })
+    }
+    return list.length > 0 ? list : [
+      {
+        id: 'default-assigned',
+        date: assignedDate,
+        owner: assignedOwner,
+        message: 'Deal has been assigned to you.',
+        reminder: null,
+      },
+    ]
+  }, [reminders, assignedDate, assignedOwner])
 
   return (
     <div className="c-deal-card ad-card">

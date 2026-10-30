@@ -23,6 +23,7 @@ import {
 import { FiEdit2 } from 'react-icons/fi'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Button from '../../../components/common/Button'
+import { remarkApi } from '../../../services/remarkApi'
 import { useAuth } from '../../../context/AuthContext'
 import { useData } from '../../../context/DataContext'
 import { getAccountsBoardData } from '../../../features/adminAccounts/selectors/getAccountsBoardData'
@@ -452,6 +453,7 @@ const CRMActionPage = () => {
     newOwnerId: '',
     department: '',
     role: '',
+    description: '',
     addReminder: true,
     reminderTiming: 'Different Time',
     reminderDatePreset: getTodayKey(),
@@ -528,7 +530,7 @@ const CRMActionPage = () => {
   const returnTo = searchParams.get('returnTo') || location.state?.returnTo || '/admin/deals/view'
   const isDealStatusWhiteTheme = recordModule === 'deal'
     && (actionKey === 'change-status' || actionKey === 'change-deal-status')
-    && (returnTo === '/deals/view' || returnTo.startsWith('/deals/view') || decodeURIComponent(returnTo).includes('/deals/view'))
+    && (!location.pathname.startsWith('/admin'))
 
   const recordOptions = useMemo(() => (
     (moduleRecords[recordModule] || []).map((record) => ({
@@ -802,6 +804,8 @@ const CRMActionPage = () => {
 
     const result = await updateDeal(selectedDeal.id, {
       [nextReassignedKey]: reassignedDateIso,
+      reassignDescriptions: reassignForm.description || '',
+      reassignDescription: reassignForm.description || '',
       ...(apiOwnerId ? {
         ownerUserId: apiOwnerId,
         ownerId: apiOwnerId,
@@ -823,7 +827,8 @@ const CRMActionPage = () => {
           toOwner: nextOwnerName,
           reminderDate,
           reminderTime,
-          remarks: reassignForm.internalComments,
+          remarks: reassignForm.description || reassignForm.internalComments || '',
+          description: reassignForm.description || '',
           changedAt: new Date().toISOString(),
           changedBy: user?.name || 'Current User',
         },
@@ -833,6 +838,25 @@ const CRMActionPage = () => {
     if (!result.success) {
       setErrors({ record: result.message || 'Unable to re-assign deal.' })
       return
+    }
+
+    if (reassignForm.description || reassignForm.internalComments) {
+      try {
+        await remarkApi.createRemark({
+          relatedEntityId: selectedDeal.id,
+          relatedEntityType: 'deal',
+          accountId: selectedDeal.linkedAccountId || selectedDeal.accountId,
+          dealId: selectedDeal.id,
+          title: 'Deal Reassigned',
+          remark: reassignForm.description || reassignForm.internalComments || `Deal reassigned from ${previousOwner} to ${nextOwnerName}.`,
+          content: reassignForm.description || reassignForm.internalComments || `Deal reassigned from ${previousOwner} to ${nextOwnerName}.`,
+          type: 'reassign',
+          category: 'reassign',
+          author: user?.name || 'Admin',
+        })
+      } catch (err) {
+        console.warn('Failed to save reassign remark:', err)
+      }
     }
 
     if (reassignForm.addReminder) {
@@ -967,6 +991,12 @@ const CRMActionPage = () => {
     appendAudit('Change Status', `Deal status changed to ${statusLabel}.`, 'Deal', selectedDeal)
     addNotification('success', 'Change Status', `Deal status changed to ${statusLabel}.`)
     setSuccessMessage(`Deal status changed to ${statusLabel}.`)
+    const isAdminContext = window.location.pathname.startsWith('/admin')
+    let targetReturn = returnTo || (isAdminContext ? '/admin/deals/view' : '/deals/view')
+    if (!isAdminContext && targetReturn.startsWith('/admin/deals/')) {
+      targetReturn = targetReturn.replace(/^\/admin/, '')
+    }
+    navigate(targetReturn)
   }
 
   const [isSavingPoValue, setIsSavingPoValue] = useState(false)
@@ -1131,6 +1161,19 @@ const CRMActionPage = () => {
     if (!entity) return null
 
     if (dealOnly) {
+      if (!location.pathname.startsWith('/admin')) {
+        return (
+          <div className="crm-action-context" style={{ margin: '0 0 1rem', padding: '1rem', border: '1px solid var(--border-subtle, #e2e8f0)', background: '#ffffff', borderRadius: '8px' }}>
+            <div><span>Deal Name</span><strong>{getEntityLabel(entity) || '-'}</strong></div>
+            <div><span>Deal No.</span><strong>{entity.dealNumber || entity.accountNumber || entity.customerNumber || '-'}</strong></div>
+            <div><span>Contact Name</span><strong>{getEntityContactName(entity) || '-'}</strong></div>
+            <div><span>Email ID</span><strong>{getEntityEmail(entity) || '-'}</strong></div>
+            <div><span>Company Name</span><strong>{getEntityCompanyName(entity) || '-'}</strong></div>
+            <div><span>Deal Reference</span><strong>{selectedDeal?.dealNumber || entity.dealNumber || '-'}</strong></div>
+          </div>
+        )
+      }
+
       return (
         <div className="admin-deal-detail-flat-fields" style={{ margin: '0 0 1rem', padding: '1rem', border: '1px solid var(--border-subtle)', background: 'var(--surface-card)' }}>
           <label className={`admin-deal-detail-field admin-deal-detail-field--flat ${editingFieldKey === 'dealName' ? 'admin-deal-detail-field--single-editing' : ''}`} onDoubleClick={() => handleStartEditing('dealName', getEntityLabel(entity))}>
@@ -1357,7 +1400,19 @@ const CRMActionPage = () => {
         </div>
 
         <div className="crm-deal-status-footer">
-          <Button type="button" variant="outline" className="btn-red-theme" onClick={() => navigate(returnTo)}>
+          <Button
+            type="button"
+            variant="outline"
+            className="btn-red-theme"
+            onClick={() => {
+              const isAdminContext = window.location.pathname.startsWith('/admin')
+              let targetReturn = returnTo || (isAdminContext ? '/admin/deals/view' : '/deals/view')
+              if (!isAdminContext && targetReturn.startsWith('/admin/deals/')) {
+                targetReturn = targetReturn.replace(/^\/admin/, '')
+              }
+              navigate(targetReturn)
+            }}
+          >
             <FaTimes style={{ marginRight: '6px' }} /> Close
           </Button>
           <Button type="submit" className="btn-red-theme">
@@ -1555,6 +1610,17 @@ const CRMActionPage = () => {
           </select>
         </label>
         {errors.newOwnerId ? <small className="crm-action-error-text">{errors.newOwnerId}</small> : null}
+
+        <label style={{ marginTop: '0.85rem' }}>
+          <span>Description</span>
+          <textarea
+            value={reassignForm.description}
+            onChange={(event) => setReassignForm({ ...reassignForm, description: event.target.value })}
+            placeholder="Enter re-assignment description..."
+            rows={3}
+            style={{ width: '100%', resize: 'vertical' }}
+          />
+        </label>
       </section>
 
       <label className="crm-action-reassign-check">

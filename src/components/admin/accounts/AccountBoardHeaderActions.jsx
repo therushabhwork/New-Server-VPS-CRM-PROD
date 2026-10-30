@@ -21,6 +21,8 @@ import { getCrmOwnerCode } from '../../../features/users/crmUserDirectory'
 import { leadApi } from '../../../services/leadApi'
 import { dealApi } from '../../../services/dealApi'
 import { exportAllAccountsAndDealsWorkbook } from '../../../utils/exportAllLeadsAndDeals'
+import Modal from '../../../components/common/Modal'
+import Button from '../../../components/common/Button'
 import './AccountBoardHeaderActions.css'
 
 const SHOW_BULK_ACTIONS = false
@@ -58,6 +60,11 @@ const AccountBoardHeaderActions = ({
   const [pendingSourceKeys, setPendingSourceKeys] = useState(() => visibleSourceStageKeys)
   const [bulkMenuPosition, setBulkMenuPosition] = useState(null)
   const [isImporting, setIsImporting] = useState(false)
+  const [isImportPreviewOpen, setIsImportPreviewOpen] = useState(false)
+  const [importPreviewAccounts, setImportPreviewAccounts] = useState([])
+  const [importExcelHeaders, setImportExcelHeaders] = useState([])
+  const [importPreviewFilter, setImportPreviewFilter] = useState('all')
+  const [pendingImportPayloads, setPendingImportPayloads] = useState([])
   const [isExportingExcel, setIsExportingExcel] = useState(false)
 
   const handleExportAllCollections = async () => {
@@ -144,8 +151,10 @@ const AccountBoardHeaderActions = ({
       }
 
       let validRows = []
+      let detectedHeaders = []
       if (headerRowIndex !== -1) {
         const headers = (raw2DRows[headerRowIndex] || []).map((h) => String(h || '').trim())
+        detectedHeaders = headers.filter(Boolean)
         for (let i = headerRowIndex + 1; i < raw2DRows.length; i++) {
           const rowArr = raw2DRows[i]
           if (!rowArr || rowArr.length === 0) continue
@@ -161,6 +170,9 @@ const AccountBoardHeaderActions = ({
         }
       } else {
         const rawObjects = XLSX.utils.sheet_to_json(worksheet, { defval: '' })
+        if (rawObjects.length > 0) {
+          detectedHeaders = Object.keys(rawObjects[0] || {}).filter((k) => !k.startsWith('__EMPTY'))
+        }
         validRows = rawObjects.filter((row) => {
           if (!row || typeof row !== 'object') return false
           const rowText = Object.values(row).join(' ')
@@ -189,6 +201,8 @@ const AccountBoardHeaderActions = ({
         console.warn('Could not fetch existing leads prior to import cleanup:', fetchErr)
       }
 
+      const seenBatchKeys = new Set()
+      const previewRows = []
       const payloadsToImport = []
       for (const row of validRows) {
         const getVal = (...keys) => {
@@ -290,13 +304,9 @@ const AccountBoardHeaderActions = ({
           return false
         })
 
-        if (matchingLead && matchingLead.id) {
-          try {
-            await leadApi.deleteLead(matchingLead.id)
-          } catch (deleteErr) {
-            console.warn(`Could not remove matching lead ${matchingLead.id} before import:`, deleteErr)
-          }
-        }
+        const rowKey = (customerRefNo ? `ref:${customerRefNo.toLowerCase()}` : '') || (displayName ? `name:${displayName.toLowerCase()}` : '')
+        const isDuplicate = Boolean(matchingLead || (rowKey && seenBatchKeys.has(rowKey)))
+        if (rowKey) seenBatchKeys.add(rowKey)
 
         const payload = {
           name: displayName,
@@ -337,6 +347,7 @@ const AccountBoardHeaderActions = ({
           userGroup: userGroup || undefined,
           status: 'pending',
           isExcelImport: true,
+          isDuplicate,
           formData: {
             'Account Name': displayName,
             'Account Date': accountDate,
@@ -393,39 +404,23 @@ const AccountBoardHeaderActions = ({
           ...payload,
           targetCollection: 'accounts',
         })
+
+        previewRows.push({
+          ...payload,
+          _rawRow: { ...row },
+          isDuplicate,
+          status: isDuplicate ? 'duplicate' : 'new',
+          statusMessage: isDuplicate
+            ? (matchingLead ? 'Matches existing database record' : 'Duplicate in file')
+            : 'Ready to import',
+        })
       }
 
-      let insertedCount = 0
-      let duplicateCount = 0
-
-      if (payloadsToImport.length > 0) {
-        try {
-          const res = await dealApi.importDeals(payloadsToImport)
-          const dataObj = res?.data || res || {}
-          insertedCount = dataObj.insertedCount ?? dataObj.count ?? res?.count ?? 0
-          duplicateCount = dataObj.duplicateCount ?? 0
-        } catch (bulkErr) {
-          console.warn('Batch import fallback in AccountBoardHeaderActions:', bulkErr)
-          for (const p of payloadsToImport) {
-            try {
-              await leadApi.createLead(p)
-              insertedCount += 1
-            } catch (err) {
-              console.error('Failed fallback single import:', err)
-            }
-          }
-        }
-      }
-
-      if (onRefresh) {
-        await onRefresh()
-      }
-
-      if (insertedCount > 0) {
-        alert(`Import completed successfully! ${insertedCount} account records stored in MongoDB.`)
-      } else {
-        alert(`Import completed: 0 account records stored in MongoDB.`)
-      }
+      setImportExcelHeaders(detectedHeaders.length > 0 ? detectedHeaders : ['Account Name', 'Project Name', 'Phone', 'Email', 'Job No'])
+      setImportPreviewAccounts(previewRows)
+      setPendingImportPayloads(payloadsToImport)
+      setImportPreviewFilter('all')
+      setIsImportPreviewOpen(true)
     } catch (err) {
       console.error('Error reading import file:', err)
       alert('Error parsing import file. Please select a valid Excel (.xlsx, .xls) or CSV (.csv) file.')
@@ -434,6 +429,36 @@ const AccountBoardHeaderActions = ({
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
+    }
+  }
+
+  const handleConfirmImportAccounts = async () => {
+    if (!pendingImportPayloads || pendingImportPayloads.length === 0) return
+    setIsImporting(true)
+    try {
+      const res = await dealApi.importDeals(pendingImportPayloads)
+      const dataObj = res?.data || res || {}
+      const insertedCount = dataObj.insertedCount ?? dataObj.count ?? res?.count ?? pendingImportPayloads.length
+      const duplicateCount = dataObj.duplicateCount ?? 0
+
+      setIsImportPreviewOpen(false)
+      setImportPreviewAccounts([])
+      setPendingImportPayloads([])
+
+      if (onRefresh) {
+        await onRefresh()
+      }
+
+      if (duplicateCount > 0) {
+        alert(`Import completed successfully!\n• ${insertedCount} account records stored in MongoDB.\n• ${duplicateCount} duplicate records were identified and added.`)
+      } else {
+        alert(`Import completed successfully! ${insertedCount} account records stored in MongoDB.`)
+      }
+    } catch (bulkErr) {
+      console.error('Failed import in AccountBoardHeaderActions:', bulkErr)
+      alert(`Import failed: ${bulkErr?.message || 'Unknown error'}`)
+    } finally {
+      setIsImporting(false)
     }
   }
 
@@ -742,6 +767,158 @@ const AccountBoardHeaderActions = ({
         onChange={handleImportFileSelect}
         style={{ display: 'none' }}
       />
+
+      {isImportPreviewOpen ? (
+        <Modal
+          isOpen={isImportPreviewOpen}
+          onClose={() => setIsImportPreviewOpen(false)}
+          size="xlarge"
+          showClose={true}
+          title={`Import Accounts Preview (${importPreviewAccounts.length} Records)`}
+        >
+          <div style={{ padding: '16px', maxHeight: '75vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '10px', fontSize: '13px', fontWeight: 600 }}>
+                <span style={{ background: '#ebf8ff', color: '#2b6cb0', padding: '4px 10px', borderRadius: '4px', border: '1px solid #bee3f8' }}>
+                  Total: {importPreviewAccounts.length}
+                </span>
+                <span style={{ background: '#f0fff4', color: '#276749', padding: '4px 10px', borderRadius: '4px', border: '1px solid #c6f6d5' }}>
+                  New: {importPreviewAccounts.filter((r) => !r.isDuplicate).length}
+                </span>
+                <span style={{ background: '#fffaf0', color: '#c05621', padding: '4px 10px', borderRadius: '4px', border: '1px solid #feebc8' }}>
+                  Duplicates: {importPreviewAccounts.filter((r) => r.isDuplicate).length}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  type="button"
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: '12px',
+                    borderRadius: '4px',
+                    border: '1px solid #cbd5e0',
+                    cursor: 'pointer',
+                    background: importPreviewFilter === 'all' ? '#3182ce' : '#edf2f7',
+                    color: importPreviewFilter === 'all' ? '#fff' : '#4a5568',
+                    fontWeight: importPreviewFilter === 'all' ? 600 : 400
+                  }}
+                  onClick={() => setImportPreviewFilter('all')}
+                >
+                  All ({importPreviewAccounts.length})
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: '12px',
+                    borderRadius: '4px',
+                    border: '1px solid #cbd5e0',
+                    cursor: 'pointer',
+                    background: importPreviewFilter === 'new' ? '#38a169' : '#edf2f7',
+                    color: importPreviewFilter === 'new' ? '#fff' : '#4a5568',
+                    fontWeight: importPreviewFilter === 'new' ? 600 : 400
+                  }}
+                  onClick={() => setImportPreviewFilter('new')}
+                >
+                  New ({importPreviewAccounts.filter((r) => !r.isDuplicate).length})
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: '12px',
+                    borderRadius: '4px',
+                    border: '1px solid #cbd5e0',
+                    cursor: 'pointer',
+                    background: importPreviewFilter === 'duplicate' ? '#dd6b20' : '#edf2f7',
+                    color: importPreviewFilter === 'duplicate' ? '#fff' : '#4a5568',
+                    fontWeight: importPreviewFilter === 'duplicate' ? 600 : 400
+                  }}
+                  onClick={() => setImportPreviewFilter('duplicate')}
+                >
+                  Duplicates ({importPreviewAccounts.filter((r) => r.isDuplicate).length})
+                </button>
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', maxHeight: '52vh' }}>
+              <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse', whiteSpace: 'nowrap' }}>
+                <thead>
+                  <tr style={{ background: '#f7fafc', borderBottom: '2px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 1 }}>
+                    <th style={{ padding: '8px 12px', textAlign: 'left' }}>#</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'center' }}>Duplicate Status</th>
+                    {(importExcelHeaders || []).map((header) => (
+                      <th key={header} style={{ padding: '8px 12px', textAlign: 'left' }}>
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {importPreviewAccounts
+                    .filter((row) => {
+                      if (importPreviewFilter === 'new') return !row.isDuplicate
+                      if (importPreviewFilter === 'duplicate') return row.isDuplicate
+                      return true
+                    })
+                    .map((row, idx) => (
+                      <tr
+                        key={idx}
+                        style={{
+                          borderBottom: '1px solid #edf2f7',
+                          background: row.isDuplicate ? '#fffaf0' : 'inherit'
+                        }}
+                      >
+                        <td style={{ padding: '8px 12px' }}>{idx + 1}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              background: row.isDuplicate ? '#feebc8' : '#c6f6d5',
+                              color: row.isDuplicate ? '#c05621' : '#22543d'
+                            }}
+                            title={row.statusMessage}
+                          >
+                            {row.isDuplicate ? '⚠ Duplicate' : '✓ New'}
+                          </span>
+                        </td>
+                        {(importExcelHeaders || []).map((header) => (
+                          <td key={header} style={{ padding: '8px 12px' }}>
+                            {String(row._rawRow?.[header] ?? row[header] ?? '-')}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', color: '#718096' }}>
+                * All records (including duplicates) will be imported into MongoDB.
+              </span>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <Button type="button" variant="outline" onClick={() => setIsImportPreviewOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  disabled={isImporting || pendingImportPayloads.length === 0}
+                  onClick={handleConfirmImportAccounts}
+                >
+                  {isImporting ? 'Importing...' : `Confirm & Import (${pendingImportPayloads.length} Accounts)`}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
     </div>
   )
 }

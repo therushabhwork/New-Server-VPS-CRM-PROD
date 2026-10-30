@@ -132,7 +132,7 @@ const DealStageTimeline = ({ deal }) => {
               <div
                 className={`c-deal-stage-card ${stage.isCurrent ? 'c-deal-stage-card--current' : ''} ${stage.isCompleted ? 'c-deal-stage-card--completed' : ''}`}
               >
-                <div className="c-deal-stage-badge-row">
+                <div className="c-deal-stage-head-row">
                   <span className="c-deal-stage-name">{stage.name}</span>
                   {stage.isCompleted && (
                     <FaCheckCircle className="c-deal-stage-completed-icon" aria-label="Completed" />

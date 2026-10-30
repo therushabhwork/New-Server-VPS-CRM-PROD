@@ -19,11 +19,18 @@ export default function InlineAutoSaveField({
   className = '',
   formatter,
   multiline = false,
+  onEditingChange,
 }) {
   const [isEditing, setIsEditing] = useState(false)
   const [tempValue, setTempValue] = useState(value ?? '')
   const [saveStatus, setSaveStatus] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const inputRef = useRef(null)
+
+  useEffect(() => {
+    if (typeof onEditingChange === 'function') {
+      onEditingChange(isEditing)
+    }
+  }, [isEditing, onEditingChange])
 
   useEffect(() => {
     setTempValue(value ?? '')

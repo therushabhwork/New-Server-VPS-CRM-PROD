@@ -8,6 +8,7 @@ export default function ContactAddressCard({
   form = {},
   onAutoSave,
   canEdit = true,
+  onEditingChange,
 }) {
   const contactPerson = form.contactPerson || account.contactPerson || ''
   const email = form.email || account.email || account.contactEmail || ''
@@ -42,6 +43,7 @@ export default function ContactAddressCard({
             placeholder="Enter contact person"
             canEdit={canEdit}
             onSave={onAutoSave}
+            onEditingChange={onEditingChange}
           />
 
           <InlineAutoSaveField
@@ -52,6 +54,7 @@ export default function ContactAddressCard({
             placeholder="Enter email"
             canEdit={canEdit}
             onSave={onAutoSave}
+            onEditingChange={onEditingChange}
           />
 
           <InlineAutoSaveField
@@ -62,6 +65,7 @@ export default function ContactAddressCard({
             placeholder="Enter mobile phone"
             canEdit={canEdit}
             onSave={onAutoSave}
+            onEditingChange={onEditingChange}
           />
 
           <InlineAutoSaveField
@@ -72,6 +76,7 @@ export default function ContactAddressCard({
             placeholder="Enter secondary phone"
             canEdit={canEdit}
             onSave={onAutoSave}
+            onEditingChange={onEditingChange}
           />
 
           <InlineAutoSaveField
@@ -82,6 +87,7 @@ export default function ContactAddressCard({
             placeholder="Enter alternate phone"
             canEdit={canEdit}
             onSave={onAutoSave}
+            onEditingChange={onEditingChange}
           />
 
           <InlineAutoSaveField
@@ -91,6 +97,7 @@ export default function ContactAddressCard({
             placeholder="Enter designation"
             canEdit={canEdit}
             onSave={onAutoSave}
+            onEditingChange={onEditingChange}
           />
         </div>
 
@@ -106,6 +113,7 @@ export default function ContactAddressCard({
             placeholder="Enter address"
             canEdit={canEdit}
             onSave={onAutoSave}
+            onEditingChange={onEditingChange}
           />
 
           <InlineAutoSaveField
@@ -115,15 +123,18 @@ export default function ContactAddressCard({
             placeholder="Enter city"
             canEdit={canEdit}
             onSave={onAutoSave}
+            onEditingChange={onEditingChange}
           />
 
           <InlineAutoSaveField
             label="State"
             fieldKey="state"
+            value={state}
             type="select"
             options={STATE_OPTIONS}
             canEdit={canEdit}
             onSave={onAutoSave}
+            onEditingChange={onEditingChange}
           />
 
           <InlineAutoSaveField
@@ -133,6 +144,7 @@ export default function ContactAddressCard({
             placeholder="Enter pincode"
             canEdit={canEdit}
             onSave={onAutoSave}
+            onEditingChange={onEditingChange}
           />
         </div>
       </div>
@@ -149,6 +161,7 @@ export default function ContactAddressCard({
           placeholder="Enter description..."
           canEdit={canEdit}
           onSave={onAutoSave}
+          onEditingChange={onEditingChange}
         />
       </div>
     </div>

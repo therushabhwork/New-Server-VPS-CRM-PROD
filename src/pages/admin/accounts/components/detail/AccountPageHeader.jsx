@@ -12,6 +12,8 @@ export default function AccountPageHeader({
   actions = [],
   onActionSelect,
   onOpenHistory,
+  isEditable = false,
+  onCancelEdit,
 }) {
   const [isActionsOpen, setIsActionsOpen] = useState(false)
   const actionsRef = useClickOutside(() => setIsActionsOpen(false))
@@ -105,27 +107,31 @@ export default function AccountPageHeader({
           )}
         </div>
 
-        <button
-          type="button"
-          className="admin-accounts-header-save-btn"
-          onClick={handleSave}
-          disabled={isSaving}
-          title="Save Changes to MongoDB"
-        >
-          <FaSave style={{ marginRight: '6px' }} />
-          {isSaving ? 'Saving...' : 'Save Changes'}
-        </button>
+        {isEditable && (
+          <>
+            <button
+              type="button"
+              className="admin-accounts-header-save-btn"
+              onClick={handleSave}
+              disabled={isSaving}
+              title="Save Changes to MongoDB"
+            >
+              <FaSave style={{ marginRight: '6px' }} />
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </button>
 
-        <button
-          type="button"
-          className="admin-accounts-header-close-btn"
-          onClick={onClose}
-          aria-label="Close"
-          title="Close"
-        >
-          <FaTimes style={{ marginRight: '6px' }} />
-          Close
-        </button>
+            <button
+              type="button"
+              className="admin-accounts-header-close-btn"
+              onClick={onCancelEdit || onClose}
+              aria-label="Close"
+              title="Close"
+            >
+              <FaTimes style={{ marginRight: '6px' }} />
+              Close
+            </button>
+          </>
+        )}
       </div>
     </header>
   )

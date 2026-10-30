@@ -9,7 +9,7 @@ import {
   FaFileUpload,
   FaHistory,
   FaMapMarkerAlt,
-  FaPhone,
+  FaPhoneAlt,
   FaTimes,
   FaUser,
   FaUserCog,
@@ -774,8 +774,8 @@ const AdminDealDetailPage = () => {
   // Card 1 — Contact Information Items
   const contactItems = [
     { key: 'contactName', label: 'Contact Name', value: deal.contactName, rawValue: deal.contactName, type: 'text', icon: <FaUser /> },
-    { key: 'phone', label: 'Phone', value: deal.phone, rawValue: deal.phone, type: 'text', icon: <FaPhone /> },
-    { key: 'secondaryPhoneNumber', label: 'Secondary Phone', value: deal.secondaryPhoneNumber, rawValue: deal.secondaryPhoneNumber, type: 'text', icon: <FaPhone /> },
+    { key: 'phone', label: 'Phone', value: deal.phone, rawValue: deal.phone, type: 'text', icon: <FaPhoneAlt /> },
+    { key: 'secondaryPhoneNumber', label: 'Secondary Phone', value: deal.secondaryPhoneNumber, rawValue: deal.secondaryPhoneNumber, type: 'text', icon: <FaPhoneAlt /> },
     { key: 'email', label: 'Email', value: deal.email, rawValue: deal.email, type: 'text', icon: <FaEnvelope /> },
     { key: 'address', label: 'Address', value: deal.address, rawValue: deal.address, type: 'text', icon: <FaMapMarkerAlt /> },
   ]

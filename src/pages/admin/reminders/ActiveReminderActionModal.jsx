@@ -60,7 +60,7 @@ const ActiveReminderActionModal = ({
     (reminder?.userId && String(reminder.userId) === String(currentUserId))
     || (ownerName && currentUserName && ownerName.trim().toLowerCase() === currentUserName.trim().toLowerCase())
   )
-  const canActivate = isDirectOwner || isAdmin
+  const canActivate = isDirectOwner || isAdmin || Boolean(onActivateInPlace)
 
   const sourceLabel = String(reminder?.sourceLabel || reminder?.sourceType || 'REMINDER').toUpperCase()
   const sourceNumber = reminder?.sourceNumber || reminder?.sourceId || ''
@@ -345,7 +345,7 @@ const ActiveReminderActionModal = ({
                     disabled={isSubmitting}
                     title="Activate reminder in-place"
                   >
-                    <FaCheck size={11} /> {isSubmitting ? 'Activating...' : 'Activate Now'}
+                    <FaCheck size={11} /> {isSubmitting ? 'Activating...' : 'Activate'}
                   </button>
                 ) : (
                   <span className="aram-already-activated-chip" title="This reminder is already active">

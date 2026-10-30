@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { FaHistory } from 'react-icons/fa'
+import React, { useState, useMemo } from 'react'
+import { FaHistory, FaPhoneAlt } from 'react-icons/fa'
 import { getCrmOwnerDisplay, getCrmOwnerRecord } from '../../../../features/users/crmUserDirectory'
 
 const formatActivityTime = (value) => {
@@ -92,7 +92,25 @@ export default function DealActivityUpdatesCard({ deal = {}, remarks = [], remin
     ...reminderUpdates,
   ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
 
-  const displayList = activeTab === 'recent' ? remarks : systemUpdates
+  const recentUpdatesList = useMemo(() => {
+    const list = Array.isArray(remarks) ? [...remarks] : []
+    const reassignText = deal.reassignDescriptions || deal.reassignDescription
+    if (reassignText && typeof reassignText === 'string' && reassignText.trim()) {
+      const alreadyPresent = list.some((r) => (r.content || r.remark || '') === reassignText.trim())
+      if (!alreadyPresent) {
+        list.unshift({
+          id: `reassign-desc-${deal.id || 'deal'}`,
+          title: 'Deal Reassigned',
+          content: reassignText.trim(),
+          createdAt: deal.updatedAt || deal.lastUpdated || deal.dealDate || deal.createdAt || new Date().toISOString(),
+          author: resolveUserName(deal.dealOwner || deal.ownerName || deal.addedBy, 'Admin'),
+        })
+      }
+    }
+    return list
+  }, [remarks, deal.reassignDescriptions, deal.reassignDescription, deal.id, deal.updatedAt, deal.lastUpdated, deal.dealDate, deal.createdAt, deal.dealOwner, deal.ownerName, deal.addedBy])
+
+  const displayList = activeTab === 'recent' ? recentUpdatesList : systemUpdates
 
   return (
     <div className="c-deal-card ad-card">
@@ -136,6 +154,12 @@ export default function DealActivityUpdatesCard({ deal = {}, remarks = [], remin
                 {item.title && (
                   <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.8rem', marginTop: '1px' }}>
                     {item.title}
+                  </div>
+                )}
+                {(item.category === 'call-log' || item.type === 'call-log' || (item.startTime && item.endTime)) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#475569', fontWeight: 600, marginTop: '3px', marginBottom: '3px' }}>
+                    <FaPhoneAlt style={{ fontSize: '0.70rem', color: '#c60016' }} />
+                    <span>{item.startTime || '00:00'}{item.endTime ? ` - ${item.endTime}` : ''}</span>
                   </div>
                 )}
                 <div className="ad-activity-content">

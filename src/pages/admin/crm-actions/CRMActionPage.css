@@ -1,7 +1,14 @@
 .crm-action-page {
+  --surface-card: #ffffff;
+  --surface-app: #ffffff;
+  --surface-muted: #f8fafc;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --border-subtle: #e2e8f0;
   min-height: calc(100vh - 2rem);
   padding: 1rem;
-  background: var(--surface-muted);
+  background: var(--surface-muted) !important;
+  color: var(--text-primary);
   overflow-x: auto;
 }
 
@@ -10,7 +17,8 @@
   min-width: 1040px;
   margin: 0 auto;
   border: 1px solid var(--border-subtle);
-  background: var(--surface-card);
+  background: var(--surface-card) !important;
+  color: var(--text-primary);
   box-shadow: 0 16px 34px rgba(15, 45, 70, 0.12);
 }
 
@@ -21,12 +29,12 @@
   gap: 1rem;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--border-subtle);
-  background: var(--surface-app);
+  background: var(--surface-app) !important;
 }
 
 .crm-action-eyebrow {
   margin: 0 0 0.3rem;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   font-size: 0.78rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -801,14 +809,18 @@
 @media (max-width: 900px) {
   .crm-action-page {
     padding: 0.5rem;
+    overflow-x: visible;
   }
 
   .crm-action-card {
-    min-width: 960px;
+    min-width: unset;
+    width: 100%;
   }
 
   .crm-action-header {
+    flex-direction: column;
     align-items: flex-start;
+    gap: 0.75rem;
   }
 
   .crm-action-record-picker,
@@ -1006,4 +1018,101 @@
   .crm-deal-status-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ==========================================================================
+   User Portal Deal Change Status White Theme Overrides (Non-Admin only)
+   Ensures pure white card backgrounds, dark visible text, and no red fill.
+   Does NOT affect any /admin routes.
+   ========================================================================== */
+
+html.is-user:not([data-theme="dark"]) .crm-action-page,
+html.is-user:not([data-theme="dark"]) .crm-action-card,
+html.is-user:not([data-theme="dark"]) .crm-action-form,
+html.is-user:not([data-theme="dark"]) .crm-deal-status-card,
+html.is-user:not([data-theme="dark"]) .crm-deal-status-form,
+html.is-user:not([data-theme="dark"]) .layout--user .crm-action-page,
+html.is-user:not([data-theme="dark"]) .layout--user .crm-action-card,
+html.is-user:not([data-theme="dark"]) .layout--user .crm-action-form,
+html.is-user:not([data-theme="dark"]) .layout--user .crm-deal-status-card,
+html.is-user:not([data-theme="dark"]) .layout--user .crm-deal-status-form {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+}
+
+html.is-user:not([data-theme="dark"]) .crm-deal-status-heading,
+html.is-user:not([data-theme="dark"]) .layout--user .crm-deal-status-heading {
+  color: #0f172a !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+html.is-user:not([data-theme="dark"]) .crm-deal-status-heading span,
+html.is-user:not([data-theme="dark"]) .layout--user .crm-deal-status-heading span {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+html.is-user:not([data-theme="dark"]) label.crm-deal-status-field,
+html.is-user:not([data-theme="dark"]) label.crm-deal-status-field span,
+html.is-user:not([data-theme="dark"]) .layout--user label.crm-deal-status-field,
+html.is-user:not([data-theme="dark"]) .layout--user label.crm-deal-status-field span {
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+  font-weight: 600 !important;
+}
+
+html.is-user:not([data-theme="dark"]) select.crm-deal-status-select,
+html.is-user:not([data-theme="dark"]) textarea.crm-deal-status-textarea,
+html.is-user:not([data-theme="dark"]) input.crm-deal-status-input,
+html.is-user:not([data-theme="dark"]) select.crm-deal-status-select option,
+html.is-user:not([data-theme="dark"]) .layout--user select.crm-deal-status-select,
+html.is-user:not([data-theme="dark"]) .layout--user textarea.crm-deal-status-textarea,
+html.is-user:not([data-theme="dark"]) .layout--user input.crm-deal-status-input,
+html.is-user:not([data-theme="dark"]) .layout--user select.crm-deal-status-select option {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+html.is-user:not([data-theme="dark"]) .layout--user .crm-deal-status-input::placeholder,
+html.is-user:not([data-theme="dark"]) .layout--user .crm-deal-status-textarea::placeholder {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+html.is-user:not([data-theme="dark"]) .layout--user .crm-deal-status-footer button[variant="outline"],
+html.is-user:not([data-theme="dark"]) .layout--user .crm-deal-status-footer button.btn-outline,
+html.is-user:not([data-theme="dark"]) .layout--user .crm-deal-status-footer button:first-child {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+html.is-user:not([data-theme="dark"]) .layout--user .crm-deal-status-footer button:last-child {
+  background: #c60016 !important;
+  background-color: #c60016 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #c60016 !important;
+}
+
+html.is-user:not([data-theme="dark"]) .layout--user .crm-action-context {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+html.is-user:not([data-theme="dark"]) .layout--user .crm-action-context span {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+}
+
+html.is-user:not([data-theme="dark"]) .layout--user .crm-action-context strong {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
 }

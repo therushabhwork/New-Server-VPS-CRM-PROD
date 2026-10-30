@@ -1283,6 +1283,8 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
   const dealFileInputRef = useRef(null)
   const [isImportingDeals, setIsImportingDeals] = useState(false)
   const [importPreviewDeals, setImportPreviewDeals] = useState(null)
+  const [importExcelHeaders, setImportExcelHeaders] = useState([])
+  const [importPreviewFilter, setImportPreviewFilter] = useState('all')
   const [isImportPreviewOpen, setIsImportPreviewOpen] = useState(false)
   const { isOpen, data, open, close } = useModal()
   const [hasAutoOpened, setHasAutoOpened] = useState(false)
@@ -3214,16 +3216,21 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
 
     const triggerRect = event.currentTarget.getBoundingClientRect()
     const popupWidth = 188
-    const popupHeight = 320
+    const popupHeight = 205
     const viewportPadding = 8
+
+    const spaceBelow = window.innerHeight - triggerRect.bottom
+    const spaceAbove = triggerRect.top
+    const shouldOpenUpward = spaceBelow < popupHeight + viewportPadding && spaceAbove > spaceBelow
+
+    const nextTop = shouldOpenUpward
+      ? Math.max(viewportPadding, triggerRect.top - popupHeight - 4)
+      : Math.min(triggerRect.bottom + 4, window.innerHeight - popupHeight - viewportPadding)
+
     const nextLeft = Math.min(
-      Math.max(viewportPadding, triggerRect.right - popupWidth),
+      Math.max(viewportPadding, triggerRect.left),
       window.innerWidth - popupWidth - viewportPadding
     )
-    const spaceBelow = window.innerHeight - triggerRect.bottom
-    const nextTop = spaceBelow >= popupHeight + viewportPadding
-      ? triggerRect.bottom + 4
-      : Math.max(viewportPadding, triggerRect.top - popupHeight - 4)
 
     setOpenBoardActionMenuDealId((currentValue) => {
       const isClosingCurrentMenu = currentValue === nextDealId
@@ -3609,13 +3616,10 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
       const data = await file.arrayBuffer()
       const workbook = XLSX.read(data, { type: 'array' })
       const sheetEntries = []
+      const allDetectedHeaders = []
       workbook.SheetNames.forEach((sName) => {
         const cleanSName = String(sName || '').trim().toLowerCase()
-        let targetCollection = 'deals'
-        if (cleanSName.includes('account')) targetCollection = 'accounts'
-        else if (cleanSName.includes('customer')) targetCollection = 'customers'
-        else if (cleanSName.includes('lead')) targetCollection = 'leads'
-        else if (cleanSName.includes('deal') || cleanSName.includes('project')) targetCollection = 'deals'
+        const targetCollection = 'deals'
 
         const worksheet = workbook.Sheets[sName]
         if (!worksheet) return
@@ -3654,6 +3658,9 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
         let validRows = []
         if (headerRowIndex !== -1) {
           const headers = (raw2DRows[headerRowIndex] || []).map((h) => String(h || '').trim())
+          headers.filter(Boolean).forEach((h) => {
+            if (!allDetectedHeaders.includes(h)) allDetectedHeaders.push(h)
+          })
           for (let i = headerRowIndex + 1; i < raw2DRows.length; i++) {
             const rowArr = raw2DRows[i]
             if (!rowArr || rowArr.length === 0) continue
@@ -3664,11 +3671,19 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
             const rowText = Object.values(rowObj).join(' ')
             if (/Generated on:/i.test(rowText) || /Report Filter/i.test(rowText) || /Page \d+/i.test(rowText) || /Total Records/i.test(rowText)) continue
             if (Object.values(rowObj).some((val) => String(val || '').trim() !== '')) {
-              validRows.push({ ...rowObj, targetCollection, sheetName: sName })
+              validRows.push({ ...rowObj, targetCollection, sheetName: sName, _rawRow: { ...rowObj } })
             }
           }
         } else {
           const rawObjects = XLSX.utils.sheet_to_json(worksheet, { defval: '' })
+          if (rawObjects.length > 0) {
+            const fallbackHeaders = Object.keys(rawObjects[0] || {}).filter(
+              (k) => !k.startsWith('__EMPTY') && k !== 'targetCollection' && k !== 'sheetName'
+            )
+            fallbackHeaders.forEach((h) => {
+              if (!allDetectedHeaders.includes(h)) allDetectedHeaders.push(h)
+            })
+          }
           validRows = rawObjects
             .filter((row) => {
               if (!row || typeof row !== 'object') return false
@@ -3676,7 +3691,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
               if (/Generated on:/i.test(rowText) || /Report Filter/i.test(rowText) || /Total Records/i.test(rowText)) return false
               return Object.values(row).some((val) => String(val || '').trim() !== '')
             })
-            .map((row) => ({ ...row, targetCollection, sheetName: sName }))
+            .map((row) => ({ ...row, targetCollection, sheetName: sName, _rawRow: { ...row } }))
         }
 
         sheetEntries.push(...validRows)
@@ -3800,18 +3815,16 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
 
         const rowKey = jobNo ? `job:${jobNo.toLowerCase()}` : `${accountName.toLowerCase()}|${projectName.toLowerCase()}`
 
-        let status = 'ready'
-        let statusMessage = 'Ready to import'
+        const isDuplicate = Boolean((accountName || projectName) && (seenBatchKeys.has(rowKey) || existingKeys.has(rowKey)))
+        let status = isDuplicate ? 'duplicate' : 'ready'
+        let statusMessage = isDuplicate ? 'Duplicate record (will be added)' : 'Ready to import'
 
-        if ((accountName || projectName) && (seenBatchKeys.has(rowKey) || existingKeys.has(rowKey))) {
-          status = 'warning'
-          statusMessage = 'Duplicate record - skipped'
-        } else if (accountName || projectName) {
+        if ((accountName || projectName) && !seenBatchKeys.has(rowKey)) {
           seenBatchKeys.add(rowKey)
         }
 
         if (!dealName || dealName === 'Untitled') {
-          if (status !== 'warning') {
+          if (!isDuplicate) {
             status = 'warning'
             statusMessage = 'Default Deal Name'
           }
@@ -3852,14 +3865,18 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
           phone,
           addedBy,
           jobNo,
-          targetCollection: row.targetCollection || 'deals',
+          targetCollection: 'deals',
           sheetName: row.sheetName || 'Deals',
+          isDuplicate,
           status,
           statusMessage,
+          _rawRow: row._rawRow || row,
         })
       })
 
+      setImportExcelHeaders(allDetectedHeaders.length > 0 ? allDetectedHeaders : ['Deal Name', 'Customer Name', 'Deal Date', 'Deal Value', 'Deal Owner', 'Job No'])
       setImportPreviewDeals(dealsToImport)
+      setImportPreviewFilter('all')
       setIsImportPreviewOpen(true)
     } catch (err) {
       console.error('Failed to parse deals Excel:', err)
@@ -3880,8 +3897,13 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
     setIsImportingDeals(true)
     try {
       const res = await dealApi.importDeals(validDeals)
-      const importedCount = res?.count ?? validDeals.length
-      addNotification('success', 'Import Deals', `Successfully imported ${importedCount} deals into MongoDB.`)
+      const importedCount = res?.count ?? res?.insertedCount ?? validDeals.length
+      const duplicateCount = res?.duplicateCount ?? 0
+      if (duplicateCount > 0) {
+        addNotification('success', 'Import Deals', `Successfully imported ${importedCount} deals into MongoDB (${duplicateCount} duplicate records identified).`)
+      } else {
+        addNotification('success', 'Import Deals', `Successfully imported ${importedCount} deals into MongoDB.`)
+      }
       setIsImportPreviewOpen(false)
       setImportPreviewDeals(null)
       await refreshData()
@@ -4438,7 +4460,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
             type="button"
             className="deals-crm-number-button deals-crm-number-button-label deals-deal-number-link admin-accounts-cell-link"
             onClick={(event) => handleToggleDealMenu(event, row?.rawDeal?.id || row?.id)}
-            onDoubleClick={() => handleManageDeal(row)}
+            onDoubleClick={() => handleViewDeal(row)}
           >
             <span className="deals-crm-number-button-content">
               <span>{row.dealNumber && /^DL-\d+$/i.test(String(row.dealNumber).trim()) ? String(row.dealNumber).trim().toUpperCase() : formatDealSequenceNumber(row.rawDeal || row, 0)}</span>
@@ -4681,13 +4703,13 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
   const renderOwnerScopedCell = (row, columnKey) => {
     if (columnKey === 'dealNumber') {
       return (
-        <td className="deals-crm-number-cell" onDoubleClick={() => handleManageDeal(row)}>
+        <td className="deals-crm-number-cell" onDoubleClick={() => handleViewDeal(row)}>
           <div className="deals-crm-number-menu" data-deal-card-menu>
             <button
               type="button"
               className="deals-crm-number-button deals-crm-number-button-label deals-deal-number-link admin-accounts-cell-link"
               onClick={(event) => handleToggleDealMenu(event, row?.rawDeal?.id || row?.id)}
-              onDoubleClick={() => handleManageDeal(row)}
+              onDoubleClick={() => handleViewDeal(row)}
             >
               <span className="deals-crm-number-button-content">
                 <span>{row.dealNumber && /^DL-\d+$/i.test(String(row.dealNumber).trim()) ? String(row.dealNumber).trim().toUpperCase() : formatDealSequenceNumber(row.rawDeal || row, 0)}</span>
@@ -4700,7 +4722,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
       )
     }
 
-    return <td onDoubleClick={() => handleManageDeal(row)}>{renderDealGridCellContent(row, columnKey)}</td>
+    return <td onDoubleClick={() => handleViewDeal(row)}>{renderDealGridCellContent(row, columnKey)}</td>
   }
 
   const hasActiveAdvancedFilters = (
@@ -5196,91 +5218,165 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
     </>
   )
 
-  const renderImportPreviewModal = () => (
-    <Modal
-      isOpen={isImportPreviewOpen}
-      onClose={() => setIsImportPreviewOpen(false)}
-      size="xlarge"
-      showClose={true}
-      title={`Import Deals Preview (${importPreviewDeals?.length || 0} Records)`}
-    >
-      <div className="deals-import-preview-container" style={{ padding: '16px', maxHeight: '70vh', overflowY: 'auto' }}>
-        {importPreviewDeals && importPreviewDeals.length > 0 ? (
-          <>
-            <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', fontSize: '14px', fontWeight: 600 }}>
-              <span style={{ color: '#2b6cb0' }}>Total: {importPreviewDeals.length}</span>
-              <span style={{ color: '#2f855a' }}>Ready: {importPreviewDeals.filter((r) => r.status === 'ready').length}</span>
-              <span style={{ color: '#dd6b20' }}>Warnings: {importPreviewDeals.filter((r) => r.status === 'warning').length}</span>
-              <span style={{ color: '#c53030' }}>Errors: {importPreviewDeals.filter((r) => r.status === 'error').length}</span>
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="deals-crm-table" style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse', whiteSpace: 'nowrap' }}>
-                <thead>
-                  <tr style={{ background: '#f7fafc', borderBottom: '2px solid #e2e8f0' }}>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>#</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Deal Name</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Deal Date</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Deal Owner</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Deal Co-Owners</th>
-                    <th style={{ padding: '8px', textAlign: 'right' }}>Deal Value</th>
-                    <th style={{ padding: '8px', textAlign: 'right' }}>Probability</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Product Category</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Consultant Name</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Contact Name</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>GSTIN</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Project Name</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Deal Source</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Customer Name</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Customer Category</th>
-                    <th style={{ padding: '8px', textAlign: 'center' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {importPreviewDeals.map((row, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #edf2f7' }}>
-                      <td style={{ padding: '8px' }}>{idx + 1}</td>
-                      <td style={{ padding: '8px', fontWeight: 500 }}>{row.dealName || row.projectName}</td>
-                      <td style={{ padding: '8px' }}>{row.dealDate || '-'}</td>
-                      <td style={{ padding: '8px' }}>{row.dealOwner || <em style={{ color: '#a0aec0' }}>Not specified</em>}</td>
-                      <td style={{ padding: '8px' }}>{row.coOwners || '-'}</td>
-                      <td style={{ padding: '8px', textAlign: 'right' }}>â‚¹{formatNumber(row.dealValue)}</td>
-                      <td style={{ padding: '8px', textAlign: 'right' }}>{row.probability || 0}%</td>
-                      <td style={{ padding: '8px' }}>{row.productCategory || '-'}</td>
-                      <td style={{ padding: '8px' }}>{row.consultantName || '-'}</td>
-                      <td style={{ padding: '8px' }}>{row.contactName || '-'}</td>
-                      <td style={{ padding: '8px' }}>{row.gstin || '-'}</td>
-                      <td style={{ padding: '8px' }}>{row.projectName || '-'}</td>
-                      <td style={{ padding: '8px' }}>{row.source || row.dealSource || '-'}</td>
-                      <td style={{ padding: '8px' }}>{row.customerName || '-'}</td>
-                      <td style={{ padding: '8px' }}>{row.customerCategory || row.category || '-'}</td>
-                      <td style={{ padding: '8px', textAlign: 'center' }}>
-                        <span className={`badge badge--${row.status === 'ready' ? 'success' : row.status === 'warning' ? 'warning' : 'danger'}`}>
-                          {row.status === 'ready' ? 'âœ“ Ready' : row.status === 'warning' ? 'âš  Warning' : 'âœ• Error'}
-                        </span>
-                      </td>
+  const renderImportPreviewModal = () => {
+    const totalCount = importPreviewDeals?.length || 0
+    const newCount = (importPreviewDeals || []).filter((r) => !r.isDuplicate && r.status !== 'error').length
+    const dupCount = (importPreviewDeals || []).filter((r) => r.isDuplicate).length
+    const errorCount = (importPreviewDeals || []).filter((r) => r.status === 'error').length
+
+    const displayedRows = (importPreviewDeals || []).filter((row) => {
+      if (importPreviewFilter === 'new') return !row.isDuplicate && row.status !== 'error'
+      if (importPreviewFilter === 'duplicate') return row.isDuplicate
+      return true
+    })
+
+    return (
+      <Modal
+        isOpen={isImportPreviewOpen}
+        onClose={() => setIsImportPreviewOpen(false)}
+        size="xlarge"
+        showClose={true}
+        title={`Import Deals Preview (${totalCount} Records)`}
+      >
+        <div className="deals-import-preview-container" style={{ padding: '16px', maxHeight: '75vh', overflowY: 'auto' }}>
+          {importPreviewDeals && importPreviewDeals.length > 0 ? (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', gap: '10px', fontSize: '13px', fontWeight: 600 }}>
+                  <span style={{ background: '#ebf8ff', color: '#2b6cb0', padding: '4px 10px', borderRadius: '4px', border: '1px solid #bee3f8' }}>
+                    Total: {totalCount}
+                  </span>
+                  <span style={{ background: '#f0fff4', color: '#276749', padding: '4px 10px', borderRadius: '4px', border: '1px solid #c6f6d5' }}>
+                    New: {newCount}
+                  </span>
+                  <span style={{ background: '#fffaf0', color: '#c05621', padding: '4px 10px', borderRadius: '4px', border: '1px solid #feebc8' }}>
+                    Duplicates: {dupCount}
+                  </span>
+                  {errorCount > 0 && (
+                    <span style={{ background: '#fff5f5', color: '#c53030', padding: '4px 10px', borderRadius: '4px', border: '1px solid #fed7d7' }}>
+                      Errors: {errorCount}
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '12px',
+                      borderRadius: '4px',
+                      border: '1px solid #cbd5e0',
+                      cursor: 'pointer',
+                      background: importPreviewFilter === 'all' ? '#3182ce' : '#edf2f7',
+                      color: importPreviewFilter === 'all' ? '#fff' : '#4a5568',
+                      fontWeight: importPreviewFilter === 'all' ? 600 : 400
+                    }}
+                    onClick={() => setImportPreviewFilter('all')}
+                  >
+                    All ({totalCount})
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '12px',
+                      borderRadius: '4px',
+                      border: '1px solid #cbd5e0',
+                      cursor: 'pointer',
+                      background: importPreviewFilter === 'new' ? '#38a169' : '#edf2f7',
+                      color: importPreviewFilter === 'new' ? '#fff' : '#4a5568',
+                      fontWeight: importPreviewFilter === 'new' ? 600 : 400
+                    }}
+                    onClick={() => setImportPreviewFilter('new')}
+                  >
+                    New ({newCount})
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '12px',
+                      borderRadius: '4px',
+                      border: '1px solid #cbd5e0',
+                      cursor: 'pointer',
+                      background: importPreviewFilter === 'duplicate' ? '#dd6b20' : '#edf2f7',
+                      color: importPreviewFilter === 'duplicate' ? '#fff' : '#4a5568',
+                      fontWeight: importPreviewFilter === 'duplicate' ? 600 : 400
+                    }}
+                    onClick={() => setImportPreviewFilter('duplicate')}
+                  >
+                    Duplicates ({dupCount})
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', maxHeight: '52vh' }}>
+                <table className="deals-crm-table" style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse', whiteSpace: 'nowrap' }}>
+                  <thead>
+                    <tr style={{ background: '#f7fafc', borderBottom: '2px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 1 }}>
+                      <th style={{ padding: '8px 12px', textAlign: 'left' }}>#</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'center' }}>Duplicate Status</th>
+                      {(importExcelHeaders || []).map((header) => (
+                        <th key={header} style={{ padding: '8px 12px', textAlign: 'left' }}>
+                          {header}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <Button type="button" variant="outline" onClick={() => setIsImportPreviewOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                disabled={isImportingDeals || importPreviewDeals.filter((r) => r.status !== 'error').length === 0}
-                onClick={handleConfirmImportDeals}
-              >
-                {isImportingDeals ? 'Importing...' : `Confirm & Import (${importPreviewDeals.filter((r) => r.status !== 'error').length} Deals)`}
-              </Button>
-            </div>
-          </>
-        ) : null}
-      </div>
-    </Modal>
-  )
+                  </thead>
+                  <tbody>
+                    {displayedRows.map((row, idx) => (
+                      <tr
+                        key={idx}
+                        style={{
+                          borderBottom: '1px solid #edf2f7',
+                          background: row.isDuplicate ? '#fffaf0' : 'inherit'
+                        }}
+                      >
+                        <td style={{ padding: '8px 12px' }}>{idx + 1}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                          <span
+                            className={`badge badge--${row.isDuplicate ? 'warning' : row.status === 'error' ? 'danger' : 'success'}`}
+                            title={row.statusMessage}
+                          >
+                            {row.isDuplicate ? '⚠ Duplicate' : row.status === 'error' ? '✕ Error' : '✓ New'}
+                          </span>
+                        </td>
+                        {(importExcelHeaders || []).map((header) => (
+                          <td key={header} style={{ padding: '8px 12px' }}>
+                            {String(row._rawRow?.[header] ?? row[header] ?? '-')}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', color: '#718096' }}>
+                  * All records (including duplicates) will be imported into MongoDB.
+                </span>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <Button type="button" variant="outline" onClick={() => setIsImportPreviewOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    disabled={isImportingDeals || importPreviewDeals.filter((r) => r.status !== 'error').length === 0}
+                    onClick={handleConfirmImportDeals}
+                  >
+                    {isImportingDeals ? 'Importing...' : `Confirm & Import (${importPreviewDeals.filter((r) => r.status !== 'error').length} Deals)`}
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </Modal>
+    )
+  }
 
   if (isOwnerScopedAdminView) {
     const recordTitle = `${viewConfig.title} - ${sortedOwnerScopedRows.length} records`
@@ -6284,13 +6380,13 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
                         {activeGridColumns.map((column) => {
                           if (column.key === 'dealNumber') {
                             return (
-                              <td key={`${row.id}-${column.key}`} className="deals-crm-number-cell" onDoubleClick={() => handleManageDeal(row)}>
+                              <td key={`${row.id}-${column.key}`} className="deals-crm-number-cell" onDoubleClick={() => handleViewDeal(row)}>
                                 <div className="deals-crm-number-menu" data-deal-card-menu>
                                   <button
                                     type="button"
                                     className="deals-crm-number-button deals-crm-number-button-label deals-deal-number-link admin-accounts-cell-link"
                                     onClick={(event) => handleToggleDealMenu(event, row?.rawDeal?.id || row?.id)}
-                                    onDoubleClick={() => handleManageDeal(row)}
+                                    onDoubleClick={() => handleViewDeal(row)}
                                   >
                                     <span className="deals-crm-number-button-content">
                                       <span>{row.dealNumber && /^DL-\d+$/i.test(String(row.dealNumber).trim()) ? String(row.dealNumber).trim().toUpperCase() : formatDealSequenceNumber(row.rawDeal || row, 0)}</span>
@@ -6302,7 +6398,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
                               </td>
                             )
                           }
-                          return <td key={`${row.id}-${column.key}`} onDoubleClick={() => handleManageDeal(row)}>{renderDealGridCellContent(row, column.key)}</td>
+                          return <td key={`${row.id}-${column.key}`} onDoubleClick={() => handleViewDeal(row)}>{renderDealGridCellContent(row, column.key)}</td>
                         })}
                       </tr>
                     ))}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { FaHistory } from 'react-icons/fa'
+import { FaHistory, FaPhoneAlt } from 'react-icons/fa'
 
 const formatActivityTime = (value) => {
   if (!value) return ''
@@ -85,6 +85,12 @@ export default function ActivityUpdatesCard({ account = {}, remarks = [], remind
               {item.title && (
                 <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.8rem', marginTop: '1px' }}>
                   {item.title}
+                </div>
+              )}
+              {(item.category === 'call-log' || item.type === 'call-log' || (item.startTime && item.endTime)) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#475569', fontWeight: 600, marginTop: '3px', marginBottom: '3px' }}>
+                  <FaPhoneAlt style={{ fontSize: '0.70rem', color: '#c60016' }} />
+                  <span>{item.startTime || '00:00'}{item.endTime ? ` - ${item.endTime}` : ''}</span>
                 </div>
               )}
               <div className="ad-activity-content">

@@ -141,7 +141,7 @@ export default function AccountStageTimeline({ account, deal, form }) {
               <div
                 className={`c-account-stage-card ${stage.isCurrent ? 'c-account-stage-card--current' : ''} ${stage.isCompleted ? 'c-account-stage-card--completed' : ''}`}
               >
-                <div className="c-account-stage-badge-row">
+                <div className="c-account-stage-head-row">
                   <span className="c-account-stage-name">{stage.name}</span>
                   {stage.isCompleted && (
                     <FaCheckCircle className="c-account-stage-completed-icon" aria-label="Completed" />

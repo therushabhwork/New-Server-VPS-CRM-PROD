@@ -372,22 +372,23 @@
 }
 
 .c-deal-stage-card--completed {
-  background: #fee2e2;
-  border-color: #fca5a5;
-  box-shadow: 0 1px 3px rgba(225, 29, 72, 0.08);
+  background: #ffffff !important;
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
 .c-deal-stage-card--completed .c-deal-stage-name {
-  color: #be123c;
+  color: #be123c !important;
 }
 
 .c-deal-stage-completed-icon {
-  color: #be123c;
+  color: #be123c !important;
   font-size: 0.82rem;
   flex-shrink: 0;
 }
 
-.c-deal-stage-badge-row {
+.c-deal-stage-badge-row,
+.c-deal-stage-head-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -397,19 +398,26 @@
 .c-deal-stage-name {
   font-size: 0.82rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+.c-deal-stage-card--current {
+  background: #ffffff !important;
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
 }
 
 .c-deal-stage-card--current .c-deal-stage-name {
-  color: #c60016;
+  color: #be123c !important;
 }
 
 .c-deal-stage-status-indicator {
   display: inline-block;
   padding: 1px 6px;
   border-radius: 4px;
-  background: #c60016;
-  color: #ffffff;
+  background: #c60016 !important;
+  color: #ffffff !important;
   font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -572,8 +580,18 @@
 
 .c-deal-info-field-label-icon {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
   font-size: 0.68rem;
   color: #64748b;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.c-deal-info-field-label-icon svg {
+  display: block;
 }
 
 .c-deal-info-field-pencil-btn {

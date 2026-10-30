@@ -460,6 +460,10 @@ const AccountDetailsDrawer = ({
   const [isActionsOpen, setIsActionsOpen] = useState(false)
   const [editingSection, setEditingSection] = useState(null)
   const [editingFieldKey, setEditingFieldKey] = useState('')
+  const [editingFieldsCount, setEditingFieldsCount] = useState(0)
+  const handleFieldEditingChange = useCallback((isEditing) => {
+    setEditingFieldsCount((prev) => Math.max(0, prev + (isEditing ? 1 : -1)))
+  }, [])
   const [form, setForm] = useState(() => account ? buildInitialForm(account, relatedConvertedDeals[0]) : {})
   const [isSaving, setIsSaving] = useState(false)
   const [validationError, setValidationError] = useState('')
@@ -1007,6 +1011,8 @@ const AccountDetailsDrawer = ({
         }))}
         onActionSelect={handleActionSelect}
         onOpenHistory={handleOpenAccountHistory}
+        isEditable={Boolean(editingFieldsCount > 0 || editingSection || editingFieldKey)}
+        onCancelEdit={handleCancelEdit}
       />
 
       <main className={inline ? 'admin-accounts-fullpage-body' : 'admin-accounts-workspace-body'}>
@@ -1023,6 +1029,7 @@ const AccountDetailsDrawer = ({
             form={form}
             onAutoSave={handleFieldAutoSave}
             canEdit={canEdit !== false}
+            onEditingChange={handleFieldEditingChange}
           />
 
           {/* Section 2: Account Details Snapshot Strip */}
@@ -1049,6 +1056,7 @@ const AccountDetailsDrawer = ({
                 form={form}
                 onAutoSave={handleFieldAutoSave}
                 canEdit={canEdit !== false}
+                onEditingChange={handleFieldEditingChange}
               />
               <CustomerProjectCard
                 account={{ ...account, ...form }}
@@ -1056,6 +1064,7 @@ const AccountDetailsDrawer = ({
                 deal={relatedConvertedDeals[0] || {}}
                 onAutoSave={handleFieldAutoSave}
                 canEdit={canEdit !== false}
+                onEditingChange={handleFieldEditingChange}
               />
             </div>
 

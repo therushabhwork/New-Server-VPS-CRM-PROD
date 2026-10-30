@@ -24,25 +24,31 @@ import {
 
 const DataContext = createContext(null)
 
+const matchesRecordId = (entry, target) => {
+  if (!entry || !target) return false
+  const tIds = [target.id, target._id, target.legacyId].filter(Boolean).map(String)
+  const eIds = [entry.id, entry._id, entry.legacyId].filter(Boolean).map(String)
+  if (tIds.length === 0 || eIds.length === 0) return false
+  return tIds.some((tId) => eIds.includes(tId))
+}
+
 const upsertToTop = (items, record) => {
   if (!record) return items || []
-  const recordIdStr = String(record.id ?? '')
   return [
     record,
-    ...(items || []).filter((entry) => String(entry?.id ?? '') !== recordIdStr),
+    ...(items || []).filter((entry) => !matchesRecordId(entry, record)),
   ]
 }
 
 const replaceById = (items, record) => {
   if (!record) return items || []
-  const recordIdStr = String(record.id ?? '')
-  const exists = (items || []).some((entry) => String(entry?.id ?? '') === recordIdStr)
+  const exists = (items || []).some((entry) => matchesRecordId(entry, record))
   if (!exists) {
     return upsertToTop(items, record)
   }
 
   return (items || []).map((entry) =>
-    String(entry?.id ?? '') === recordIdStr ? { ...entry, ...record } : entry
+    matchesRecordId(entry, record) ? { ...entry, ...record } : entry
   )
 }
 

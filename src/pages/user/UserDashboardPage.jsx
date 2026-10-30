@@ -995,14 +995,7 @@ const UserDashboardPage = () => {
         </div>
       </div>
 
-      {/* Analytics Section Component */}
-      <AnalyticsSection
-        accounts={accounts}
-        deals={deals}
-        customers={customers}
-        quotations={quotations}
-        activities={activities}
-      />
+
 
       {activeReminderModalItem ? (
         <ActiveReminderActionModal

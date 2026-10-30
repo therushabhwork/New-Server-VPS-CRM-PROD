@@ -932,8 +932,13 @@ const AdminCustomersPage = ({
       }
 
       const res = await dealApi.importDeals(importPayloads)
-      const count = res?.count ?? res?.data?.count ?? importPayloads.length
-      alert(`Successfully imported ${count} customer records!`)
+      const count = res?.count ?? res?.insertedCount ?? res?.data?.count ?? importPayloads.length
+      const duplicateCount = res?.duplicateCount ?? res?.data?.duplicateCount ?? 0
+      if (duplicateCount > 0) {
+        alert(`Successfully imported ${count} customer records! (${duplicateCount} duplicate records identified and added).`)
+      } else {
+        alert(`Successfully imported ${count} customer records!`)
+      }
       await customerService.loadCustomers()
     } catch (err) {
       console.error('Failed to import customer records:', err)

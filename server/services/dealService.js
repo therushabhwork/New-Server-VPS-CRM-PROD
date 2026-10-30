@@ -962,11 +962,14 @@ module.exports = {
 
     let count = 0
     let duplicateCount = 0
+    const duplicateRecords = []
+    const seenBatchKeys = new Set()
     const Lead = getMongoModel('leads')
     const Account = getMongoModel('accounts')
     const Customer = getMongoModel('customers')
 
-    for (const row of deals) {
+    for (let rowIndex = 0; rowIndex < deals.length; rowIndex++) {
+      const row = deals[rowIndex]
       const rawOwner = cleanStr(row.dealOwner || row.ownerName || row.accountOwner || row.ownerCode)
       const ownerCodeMatch = userByOwnerCode.get(rawOwner)
       const ownerNameMatch = userByName.get(rawOwner.toLowerCase())
@@ -1046,6 +1049,34 @@ module.exports = {
           frontendDeleted: { $ne: true },
           $or: dupCriteria
         }).lean()
+      }
+
+      const batchKey = isValidJobNo
+        ? `job:${jobNo.toLowerCase()}`
+        : `${unifiedAccountCustomerName.toLowerCase()}|${unifiedName.toLowerCase()}`
+      const isBatchDuplicate = Boolean(batchKey && seenBatchKeys.has(batchKey))
+      if (batchKey) seenBatchKeys.add(batchKey)
+
+      const isDuplicate = Boolean(existingTargetDoc || isBatchDuplicate)
+      if (isDuplicate) {
+        duplicateCount++
+        duplicateRecords.push({
+          row: rowIndex + 1,
+          name: unifiedName,
+          dealName: unifiedName,
+          projectName: unifiedName,
+          customerName: unifiedAccountCustomerName,
+          accountName: unifiedAccountCustomerName,
+          jobNo: isValidJobNo ? jobNo : '',
+          targetCollection: collectionName,
+          existingId: existingTargetDoc?.legacyId || existingTargetDoc?._id || null,
+          existingRecordNumber: existingTargetDoc?.dealNumber || existingTargetDoc?.accountNumber || existingTargetDoc?.customerNumber || '',
+          reason: isBatchDuplicate
+            ? 'Duplicate record within uploaded file'
+            : isValidJobNo
+              ? `Matches existing database record by Job No: ${jobNo}`
+              : `Matches existing database record by Customer "${unifiedAccountCustomerName}" & Name "${unifiedName}"`
+        })
       }
 
       const existingNum = cleanStr(row.dealNumber || row.accountNumber || row.customerNumber)
@@ -1269,9 +1300,9 @@ module.exports = {
           }
           await Lead.create(leadDoc)
         }
-      } else {
-        // Dual Ingestion into MongoDB `leads` collection for Deals import
-        if (collectionName !== 'leads' && Lead) {
+      } else if (collectionName === 'leads') {
+        // Direct lead import only - do not touch or dual-ingest into leads when importing deals
+        if (Lead && TargetModel !== Lead) {
           const leadLegacyId = await getNextLegacyId('leads')
           const leadDoc = {
             ...docPayload,
@@ -1313,9 +1344,11 @@ module.exports = {
     }
 
     return {
+      success: true,
       count,
       insertedCount: count,
-      duplicateCount: 0,
+      duplicateCount,
+      duplicates: duplicateRecords,
       totalProcessed: deals.length,
     }
   },
