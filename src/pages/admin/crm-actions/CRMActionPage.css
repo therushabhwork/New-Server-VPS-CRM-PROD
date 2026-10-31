@@ -1063,6 +1063,11 @@ html.is-user:not([data-theme="dark"]) .layout--user label.crm-deal-status-field 
   font-weight: 600 !important;
 }
 
+.crm-action-page--deal-white-theme select.crm-deal-status-select,
+.crm-action-page--deal-white-theme select.crm-deal-status-select option,
+.crm-action-page--deal-white-theme textarea.crm-deal-status-textarea,
+.crm-action-page--deal-white-theme input.crm-deal-status-input,
+.crm-action-page--deal-white-theme label.crm-deal-status-field span,
 html.is-user:not([data-theme="dark"]) select.crm-deal-status-select,
 html.is-user:not([data-theme="dark"]) textarea.crm-deal-status-textarea,
 html.is-user:not([data-theme="dark"]) input.crm-deal-status-input,

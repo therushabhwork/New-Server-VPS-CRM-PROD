@@ -74,6 +74,24 @@ export default function DealActivityUpdatesCard({ deal = {}, remarks = [], remin
     isReminder: true,
   }))
 
+  const ownershipUpdates = (Array.isArray(deal.ownershipHistory) ? deal.ownershipHistory : []).map((entry, idx) => ({
+    id: `ownership-${idx}-${entry.changedAt || Date.now()}`,
+    title: 'Deal Reassigned',
+    content: `Re-assign deal From ${entry.fromOwner || 'Previous Owner'} To ${entry.toOwner || 'New Owner'}${entry.remarks ? ` - ${entry.remarks}` : ''}`,
+    createdAt: entry.changedAt || deal.updatedAt || deal.lastUpdated,
+    author: resolveUserName(entry.changedBy || 'System', 'System'),
+  }))
+
+  const systemRemarks = (Array.isArray(remarks) ? remarks : [])
+    .filter((r) => r.type === 'system' || r.category === 'system' || r.title === 'Deal Reassigned' || (r.content && String(r.content).startsWith('Re-assign deal From')))
+    .map((r, idx) => ({
+      id: r.id || `sys-remark-${idx}`,
+      title: r.title || 'Deal Reassigned',
+      content: r.content || r.remark || '',
+      createdAt: r.createdAt || r.date,
+      author: resolveUserName(r.createdByName || r.author || 'System', 'System'),
+    }))
+
   const systemUpdates = [
     ...(deal.createdAt ? [{
       id: 'sys-created',
@@ -89,11 +107,17 @@ export default function DealActivityUpdatesCard({ deal = {}, remarks = [], remin
       createdAt: deal.lastUpdated,
       author: resolveUserName(deal.dealOwner || deal.addedBy, 'System'),
     }] : []),
+    ...ownershipUpdates,
+    ...systemRemarks,
     ...reminderUpdates,
-  ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+  ].filter((item, index, self) => (
+    index === self.findIndex((other) => other.content === item.content && String(other.createdAt).slice(0, 16) === String(item.createdAt).slice(0, 16))
+  )).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
 
   const recentUpdatesList = useMemo(() => {
-    const list = Array.isArray(remarks) ? [...remarks] : []
+    const list = (Array.isArray(remarks) ? remarks : []).filter(
+      (r) => r.type !== 'system' && r.category !== 'system' && !(r.content && String(r.content).startsWith('Re-assign deal From'))
+    )
     const reassignText = deal.reassignDescriptions || deal.reassignDescription
     if (reassignText && typeof reassignText === 'string' && reassignText.trim()) {
       const alreadyPresent = list.some((r) => (r.content || r.remark || '') === reassignText.trim())

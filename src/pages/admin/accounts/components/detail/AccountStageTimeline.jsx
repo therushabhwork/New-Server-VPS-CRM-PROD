@@ -146,7 +146,7 @@ export default function AccountStageTimeline({ account, deal, form }) {
                   {stage.isCompleted && (
                     <FaCheckCircle className="c-account-stage-completed-icon" aria-label="Completed" />
                   )}
-                  {stage.isCurrent && <span className="c-account-stage-status-indicator">Current</span>}
+                  {stage.isCurrent && <span className="c-account-stage-current-pill">Current</span>}
                 </div>
 
                 <div className="c-account-stage-meta">

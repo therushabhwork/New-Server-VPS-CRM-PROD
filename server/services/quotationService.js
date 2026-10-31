@@ -1312,5 +1312,302 @@ module.exports = {
       nextRevisionAllowed: !isApproved,
     }
   },
+  bulkImportQuotations: async (actor, quotations = []) => {
+    if (!Array.isArray(quotations) || quotations.length === 0) {
+      return { count: 0, insertedCount: 0, duplicateCount: 0 };
+    }
+
+    const { getMongoModel } = require('../models/mongoModels');
+    const User = getMongoModel('users');
+
+    let allUsers = [];
+    try {
+      allUsers = await User.find({ frontendDeleted: { $ne: true } }).lean();
+    } catch (_) {}
+
+    const userByOwnerCode = new Map();
+    const userByName = new Map();
+    const userByEmail = new Map();
+
+    allUsers.forEach((u) => {
+      const code = String(u.ownerCode || u.owner_code || u.employeeId || '').trim();
+      if (code) userByOwnerCode.set(code, u);
+      const name = String(u.name || u.username || '').trim().toLowerCase();
+      if (name) userByName.set(name, u);
+      const email = String(u.email || '').trim().toLowerCase();
+      if (email) userByEmail.set(email, u);
+    });
+
+    const cleanStr = (val) => {
+      if (val === null || val === undefined) return '';
+      const str = String(val).trim();
+      if (str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') return '';
+      return str;
+    };
+
+    const cleanNum = (val) => {
+      if (val === null || val === undefined) return 0;
+      const num = Number(String(val).replace(/[^0-9.-]+/g, ''));
+      return isNaN(num) ? 0 : num;
+    };
+
+    const parseDateSafe = (val) => {
+      if (!val) return new Date().toISOString();
+      try {
+        const str = String(val).trim();
+        if (!str) return new Date().toISOString();
+        const dmy = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+        if (dmy) {
+          const d = new Date(`${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}T00:00:00.000Z`);
+          if (!isNaN(d.getTime())) return d.toISOString();
+        }
+        const d = new Date(str);
+        if (!isNaN(d.getTime())) return d.toISOString();
+      } catch (_) {}
+      return new Date().toISOString();
+    };
+
+    const safeDateStr = (rawVal) => {
+      if (!rawVal) return new Date().toISOString().slice(0, 10);
+      const str = String(rawVal).trim();
+      const dmy = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+      if (dmy) {
+        return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+      }
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+      return str;
+    };
+
+    let existingDocs = [];
+    try {
+      existingDocs = quotationRepository.listAll ? await quotationRepository.listAll() : [];
+    } catch (_) {}
+
+    const existingQuoteNumbers = new Set(
+      existingDocs
+        .map((d) => String(d.quotationNumber || d.quoteNumber || d.data?.quotationNumber || d.data?.quoteNumber || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+
+    let count = 0;
+    let duplicateCount = 0;
+    let insertedCount = 0;
+
+    for (const raw of quotations) {
+      count++;
+      const rawQuoteNo = cleanStr(
+        raw.oldQuotationNumber ||
+        raw.oldQuoteNumber ||
+        raw['Old Quotation Number'] ||
+        raw['Old Quotation No'] ||
+        raw['Old Quote No'] ||
+        raw.quotationNumber ||
+        raw.quoteNumber ||
+        raw['Quotation Number'] ||
+        raw['Quotation No'] ||
+        raw['Quote Number'] ||
+        raw['Quote No'] ||
+        raw.data?.oldQuotationNumber ||
+        raw.data?.quotationNumber ||
+        ''
+      );
+
+      const isDuplicate = Boolean(rawQuoteNo && existingQuoteNumbers.has(rawQuoteNo.toLowerCase()));
+      if (isDuplicate) duplicateCount++;
+
+      const rawOwner = cleanStr(
+        raw.quotationAddedBy ||
+        raw['Quotation Added By'] ||
+        raw.addedBy ||
+        raw['Added By'] ||
+        raw.quotationOwner ||
+        raw.ownerName ||
+        raw['Quotation Owner'] ||
+        raw.owner ||
+        raw.salesPerson ||
+        ''
+      );
+      const matchedUser = userByName.get(rawOwner.toLowerCase())
+        || (raw.ownerCode ? userByOwnerCode.get(String(raw.ownerCode)) : null)
+        || userByEmail.get(rawOwner.toLowerCase())
+        || (raw.email ? userByEmail.get(String(raw.email).trim().toLowerCase()) : null)
+        || (raw['Email'] ? userByEmail.get(String(raw['Email']).trim().toLowerCase()) : null)
+        || (actor?.id ? allUsers.find((u) => String(u._id || u.id) === String(actor.id)) : null);
+      const ownerName = matchedUser?.name || rawOwner || actor?.name || 'Admin';
+      const ownerCode = matchedUser?.ownerCode || raw.ownerCode || '';
+      const userId = matchedUser ? String(matchedUser._id || matchedUser.id || '') : String(actor?.id || '');
+
+      // Identify Brand & Logo dynamically mail-ID wise (same process as live quotes)
+      const userEmail = String(matchedUser?.email || actor?.email || '').toLowerCase();
+      const userCompany = String(matchedUser?.company || '').toLowerCase();
+      const isLumos = userEmail.includes('lumos') || userCompany === 'lumos' || Number(matchedUser?.companyId) === 2;
+
+      const resolvedBrandKey = isLumos ? 'lumos' : 'swati';
+      const resolvedProfileKey = isLumos ? 'lumos-building' : 'swati-switch';
+      const resolvedProfileName = isLumos ? 'LUMOS' : 'SWATI';
+      const resolvedLogoAsset = isLumos ? 'lumos' : 'swati';
+      const resolvedCompanyId = isLumos ? 2 : (Number(actor?.companyId) || 1);
+
+      const orgDetails = isLumos ? {
+        organizationName: 'Lumos Building Automation Pvt Ltd',
+        organizationLegalName: 'Lumos Building Automation Pvt. Ltd.',
+        organizationAddress: 'Vadodara, Gujarat, India',
+        organizationEmail: matchedUser?.email || 'sales@lumosbuildingautomation.com',
+        organizationPhone: '+91 265 4000 222',
+        organizationGstin: '24AAECL9020K1ZY',
+        organizationStateCode: '24',
+        website: 'www.lumosbuildingautomation.com',
+      } : {
+        organizationName: 'Swati Switchgears India Pvt Ltd',
+        organizationLegalName: 'Swati Switchgears (India) Pvt. Ltd.',
+        organizationAddress: '36 Shubhlaxmi Industrial Estate, Sarkhej Bavla Road, Changodar, Ahmedabad - 382210',
+        organizationEmail: matchedUser?.email || 'keval@swatiswitchgears.com',
+        organizationPhone: '9913536307',
+        organizationGstin: '24AAACZ0615P1Z7',
+        organizationStateCode: '24',
+        website: 'www.swatiswitchgears.com',
+      };
+
+      const companyName = cleanStr(raw.companyName || raw['Company Name'] || raw.customerName || raw.clientName || '');
+      const accountName = cleanStr(raw.accountName || raw['Account Name'] || companyName);
+      const projectName = cleanStr(raw.projectName || raw['Project Name'] || raw.dealName || raw['Deal Name'] || 'General Enquiry');
+      const contactPerson = cleanStr(raw.contactPerson || raw['Contact Person'] || raw.contact || raw['Contact'] || '');
+      const validUntil = cleanStr(raw.validUntil || raw['Quotation Valid Until'] || raw['Valid Until'] || raw.expiryDate || '');
+      const amount = cleanNum(raw.amount || raw['Quotation Total'] || raw['Total Amount'] || raw['Amount'] || raw.totalAmount || 0);
+      const status = cleanStr(raw.status || raw['Status'] || 'Open') || 'Open';
+      const rawQuotationDate = cleanStr(
+        raw.oldQuotationDate ||
+        raw.oldDate ||
+        raw['Old Quotation Date'] ||
+        raw['Old Date'] ||
+        raw.quotationDate ||
+        raw.date ||
+        raw['Quotation Date'] ||
+        raw['Date'] ||
+        ''
+      );
+
+      const quotationNumber = rawQuoteNo;
+      const quotationDate = safeDateStr(rawQuotationDate);
+      const isoCreatedAt = parseDateSafe(rawQuotationDate);
+
+      // Revision code and revision hierarchy identical to generated quotations
+      const revMatch = String(quotationNumber || '').match(/-(R\d+)$/i);
+      const initialRevCode = revMatch ? revMatch[1].toUpperCase() : 'R0';
+      const initialRevNo = revMatch ? parseInt(revMatch[1].slice(1), 10) : 0;
+      const initialRevAmount = amount || 0;
+      const initialRevisionItem = {
+        revisionCode: initialRevCode,
+        revisionNo: initialRevNo,
+        amount: initialRevAmount,
+        date: quotationDate || new Date().toISOString().slice(0, 10),
+        status: status || 'Open',
+      };
+
+      const docToInsert = {
+        ...orgDetails,
+        oldQuotationNumber: quotationNumber,
+        oldQuoteNumber: quotationNumber,
+        oldQuotationDate: quotationDate,
+        oldDate: quotationDate,
+        quotationNumber,
+        quoteNumber: quotationNumber,
+        quotationDate,
+        date: quotationDate,
+        title: projectName || companyName || 'Imported Quotation',
+        customerName: companyName,
+        clientName: companyName,
+        companyName,
+        accountName,
+        projectName,
+        contactPerson,
+        validUntil,
+        status,
+        amount: initialRevAmount,
+        totalAmount: initialRevAmount,
+        taxAmount: 0,
+        discountAmount: 0,
+        currency: 'INR',
+        lineItems: [],
+        notes: '',
+        ownerName,
+        quotationOwner: ownerName,
+        addedByName: ownerName,
+        ownerCode,
+        userId,
+        createdBy: actor?.id || null,
+        ownerUserId: actor?.id || null,
+        companyId: resolvedCompanyId,
+        brandKey: resolvedBrandKey,
+        profileKey: resolvedProfileKey,
+        profileName: resolvedProfileName,
+        logoAsset: resolvedLogoAsset,
+        logoType: 'image',
+        revisionCode: initialRevCode,
+        revisionNo: initialRevNo,
+        r0Amount: initialRevCode === 'R0' ? initialRevAmount : 0,
+        revisionAmountR0: initialRevCode === 'R0' ? initialRevAmount : 0,
+        quotationRevisionAmounts: { [initialRevCode]: initialRevAmount },
+        revisions: [initialRevisionItem],
+        isOldQuotation: true,
+        isExcelImport: true,
+        isDuplicate,
+        data: {
+          ...raw,
+          ...orgDetails,
+          brandKey: resolvedBrandKey,
+          profileKey: resolvedProfileKey,
+          profileName: resolvedProfileName,
+          logoAsset: resolvedLogoAsset,
+          logoType: 'image',
+          revisionCode: initialRevCode,
+          revisionNo: initialRevNo,
+          r0Amount: initialRevCode === 'R0' ? initialRevAmount : 0,
+          revisionAmountR0: initialRevCode === 'R0' ? initialRevAmount : 0,
+          quotationRevisionAmounts: { [initialRevCode]: initialRevAmount },
+          revisions: [initialRevisionItem],
+          status,
+          currency: 'INR',
+          validUntil,
+          lineItems: [],
+          oldQuotationNumber: quotationNumber,
+          oldQuoteNumber: quotationNumber,
+          oldQuotationDate: quotationDate,
+          oldDate: quotationDate,
+          quotationNumber,
+          quoteNumber: quotationNumber,
+          quotationDate,
+          clientName: companyName,
+          companyName,
+          accountName,
+          projectName,
+          contactPerson,
+          amount: initialRevAmount,
+          totalAmount: initialRevAmount,
+          selectedAccountOwner: ownerName,
+          ownerName,
+          quotationOwner: ownerName,
+          quotationAddedBy: ownerName,
+          quotationContext: 'account',
+          isOldQuotation: true,
+          isExcelImport: true,
+          isDuplicate,
+        },
+        createdAt: isoCreatedAt,
+        updatedAt: new Date().toISOString(),
+      };
+
+      try {
+        await quotationRepository.create(docToInsert);
+        insertedCount++;
+        if (quotationNumber) existingQuoteNumbers.add(quotationNumber.toLowerCase());
+      } catch (itemErr) {
+        console.error(`Failed to insert imported quotation ${quotationNumber || count}:`, itemErr?.message || itemErr);
+      }
+    }
+
+    return { count, insertedCount, duplicateCount };
+  },
 }
 module.exports.normalizeLineItems = normalizeLineItems

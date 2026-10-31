@@ -1074,12 +1074,15 @@
   -webkit-text-fill-color: #c60016 !important;
 }
 
+.c-account-stage-current-pill,
 .c-account-stage-status-indicator {
   display: inline-block;
   padding: 1px 6px;
   border-radius: 4px;
-  background: #c60016;
-  color: #ffffff;
+  background: #c60016 !important;
+  background-color: #c60016 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
   font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;

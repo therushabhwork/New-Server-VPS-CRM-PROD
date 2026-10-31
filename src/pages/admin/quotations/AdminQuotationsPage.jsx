@@ -33,6 +33,9 @@ import { formatCurrency } from '../../../utils/helpers';
 import { customViewApi } from '../../../services/customViewApi';
 import { quotationApi } from '../../../services/quotationApi';
 import { ExcelExportActionButton, ExcelExportMenuButton } from '../../../components/common/ExcelExportButton';
+import * as XLSX from 'xlsx';
+import { canExportQuotationsExcel } from '../../../utils/userPermissions';
+import ImportQuotationsModal from './ImportQuotationsModal';
 import './AdminQuotationsPage.css';
 import {
   PAGE_SIZE,
@@ -133,6 +136,214 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
   }, [isAuthorized, navigate])
 
   const [activeTab, setActiveTab] = useState('account')
+  const canExportExcel = canExportQuotationsExcel(user)
+
+  const [isImporting, setIsImporting] = useState(false)
+  const [isImportPreviewOpen, setIsImportPreviewOpen] = useState(false)
+  const [importPreviewQuotations, setImportPreviewQuotations] = useState([])
+  const [importExcelHeaders, setImportExcelHeaders] = useState([])
+  const [importPreviewFilter, setImportPreviewFilter] = useState('all')
+  const [pendingImportPayloads, setPendingImportPayloads] = useState([])
+  const importFileInputRef = React.useRef(null)
+
+  const handleImportClick = () => {
+    if (importFileInputRef.current) {
+      importFileInputRef.current.value = ''
+      importFileInputRef.current.click()
+    }
+  }
+
+  const handleImportFileSelect = async (e) => {
+    const file = e.target?.files?.[0]
+    if (!file) return
+
+    try {
+      setIsImporting(true)
+      const data = await file.arrayBuffer()
+      const workbook = XLSX.read(data, { type: 'array' })
+      const firstSheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[firstSheetName]
+
+      const raw2DRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })
+      let headerRowIndex = 0
+      let detectedHeaders = []
+
+      for (let r = 0; r < Math.min(raw2DRows.length, 25); r++) {
+        const rowValues = (raw2DRows[r] || []).map((c) => String(c || '').trim())
+        const matchCount = rowValues.filter((c) => {
+          const lower = c.toLowerCase()
+          return (
+            lower.includes('quotation') ||
+            lower.includes('quote') ||
+            lower.includes('company') ||
+            lower.includes('customer') ||
+            lower.includes('amount') ||
+            lower.includes('total') ||
+            lower.includes('status') ||
+            lower.includes('project') ||
+            lower.includes('account')
+          )
+        }).length
+
+        if (matchCount >= 2) {
+          headerRowIndex = r
+          detectedHeaders = rowValues.filter(Boolean)
+          break
+        }
+      }
+
+      if (detectedHeaders.length === 0 && raw2DRows && raw2DRows.length > 0) {
+        detectedHeaders = raw2DRows[0].map((h) => String(h || '').trim()).filter(Boolean)
+      }
+
+      const rawObjects = XLSX.utils.sheet_to_json(worksheet, { range: headerRowIndex, defval: '' })
+      if (!rawObjects || rawObjects.length === 0) {
+        setIsImporting(false)
+        alert('No quotation records found in the selected file.')
+        return
+      }
+
+      const existingQuoteNumbers = new Set(
+        (quotations || []).map((q) =>
+          String(q.quotationNumber || q.quoteNumber || q.data?.quotationNumber || q.data?.quoteNumber || '').trim().toLowerCase()
+        ).filter(Boolean)
+      )
+
+      const payloadsToImport = []
+      const previewRows = rawObjects.map((row, index) => {
+        const rawOldQuoteNo = String(
+          row['Old Quotation Number'] ||
+          row['Old Quotation No'] ||
+          row['Old Quote No'] ||
+          row['Quotation Number'] ||
+          row['Quotation No'] ||
+          row['Quote Number'] ||
+          row['Quote No'] ||
+          row.oldQuotationNumber ||
+          row.quotationNumber ||
+          row.quoteNumber ||
+          ''
+        ).trim()
+
+        const rawOldDate = String(
+          row['Old Quotation Date'] ||
+          row['Old Date'] ||
+          row['Quotation Date'] ||
+          row['Date'] ||
+          row.oldQuotationDate ||
+          row.quotationDate ||
+          row.date ||
+          ''
+        ).trim()
+
+        const isDuplicate = Boolean(rawOldQuoteNo && existingQuoteNumbers.has(rawOldQuoteNo.toLowerCase()))
+
+        const companyName = String(row['Company Name'] || row['Customer Name'] || row.companyName || row.customerName || '').trim()
+        const contactPerson = String(row['Contact Person'] || row['Contact'] || row.contactPerson || '').trim()
+        const validUntil = String(row['Quotation Valid Until'] || row['Valid Until'] || row.validUntil || '').trim()
+        const accountName = String(row['Account Name'] || row.accountName || companyName).trim()
+        const projectName = String(row['Project Name'] || row['Deal Name'] || row.projectName || 'General Enquiry').trim()
+        const quotationOwner = String(row['Quotation Added By'] || row['Added By'] || row['Quotation Owner'] || row['Owner'] || row.ownerName || row.quotationOwner || '').trim()
+        const rawAmount = row['Quotation Total'] || row['Total Amount'] || row['Amount'] || row.amount || row.totalAmount || 0
+        const status = String(row['Status'] || row.status || 'Open').trim() || 'Open'
+
+        const importPayload = {
+          ...row,
+          oldQuotationNumber: rawOldQuoteNo,
+          oldQuotationDate: rawOldDate,
+          quotationNumber: rawOldQuoteNo,
+          quotationDate: rawOldDate,
+          companyName,
+          accountName,
+          projectName,
+          contactPerson,
+          validUntil,
+          quotationOwner,
+          quotationAddedBy: quotationOwner,
+          amount: rawAmount,
+          totalAmount: rawAmount,
+          status,
+          isOldQuotation: true,
+          isDuplicate,
+        }
+
+        payloadsToImport.push(importPayload)
+
+        return {
+          _id: `preview-${index}`,
+          'Old Quotation No.': rawOldQuoteNo || '-',
+          'Quotation Number': rawOldQuoteNo || '-',
+          'Quotation Added By': quotationOwner || '-',
+          'Quotation Date': rawOldDate || '-',
+          'Company Name': companyName || '-',
+          'Quotation Total': rawAmount ? `₹${Number(rawAmount).toLocaleString('en-IN')}` : '₹0',
+          'Status': status,
+          'Project Name': projectName || '-',
+          ...row,
+          oldQuotationNumber: rawOldQuoteNo,
+          oldQuotationDate: rawOldDate,
+          quotationNumber: rawOldQuoteNo,
+          quotationDate: rawOldDate,
+          companyName,
+          accountName,
+          projectName,
+          contactPerson,
+          validUntil,
+          quotationOwner,
+          quotationAddedBy: quotationOwner,
+          amount: rawAmount,
+          totalAmount: rawAmount,
+          status,
+          isDuplicate,
+          importStatus: isDuplicate ? 'Duplicate' : 'Ready to import',
+        }
+      })
+
+      setImportExcelHeaders(detectedHeaders)
+      setImportPreviewQuotations(previewRows)
+      setPendingImportPayloads(payloadsToImport)
+      setImportPreviewFilter('all')
+      setIsImportPreviewOpen(true)
+    } catch (err) {
+      console.error('Error reading quotation import file:', err)
+      alert('Error parsing import file. Please select a valid Excel (.xlsx, .xls) or CSV (.csv) file.')
+    } finally {
+      setIsImporting(false)
+      if (importFileInputRef.current) {
+        importFileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const handleConfirmImportQuotations = async () => {
+    if (!pendingImportPayloads || pendingImportPayloads.length === 0) return
+
+    try {
+      setIsImporting(true)
+      const res = await quotationApi.importQuotations(pendingImportPayloads)
+      const insertedCount = res?.data?.insertedCount ?? res?.insertedCount ?? pendingImportPayloads.length
+      const duplicateCount = res?.data?.duplicateCount ?? res?.duplicateCount ?? 0
+
+      setIsImportPreviewOpen(false)
+      setImportPreviewQuotations([])
+      setPendingImportPayloads([])
+
+      if (typeof refreshQuotations === 'function') {
+        await refreshQuotations()
+      }
+
+      if (duplicateCount > 0) {
+        alert(`Import completed successfully!\n• ${insertedCount} quotation records stored in MongoDB.\n• ${duplicateCount} duplicate records were identified and added.`)
+      } else {
+        alert(`Import completed successfully! ${insertedCount} quotation records stored in MongoDB.`)
+      }
+    } catch (bulkErr) {
+      console.error('Failed import in AdminQuotationsPage:', bulkErr)
+      alert(`Import failed: ${bulkErr?.response?.data?.message || bulkErr?.message || 'Unknown error'}`)
+    } finally {
+      setIsImporting(false)
+    }
+  }
   const [showFilterRow] = useState(false)
   const [isFieldPanelOpen, setIsFieldPanelOpen] = useState(false)
   const [quotationLayout, setQuotationLayout] = useState(readAdminQuotationLayout)
@@ -251,13 +462,39 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
           ? 'deal'
           : 'account'
 
+        const oldQuoteNo = quotation.oldQuotationNumber 
+          || quotation.oldQuoteNumber 
+          || quotation.data?.oldQuotationNumber 
+          || quotation.data?.oldQuoteNumber 
+          || (quotation.isOldQuotation ? quotation.quotationNumber : '-')
+        const oldQuoteDate = quotation.oldQuotationDate 
+          || quotation.oldDate 
+          || quotation.data?.oldQuotationDate 
+          || quotation.data?.oldDate 
+          || (quotation.isOldQuotation ? formatListDate(quotation.quotationDate || quotation.date || quotation.createdAt) : '-')
+        const contactPerson = quotation.contactPerson 
+          || quotation.data?.contactPerson 
+          || linkedAccount?.contactPerson 
+          || '-'
+        const validUntil = formatListDate(quotation.validUntil || quotation.data?.validUntil) || '-'
+        const accountName = quotation.accountName 
+          || quotation.data?.accountName 
+          || linkedAccount?.name 
+          || quotation.companyName 
+          || '-'
+
         return {
           id: quotation.id || `quotation-${index}`,
           num: quotation.quotationNumber || `Quotation ${index + 1}`,
+          oldQuotationNumber: oldQuoteNo,
+          oldQuotationDate: oldQuoteDate,
           owner: resolveQuotationOwner(quotation, linkedAccount),
           date: formatListDate(quotation.quotationDate || quotation.createdAt),
           dateSort: quotation.quotationDate || quotation.createdAt || '',
           company: quotation.companyName || linkedAccount?.name || quotation.clientName || '-',
+          contactPerson,
+          validUntil,
+          accountName,
           amount: amountNumber,
           amountLabel: formatCurrency(amountNumber, quotation.currency || 'INR'),
           status: quotation.status || 'draft',
@@ -266,6 +503,7 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
           profileName: quotation.profileName || '-',
           linkedAccount,
           quotationContext: resolvedContext,
+          isOldQuotation: Boolean(quotation.isOldQuotation),
           raw: quotation,
         }
       })
@@ -852,6 +1090,10 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
   }
 
   const handleExportRows = (format) => {
+    if (!canExportExcel) {
+      addNotification('error', 'Unauthorized', 'You do not have permission to export quotations to Excel.')
+      return
+    }
     const fileBase = `Quotation_Manager_${activeTab}_${new Date().toISOString().slice(0, 10)}`
     const managerMetadata = [
       { label: 'View', value: activeTab.toUpperCase() },
@@ -1288,26 +1530,45 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
         </div>
 
         <div className="aqp-tab-actions">
-          <ExcelExportMenuButton
-            label="Export"
-            title="Export actions"
-            className="aqp-export-menu"
-            buttonClassName="aqp-btn aqp-btn--white"
-            menuClassName="aqp-export-dropdown"
-            items={[
-              {
-                key: 'export-excel',
-                label: 'Export to Excel .xlsx',
-                badge: 'XLSX',
-                onClick: () => handleExportRows('excel'),
-              },
-              {
-                key: 'export-csv',
-                label: 'Export to CSV',
-                badge: 'CSV',
-                onClick: () => handleExportRows('csv'),
-              },
-            ]}
+          {canExportExcel && (
+            <ExcelExportMenuButton
+              label="Export"
+              title="Export actions"
+              className="aqp-export-menu"
+              buttonClassName="aqp-btn aqp-btn--white"
+              menuClassName="aqp-export-dropdown"
+              items={[
+                {
+                  key: 'export-excel',
+                  label: 'Export to Excel .xlsx',
+                  badge: 'XLSX',
+                  onClick: () => handleExportRows('excel'),
+                },
+                {
+                  key: 'export-csv',
+                  label: 'Export to CSV',
+                  badge: 'CSV',
+                  onClick: () => handleExportRows('csv'),
+                },
+              ]}
+            />
+          )}
+          <button
+            type="button"
+            className="aqp-btn aqp-btn--white aqp-btn--import"
+            onClick={handleImportClick}
+            disabled={isImporting}
+            title="Import Quotations (.xlsx, .xls, .csv)"
+          >
+            <FaUpload className="aqp-btn-icon" />
+            <span>{isImporting ? 'Importing...' : 'Import'}</span>
+          </button>
+          <input
+            ref={importFileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            style={{ display: 'none' }}
+            onChange={handleImportFileSelect}
           />
           <button type="button" className="aqp-btn aqp-btn--red aqp-btn--generate" onClick={() => navigate(generatorPath, { state: { openGenerator: true } })}>
             <FaPlus className="aqp-btn-icon" />
@@ -1365,6 +1626,25 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
                 title={`Click to view ${row.num}`}
               >
                 {selectedFieldDefinitions.map((field) => {
+                  if (field.key === 'oldQuotationNumber') {
+                    return (
+                      <td key={field.key} className="aqp-td aqp-td--old-num aqp-field--oldQuotationNumber">
+                        {row.oldQuotationNumber && row.oldQuotationNumber !== '-' ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontWeight: 600, color: '#0f172a' }}>{row.oldQuotationNumber}</span>
+                            {row.isOldQuotation && (
+                              <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '3px', background: '#e0f2fe', color: '#0369a1', fontWeight: 600 }}>
+                                Old
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span style={{ color: '#94a3b8' }}>-</span>
+                        )}
+                      </td>
+                    )
+                  }
+
                   if (field.key === 'num') {
                     return (
                       <td key={field.key} className={`aqp-td aqp-td--num aqp-field--${field.key}`}>
@@ -2013,6 +2293,17 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
           {rejectError ? <div className="aqp-form-error">{rejectError}</div> : null}
         </ModalShell>
       ) : null}
+
+      <ImportQuotationsModal
+        isOpen={isImportPreviewOpen}
+        onClose={() => setIsImportPreviewOpen(false)}
+        importPreviewQuotations={importPreviewQuotations}
+        importExcelHeaders={importExcelHeaders}
+        importPreviewFilter={importPreviewFilter}
+        onFilterChange={setImportPreviewFilter}
+        isImporting={isImporting}
+        onConfirmImport={handleConfirmImportQuotations}
+      />
     </div>
   )
 }

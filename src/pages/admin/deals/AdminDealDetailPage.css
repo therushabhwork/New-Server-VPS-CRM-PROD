@@ -631,6 +631,7 @@
   line-height: 1.35;
   overflow-wrap: break-word;
   word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .c-deal-info-field-value--empty {
@@ -688,6 +689,16 @@
 
 .c-deal-inline-select {
   cursor: pointer;
+}
+
+.c-deal-inline-textarea {
+  min-height: 72px;
+  height: auto;
+  padding: 0.45rem 0.55rem;
+  resize: vertical;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  font-family: inherit;
 }
 
 .c-deal-inline-actions {

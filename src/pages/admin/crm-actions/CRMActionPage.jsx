@@ -840,6 +840,25 @@ const CRMActionPage = () => {
       return
     }
 
+    const dynamicReassignMessage = `Re-assign deal From ${previousOwner || 'Previous Owner'} To ${nextOwnerName || 'New Owner'}`
+
+    try {
+      await remarkApi.createRemark({
+        relatedEntityId: selectedDeal.id,
+        relatedEntityType: 'deal',
+        accountId: selectedDeal.linkedAccountId || selectedDeal.accountId,
+        dealId: selectedDeal.id,
+        title: 'Deal Reassigned',
+        remark: dynamicReassignMessage,
+        content: dynamicReassignMessage,
+        type: 'system',
+        category: 'system',
+        author: user?.name || 'System',
+      })
+    } catch (err) {
+      console.warn('Failed to save reassign remark:', err)
+    }
+
     if (reassignForm.description || reassignForm.internalComments) {
       try {
         await remarkApi.createRemark({
@@ -847,15 +866,15 @@ const CRMActionPage = () => {
           relatedEntityType: 'deal',
           accountId: selectedDeal.linkedAccountId || selectedDeal.accountId,
           dealId: selectedDeal.id,
-          title: 'Deal Reassigned',
-          remark: reassignForm.description || reassignForm.internalComments || `Deal reassigned from ${previousOwner} to ${nextOwnerName}.`,
-          content: reassignForm.description || reassignForm.internalComments || `Deal reassigned from ${previousOwner} to ${nextOwnerName}.`,
-          type: 'reassign',
-          category: 'reassign',
+          title: 'Re-assign Note',
+          remark: reassignForm.description || reassignForm.internalComments,
+          content: reassignForm.description || reassignForm.internalComments,
+          type: 'note',
+          category: 'note',
           author: user?.name || 'Admin',
         })
       } catch (err) {
-        console.warn('Failed to save reassign remark:', err)
+        console.warn('Failed to save reassign note:', err)
       }
     }
 
@@ -890,8 +909,9 @@ const CRMActionPage = () => {
       changedBy: user?.name || 'Current User',
     })
     appendAudit('Re-Assign Deal', `Deal owner changed from ${previousOwner} to ${nextOwnerName}.`, 'Deal', selectedDeal)
-    addNotification('success', 'Re-Assign Deal', 'Deal reassigned, reminder/history/audit updated.')
-    setSuccessMessage('Deal reassigned successfully. Notification, reminder, ownership history, and audit trail updated.')
+    const dealRef = selectedDeal.dealNumber || selectedDeal.name || `Deal #${selectedDeal.id}`
+    addNotification('info', 'Deal Reassigned', `${dynamicReassignMessage} (${dealRef})`, { forceToast: true })
+    setSuccessMessage(`${dynamicReassignMessage}. Notification and ownership history updated.`)
     const isAdminContext = window.location.pathname.startsWith('/admin') || user?.role === 'admin'
     let targetReturn = returnTo || (isAdminContext ? '/admin/deals/view' : '/deals/view')
     if (!isAdminContext && targetReturn.startsWith('/admin/deals/')) {
@@ -1249,6 +1269,9 @@ const CRMActionPage = () => {
   const renderDealChangeStatus = () => {
     const isPoConversion = statusForm.status === 'convert_to_po' || shouldShowAccountPoDetails(statusForm.status)
     const isRejected = statusForm.status === 'rejected'
+    const fieldTextStyle = isDealStatusWhiteTheme
+      ? { color: '#0f172a', WebkitTextFillColor: '#0f172a', backgroundColor: '#ffffff' }
+      : undefined
 
     return (
       <form className="crm-action-form crm-deal-status-form" onSubmit={handleSaveDealStatus}>
@@ -1267,10 +1290,11 @@ const CRMActionPage = () => {
                 className={`crm-deal-status-select${errors.status ? ' crm-deal-status-input-error' : ''}`}
                 value={statusForm.status}
                 onChange={(event) => setStatusForm({ ...statusForm, status: event.target.value })}
+                style={fieldTextStyle}
               >
-                <option value="">Select Deal Status</option>
+                <option value="" style={fieldTextStyle}>Select Deal Status</option>
                 {DEAL_CHANGE_STATUS_OPTIONS.map((option) => (
-                  <option key={option.value || option.label} value={option.value}>
+                  <option key={option.value || option.label} value={option.value} style={fieldTextStyle}>
                     {option.label}
                   </option>
                 ))}
@@ -1285,8 +1309,9 @@ const CRMActionPage = () => {
                   className="crm-deal-status-select"
                   value={statusForm.reasonForLost}
                   onChange={(event) => setStatusForm({ ...statusForm, reasonForLost: event.target.value })}
+                  style={fieldTextStyle}
                 >
-                  <option value="">Choose Reason For Lost</option>
+                  <option value="" style={fieldTextStyle}>Choose Reason For Lost</option>
                   {[
                     'Intense Competition',
                     'On Hold',
@@ -1294,7 +1319,7 @@ const CRMActionPage = () => {
                     'Delivery not matching',
                     'Budgetory Offer',
                   ].map((opt) => (
-                    <option key={opt} value={opt}>{opt}</option>
+                    <option key={opt} value={opt} style={fieldTextStyle}>{opt}</option>
                   ))}
                 </select>
               </label>
@@ -1308,6 +1333,7 @@ const CRMActionPage = () => {
                 onChange={(event) => setStatusForm({ ...statusForm, note: event.target.value })}
                 placeholder="Add status note..."
                 rows={3}
+                style={fieldTextStyle}
               />
             </label>
           </div>

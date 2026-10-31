@@ -777,7 +777,7 @@ const AdminDealDetailPage = () => {
     { key: 'phone', label: 'Phone', value: deal.phone, rawValue: deal.phone, type: 'text', icon: <FaPhoneAlt /> },
     { key: 'secondaryPhoneNumber', label: 'Secondary Phone', value: deal.secondaryPhoneNumber, rawValue: deal.secondaryPhoneNumber, type: 'text', icon: <FaPhoneAlt /> },
     { key: 'email', label: 'Email', value: deal.email, rawValue: deal.email, type: 'text', icon: <FaEnvelope /> },
-    { key: 'address', label: 'Address', value: deal.address, rawValue: deal.address, type: 'text', icon: <FaMapMarkerAlt /> },
+    { key: 'address', label: 'Address', value: deal.address, rawValue: deal.address, type: 'textarea', icon: <FaMapMarkerAlt /> },
   ]
 
   // Card 2 — Deal Information Items

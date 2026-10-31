@@ -34,6 +34,9 @@ import Modal from '../../components/common/Modal'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
 import { ExcelExportMenuButton } from '../../components/common/ExcelExportButton'
+import * as XLSX from 'xlsx'
+import { canExportQuotationsExcel } from '../../utils/userPermissions'
+import ImportQuotationsModal from '../admin/quotations/ImportQuotationsModal'
 import { normalizeAccountRecord } from '../../features/adminAccounts/adapters/normalizeAccountRecord'
 import { compareAccountsByNumberAsc } from '../../features/adminAccounts/selectors/getAccountsBoardData'
 import {
@@ -483,9 +486,25 @@ const buildQuotationFormFromExisting = (quotation = {}, nextQuotationNumber = ''
   const hasR2 = r2Val !== undefined && r2Val !== null && r2Val !== '' && r2Val !== 0 && r2Val !== '0'
   const hasR3 = r3Val !== undefined && r3Val !== null && r3Val !== '' && r3Val !== 0 && r3Val !== '0'
 
+  const resolvedProfile = getProfileByValue(
+    quotation.profileKey ||
+    quotation.brandKey ||
+    (String(quotation.organizationName || '').toLowerCase().includes('lumos') ? 'lumos-building' : 'swati-switch')
+  ) || PROFILE_OPTIONS[0]
+  const isSwati = resolvedProfile.value !== 'lumos-building'
+
   return {
     ...createInitialQuotationForm(),
     ...quotation,
+    profileKey: quotation.profileKey || resolvedProfile.value,
+    profileName: quotation.profileName || resolvedProfile.label,
+    organizationName: quotation.organizationName || quotation.data?.organizationName || resolvedProfile.organizationName,
+    organizationAddress: quotation.organizationAddress || quotation.data?.organizationAddress || resolvedProfile.organizationAddress,
+    organizationEmail: quotation.organizationEmail || quotation.data?.organizationEmail || (isSwati ? 'keval@swatiswitchgears.com' : resolvedProfile.organizationEmail),
+    organizationPhone: quotation.organizationPhone || quotation.data?.organizationPhone || resolvedProfile.organizationPhone,
+    organizationGstin: quotation.organizationGstin || quotation.data?.organizationGstin || resolvedProfile.organizationGstin,
+    organizationStateCode: quotation.organizationStateCode || quotation.data?.organizationStateCode || resolvedProfile.organizationStateCode || '24',
+    website: quotation.website || quotation.data?.website || resolvedProfile.website,
     quotationNumber: nextQuotationNumber || quotation.quotationNumber || '',
     quotationDate,
     validUntil: addDaysToInputValue(quotationDate, 7),
@@ -649,6 +668,8 @@ const INITIAL_QUOTATION_FILTERS = {
 const getVisibleQuotationActions = () => QUOTATION_ACTIONS
 
 const QUOTATION_FIELD_DEFINITIONS = [
+  { key: 'oldQuotationNumber', label: 'Old Quotation No.', exportValue: (row) => row.oldQuotationNumber || '', sortValue: (row) => row.oldQuotationNumber || '' },
+  { key: 'oldQuotationDate', label: 'Old Quotation Date', exportValue: (row) => row.oldQuotationDate || '', sortValue: (row) => row.oldQuotationDate || '' },
   { key: 'num', label: 'Quotation Number', exportValue: (row) => row.num, sortValue: (row) => row.num },
   { key: 'owner', label: 'Quotation Owner', exportValue: (row) => row.owner, sortValue: (row) => row.owner },
   { key: 'date', label: 'Quotation Date', exportValue: (row) => row.date, sortValue: (row) => row.dateSort },
@@ -672,15 +693,23 @@ const QUOTATION_FIELD_DEFINITIONS = [
   { key: 'otherServiceTotal', label: 'Other Service Total', exportValue: (row) => row.otherServiceTotalLabel, sortValue: (row) => row.otherServiceTotal },
 ]
 
-const DEFAULT_SELECTED_QUOTATION_FIELDS = ['num', 'owner', 'date', 'company', 'amount', 'status', 'project']
+const DEFAULT_SELECTED_QUOTATION_FIELDS = ['oldQuotationNumber', 'num', 'owner', 'date', 'amount', 'status', 'company', 'project']
 
 const readQuotationLayout = () => {
   try {
     const rawValue = window.localStorage.getItem(QUOTATION_LAYOUT_STORAGE_KEY)
     const parsedValue = rawValue ? JSON.parse(rawValue) : null
-    const selectedFields = Array.isArray(parsedValue?.selectedFields) && parsedValue.selectedFields.length > 0
+    let selectedFields = Array.isArray(parsedValue?.selectedFields) && parsedValue.selectedFields.length > 0
       ? parsedValue.selectedFields.filter((fieldKey) => QUOTATION_FIELD_DEFINITIONS.some((field) => field.key === fieldKey))
-      : DEFAULT_SELECTED_QUOTATION_FIELDS
+      : [...DEFAULT_SELECTED_QUOTATION_FIELDS]
+    if (!selectedFields.includes('oldQuotationNumber')) {
+      const numIdx = selectedFields.indexOf('num')
+      if (numIdx !== -1) {
+        selectedFields.splice(numIdx, 0, 'oldQuotationNumber')
+      } else {
+        selectedFields.unshift('oldQuotationNumber')
+      }
+    }
 
     return {
       showLatestQuotations: parsedValue?.showLatestQuotations === 'NO' ? 'NO' : 'YES',
@@ -716,6 +745,215 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
   const productSectionRef = useRef(null)
   const otherProductSectionRef = useRef(null)
   const otherServiceSectionRef = useRef(null)
+
+  const canExportExcel = canExportQuotationsExcel(user)
+
+  const [isImporting, setIsImporting] = useState(false)
+  const [isImportPreviewOpen, setIsImportPreviewOpen] = useState(false)
+  const [importPreviewQuotations, setImportPreviewQuotations] = useState([])
+  const [importExcelHeaders, setImportExcelHeaders] = useState([])
+  const [importPreviewFilter, setImportPreviewFilter] = useState('all')
+  const [pendingImportPayloads, setPendingImportPayloads] = useState([])
+  const importFileInputRef = useRef(null)
+
+  const handleImportClick = () => {
+    if (importFileInputRef.current) {
+      importFileInputRef.current.value = ''
+      importFileInputRef.current.click()
+    }
+  }
+
+  const handleImportFileSelect = async (e) => {
+    const file = e.target?.files?.[0]
+    if (!file) return
+
+    try {
+      setIsImporting(true)
+      const data = await file.arrayBuffer()
+      const workbook = XLSX.read(data, { type: 'array' })
+      const firstSheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[firstSheetName]
+
+      const raw2DRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })
+      let headerRowIndex = 0
+      let detectedHeaders = []
+
+      for (let r = 0; r < Math.min(raw2DRows.length, 25); r++) {
+        const rowValues = (raw2DRows[r] || []).map((c) => String(c || '').trim())
+        const matchCount = rowValues.filter((c) => {
+          const lower = c.toLowerCase()
+          return (
+            lower.includes('quotation') ||
+            lower.includes('quote') ||
+            lower.includes('company') ||
+            lower.includes('customer') ||
+            lower.includes('amount') ||
+            lower.includes('total') ||
+            lower.includes('status') ||
+            lower.includes('project') ||
+            lower.includes('account')
+          )
+        }).length
+
+        if (matchCount >= 2) {
+          headerRowIndex = r
+          detectedHeaders = rowValues.filter(Boolean)
+          break
+        }
+      }
+
+      if (detectedHeaders.length === 0 && raw2DRows && raw2DRows.length > 0) {
+        detectedHeaders = raw2DRows[0].map((h) => String(h || '').trim()).filter(Boolean)
+      }
+
+      const rawObjects = XLSX.utils.sheet_to_json(worksheet, { range: headerRowIndex, defval: '' })
+      if (!rawObjects || rawObjects.length === 0) {
+        setIsImporting(false)
+        alert('No quotation records found in the selected file.')
+        return
+      }
+
+      const existingQuoteNumbers = new Set(
+        (quotations || []).map((q) =>
+          String(q.quotationNumber || q.quoteNumber || q.data?.quotationNumber || q.data?.quoteNumber || '').trim().toLowerCase()
+        ).filter(Boolean)
+      )
+
+      const payloadsToImport = []
+      const previewRows = rawObjects.map((row, index) => {
+        const rawOldQuoteNo = String(
+          row['Old Quotation Number'] ||
+          row['Old Quotation No'] ||
+          row['Old Quote No'] ||
+          row['Quotation Number'] ||
+          row['Quotation No'] ||
+          row['Quote Number'] ||
+          row['Quote No'] ||
+          row.oldQuotationNumber ||
+          row.quotationNumber ||
+          row.quoteNumber ||
+          ''
+        ).trim()
+
+        const rawOldDate = String(
+          row['Old Quotation Date'] ||
+          row['Old Date'] ||
+          row['Quotation Date'] ||
+          row['Date'] ||
+          row.oldQuotationDate ||
+          row.quotationDate ||
+          row.date ||
+          ''
+        ).trim()
+
+        const isDuplicate = Boolean(rawOldQuoteNo && existingQuoteNumbers.has(rawOldQuoteNo.toLowerCase()))
+
+        const companyName = String(row['Company Name'] || row['Customer Name'] || row.companyName || row.customerName || '').trim()
+        const contactPerson = String(row['Contact Person'] || row['Contact'] || row.contactPerson || '').trim()
+        const validUntil = String(row['Quotation Valid Until'] || row['Valid Until'] || row.validUntil || '').trim()
+        const accountName = String(row['Account Name'] || row.accountName || companyName).trim()
+        const projectName = String(row['Project Name'] || row['Deal Name'] || row.projectName || 'General Enquiry').trim()
+        const quotationOwner = String(row['Quotation Added By'] || row['Added By'] || row['Quotation Owner'] || row['Owner'] || row.ownerName || row.quotationOwner || '').trim()
+        const rawAmount = row['Quotation Total'] || row['Total Amount'] || row['Amount'] || row.amount || row.totalAmount || 0
+        const status = String(row['Status'] || row.status || 'Open').trim() || 'Open'
+
+        const importPayload = {
+          ...row,
+          oldQuotationNumber: rawOldQuoteNo,
+          oldQuotationDate: rawOldDate,
+          quotationNumber: rawOldQuoteNo,
+          quotationDate: rawOldDate,
+          companyName,
+          accountName,
+          projectName,
+          contactPerson,
+          validUntil,
+          quotationOwner,
+          quotationAddedBy: quotationOwner,
+          amount: rawAmount,
+          totalAmount: rawAmount,
+          status,
+          isOldQuotation: true,
+          isDuplicate,
+        }
+
+        payloadsToImport.push(importPayload)
+
+        return {
+          _id: `preview-${index}`,
+          'Old Quotation No.': rawOldQuoteNo || '-',
+          'Quotation Number': rawOldQuoteNo || '-',
+          'Quotation Added By': quotationOwner || '-',
+          'Quotation Date': rawOldDate || '-',
+          'Company Name': companyName || '-',
+          'Quotation Total': rawAmount ? `₹${Number(rawAmount).toLocaleString('en-IN')}` : '₹0',
+          'Status': status,
+          'Project Name': projectName || '-',
+          ...row,
+          oldQuotationNumber: rawOldQuoteNo,
+          oldQuotationDate: rawOldDate,
+          quotationNumber: rawOldQuoteNo,
+          quotationDate: rawOldDate,
+          companyName,
+          accountName,
+          projectName,
+          contactPerson,
+          validUntil,
+          quotationOwner,
+          quotationAddedBy: quotationOwner,
+          amount: rawAmount,
+          totalAmount: rawAmount,
+          status,
+          isDuplicate,
+          importStatus: isDuplicate ? 'Duplicate' : 'Ready to import',
+        }
+      })
+
+      setImportExcelHeaders(detectedHeaders)
+      setImportPreviewQuotations(previewRows)
+      setPendingImportPayloads(payloadsToImport)
+      setImportPreviewFilter('all')
+      setIsImportPreviewOpen(true)
+    } catch (err) {
+      console.error('Error reading quotation import file:', err)
+      alert('Error parsing import file. Please select a valid Excel (.xlsx, .xls) or CSV (.csv) file.')
+    } finally {
+      setIsImporting(false)
+      if (importFileInputRef.current) {
+        importFileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const handleConfirmImportQuotations = async () => {
+    if (!pendingImportPayloads || pendingImportPayloads.length === 0) return
+
+    try {
+      setIsImporting(true)
+      const res = await quotationApi.importQuotations(pendingImportPayloads)
+      const insertedCount = res?.data?.insertedCount ?? res?.insertedCount ?? pendingImportPayloads.length
+      const duplicateCount = res?.data?.duplicateCount ?? res?.duplicateCount ?? 0
+
+      setIsImportPreviewOpen(false)
+      setImportPreviewQuotations([])
+      setPendingImportPayloads([])
+
+      if (typeof refreshQuotations === 'function') {
+        await refreshQuotations()
+      }
+
+      if (duplicateCount > 0) {
+        alert(`Import completed successfully!\n• ${insertedCount} quotation records stored in MongoDB.\n• ${duplicateCount} duplicate records were identified and added.`)
+      } else {
+        alert(`Import completed successfully! ${insertedCount} quotation records stored in MongoDB.`)
+      }
+    } catch (bulkErr) {
+      console.error('Failed import in Quotations:', bulkErr)
+      alert(`Import failed: ${bulkErr?.response?.data?.message || bulkErr?.message || 'Unknown error'}`)
+    } finally {
+      setIsImporting(false)
+    }
+  }
 
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
@@ -799,7 +1037,15 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
   )
 
   const userQuotations = useMemo(() => (
-    quotations.filter((quotation) => !user || user.role === 'admin' || quotation.userId === user.id)
+    quotations.filter((quotation) => {
+      if (!user || user.role === 'admin' || user.role === 'super_admin') return true
+      if (quotation.userId === user.id) return true
+      if (quotation.isOldQuotation) return true
+      const qOwner = String(quotation.owner || quotation.ownerName || quotation.quotationOwner || quotation.data?.quotationOwner || '').toLowerCase()
+      const uName = String(user.name || '').toLowerCase()
+      if (qOwner && uName && (qOwner.includes(uName) || uName.includes(qOwner))) return true
+      return false
+    })
   ), [quotations, user])
 
   const selectedFieldDefinitions = useMemo(() => (
@@ -819,6 +1065,16 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
   ), [accounts])
 
   const buildQuotationRow = useCallback((quotation, index = 0) => {
+    const oldQuoteNo = quotation.oldQuotationNumber 
+      || quotation.oldQuoteNumber 
+      || quotation.data?.oldQuotationNumber 
+      || quotation.data?.oldQuoteNumber 
+      || (quotation.isOldQuotation ? quotation.quotationNumber : '-')
+    const oldQuoteDate = quotation.oldQuotationDate 
+      || quotation.oldDate 
+      || quotation.data?.oldQuotationDate 
+      || quotation.data?.oldDate 
+      || (quotation.isOldQuotation ? formatListDate(quotation.quotationDate || quotation.date || quotation.createdAt) : '-')
     const linkedAccount = resolveLinkedAccount(quotation, normalizedAccounts)
     const lineItemsSubtotal = (Array.isArray(quotation.lineItems) ? quotation.lineItems : []).reduce((sum, item) => (
       sum + (toNumber(item.amount) || (toNumber(item.quantity) * toNumber(item.rate)))
@@ -838,6 +1094,9 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
     return {
       id: quotation.id || `quotation-${index}`,
       num: quotation.quotationNumber || `Quotation ${index + 1}`,
+      oldQuotationNumber: oldQuoteNo,
+      oldQuotationDate: oldQuoteDate,
+      isOldQuotation: Boolean(quotation.isOldQuotation),
       owner: resolveQuotationOwner(quotation, linkedAccount),
       date: formatListDate(quotation.quotationDate || quotation.createdAt),
       dateSort: quotation.quotationDate || quotation.createdAt || '',
@@ -1382,7 +1641,7 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
   )
 
   const activeProfile = useMemo(
-    () => getProfileByValue(quotationForm.profileKey || selectedProfile),
+    () => getProfileByValue(quotationForm.profileKey || selectedProfile || 'swati-switch'),
     [quotationForm.profileKey, selectedProfile]
   )
 
@@ -2197,6 +2456,10 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
   }
 
   const handleExportRows = (format) => {
+    if (!canExportExcel) {
+      addNotification('error', 'Unauthorized', 'You do not have permission to export quotations to Excel.')
+      return
+    }
     const exportFields = selectedFieldDefinitions.length > 0
       ? selectedFieldDefinitions
       : DEFAULT_SELECTED_QUOTATION_FIELDS
@@ -2491,6 +2754,46 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
 
 
           <div className="aqp-tab-actions">
+            {canExportExcel && (
+              <ExcelExportMenuButton
+                label="Export"
+                title="Export actions"
+                className="aqp-export-menu"
+                buttonClassName="aqp-btn aqp-btn--white"
+                menuClassName="aqp-export-dropdown"
+                items={[
+                  {
+                    key: 'export-excel',
+                    label: 'Export to Excel .xlsx',
+                    badge: 'XLSX',
+                    onClick: () => handleExportRows('excel'),
+                  },
+                  {
+                    key: 'export-csv',
+                    label: 'Export to CSV',
+                    badge: 'CSV',
+                    onClick: () => handleExportRows('csv'),
+                  },
+                ]}
+              />
+            )}
+            <button
+              type="button"
+              className="aqp-btn aqp-btn--white aqp-btn--import"
+              onClick={handleImportClick}
+              disabled={isImporting}
+              title="Import Quotations (.xlsx, .xls, .csv)"
+            >
+              <FaUpload className="aqp-btn-icon" />
+              <span>{isImporting ? 'Importing...' : 'Import'}</span>
+            </button>
+            <input
+              ref={importFileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              style={{ display: 'none' }}
+              onChange={handleImportFileSelect}
+            />
             <button type="button" className="aqp-btn aqp-btn--gray" onClick={() => fileInputRef.current?.click()}>
               <FaUpload className="aqp-btn-icon" />
               Upload Quotation
@@ -2568,6 +2871,25 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
                       title={`Click to view ${row.num}`}
                     >
                       {selectedFieldDefinitions.map((field) => {
+                        if (field.key === 'oldQuotationNumber') {
+                          return (
+                            <td key={field.key} className="aqp-td aqp-td--old-num aqp-field--oldQuotationNumber">
+                              {row.oldQuotationNumber && row.oldQuotationNumber !== '-' ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontWeight: 600, color: '#0f172a' }}>{row.oldQuotationNumber}</span>
+                                  {row.isOldQuotation && (
+                                    <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '3px', background: '#e0f2fe', color: '#0369a1', fontWeight: 600 }}>
+                                      Old
+                                    </span>
+                                  )}
+                                </span>
+                              ) : (
+                                <span style={{ color: '#94a3b8' }}>-</span>
+                              )}
+                            </td>
+                          )
+                        }
+
                         if (field.key === 'num') {
                           return (
                             <td key={field.key} className={`aqp-td aqp-td--num aqp-field--${field.key}`}>
@@ -3369,7 +3691,7 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
                     <label className="quotation-builder-field quotation-builder-field-wide">
                       <span>Organization Name</span>
                       <input
-                        value={quotationForm.organizationName || ''}
+                        value={quotationForm.organizationName || activeProfile?.organizationName || ''}
                         readOnly
                       />
                     </label>
@@ -3377,35 +3699,35 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
                       <span>Organization Address</span>
                       <textarea
                         rows="2"
-                        value={quotationForm.organizationAddress || ''}
+                        value={quotationForm.organizationAddress || activeProfile?.organizationAddress || ''}
                         readOnly
                       />
                     </label>
                     <label className="quotation-builder-field">
                       <span>Organization Email</span>
                       <input
-                        value={quotationForm.organizationEmail || ''}
+                        value={quotationForm.organizationEmail || (activeProfile?.value === 'swati-switch' ? 'keval@swatiswitchgears.com' : activeProfile?.organizationEmail) || ''}
                         readOnly
                       />
                     </label>
                     <label className="quotation-builder-field">
                       <span>Organization Phone</span>
                       <input
-                        value={quotationForm.organizationPhone || ''}
+                        value={quotationForm.organizationPhone || activeProfile?.organizationPhone || ''}
                         onChange={(event) => handleBuilderFieldChange('organizationPhone', event.target.value.replace(/\D/g, ''))}
                       />
                     </label>
                     <label className="quotation-builder-field">
                       <span>GSTIN</span>
                       <input
-                        value={quotationForm.organizationGstin || ''}
+                        value={quotationForm.organizationGstin || activeProfile?.organizationGstin || ''}
                         readOnly
                       />
                     </label>
                     <label className="quotation-builder-field">
                       <span>State Code</span>
                       <input
-                        value={quotationForm.organizationStateCode || ''}
+                        value={quotationForm.organizationStateCode || activeProfile?.organizationStateCode || '24'}
                         readOnly
                       />
                     </label>
@@ -3491,6 +3813,17 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
         isOpen={isOtherProductModalOpen} 
         onClose={() => setIsOtherProductModalOpen(false)} 
         onAdd={handleAddModalLineItem} 
+      />
+
+      <ImportQuotationsModal
+        isOpen={isImportPreviewOpen}
+        onClose={() => setIsImportPreviewOpen(false)}
+        importPreviewQuotations={importPreviewQuotations}
+        importExcelHeaders={importExcelHeaders}
+        importPreviewFilter={importPreviewFilter}
+        onFilterChange={setImportPreviewFilter}
+        isImporting={isImporting}
+        onConfirmImport={handleConfirmImportQuotations}
       />
     </div>
   )

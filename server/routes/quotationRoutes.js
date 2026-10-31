@@ -35,6 +35,7 @@ router.use(requireAuth)
 router.get('/', quotationController.list)
 router.patch('/:id/frontend-delete', validate({ params: idParam }), quotationController.frontendDelete)
 router.get('/context-details', quotationController.getContextDetails)
+router.post('/bulk-import', quotationController.bulkImport)
 router.get('/:id/attachment/view', validate({ params: idParam }), quotationController.viewAttachment)
 router.get('/:id/revisions/:revisionCode/attachment/view', quotationController.viewAttachment)
 if (uploadQuotationAttachment) {

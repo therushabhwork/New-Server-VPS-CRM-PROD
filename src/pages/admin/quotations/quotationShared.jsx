@@ -48,8 +48,7 @@ export const ADMIN_QUOTATION_LAYOUT_VIEW_NAME = 'Admin Quotation Manager Layout'
 export const MAX_UPLOAD_QUOTATION_FILE_SIZE = 5 * 1024 * 1024
 export const ALLOWED_UPLOAD_QUOTATION_EXTENSIONS = ['pdf', 'xls', 'xlsx']
 
-export const INITIAL_FILTERS = {
-  num: '',
+export const INITIAL_FILTERS = {  oldQuotationNumber: '',  num: '',
   owner: '',
   date: '',
   company: '',
@@ -148,15 +147,21 @@ export const createInitialUploadQuotationForm = () => {
 
 export const ADMIN_QUOTATION_FIELD_DEFINITIONS = [
   { key: 'num', label: 'Quotation Number', exportValue: (row) => row.num },
+  { key: 'oldQuotationNumber', label: 'Old Quotation No.', exportValue: (row) => row.oldQuotationNumber },
   { key: 'date', label: 'Quotation Date', exportValue: (row) => row.date },
-  { key: 'owner', label: 'Quotation Owner', exportValue: (row) => row.owner },
+  { key: 'oldQuotationDate', label: 'Old Quotation Date', exportValue: (row) => row.oldQuotationDate },
   { key: 'company', label: 'Company Name', exportValue: (row) => row.company },
-  { key: 'project', label: 'Project Name', exportValue: (row) => row.project },
-  { key: 'amount', label: 'Amount', exportValue: (row) => row.amountLabel },
+  { key: 'contactPerson', label: 'Contact Person', exportValue: (row) => row.contactPerson },
+  { key: 'validUntil', label: 'Quotation Valid Until', exportValue: (row) => row.validUntil },
   { key: 'status', label: 'Status', exportValue: (row) => row.statusLabel },
+  { key: 'amount', label: 'Quotation Total', exportValue: (row) => row.amountLabel },
+  { key: 'owner', label: 'Quotation Added By', exportValue: (row) => row.owner },
+  { key: 'accountName', label: 'Account Name', exportValue: (row) => row.accountName },
+  { key: 'project', label: 'Project Name', exportValue: (row) => row.project },
 ]
 
 export const ADMIN_QUOTATION_MANAGER_EXPORT_COLUMNS = [
+  { key: 'oldQuotationNumber', label: 'Old Quotation No.', type: 'text', width: 20 },
   { key: 'num', label: 'Quotation Number', type: 'text', width: 18 },
   { key: 'date', label: 'Quotation Date', type: 'date', align: 'center', width: 18 },
   { key: 'owner', label: 'Quotation Owner', type: 'text', width: 22 },
@@ -167,14 +172,14 @@ export const ADMIN_QUOTATION_MANAGER_EXPORT_COLUMNS = [
 ]
 
 export const DEFAULT_SELECTED_ADMIN_QUOTATION_FIELDS = [
-  'num', 'owner', 'date', 'amount', 'status', 'company', 'project'
+  'oldQuotationNumber', 'num', 'owner', 'date', 'amount', 'status', 'company', 'project'
 ]
 
 export const orderQuotationNumberFirst = (fieldKeys = [], activeTab = 'deal') => {
   const cleanKeys = fieldKeys.filter(Boolean)
   const preferredOrder = activeTab === 'account'
-    ? ['num', 'owner', 'date', 'company', 'amount', 'status', 'project']
-    : ['num', 'owner', 'date', 'amount', 'status', 'company', 'project']
+    ? ['oldQuotationNumber', 'num', 'owner', 'date', 'company', 'amount', 'status', 'project']
+    : ['oldQuotationNumber', 'num', 'owner', 'date', 'amount', 'status', 'company', 'project']
   const orderedKeys = preferredOrder.filter((fieldKey) => cleanKeys.includes(fieldKey))
   cleanKeys.forEach((fieldKey) => {
     if (!orderedKeys.includes(fieldKey)) orderedKeys.push(fieldKey)
@@ -186,20 +191,38 @@ export const readAdminQuotationLayout = () => {
   try {
     const rawValue = window.localStorage.getItem(ADMIN_QUOTATION_LAYOUT_STORAGE_KEY)
     const parsedValue = rawValue ? JSON.parse(rawValue) : null
-    const selectedFields = Array.isArray(parsedValue?.selectedFields) && parsedValue.selectedFields.length > 0
+    let selectedFields = Array.isArray(parsedValue?.selectedFields) && parsedValue.selectedFields.length > 0
       ? parsedValue.selectedFields.filter((fieldKey) => ADMIN_QUOTATION_FIELD_DEFINITIONS.some((field) => field.key === fieldKey))
-      : DEFAULT_SELECTED_ADMIN_QUOTATION_FIELDS
+      : [...DEFAULT_SELECTED_ADMIN_QUOTATION_FIELDS]
+
+    if (!selectedFields.includes('oldQuotationNumber')) {
+      const numIndex = selectedFields.indexOf('num')
+      if (numIndex >= 0) {
+        selectedFields.splice(numIndex, 0, 'oldQuotationNumber')
+      } else {
+        selectedFields.unshift('oldQuotationNumber')
+      }
+    }
 
     return { selectedFields: orderQuotationNumberFirst(selectedFields) }
   } catch {
-    return { selectedFields: DEFAULT_SELECTED_ADMIN_QUOTATION_FIELDS }
+    return { selectedFields: [...DEFAULT_SELECTED_ADMIN_QUOTATION_FIELDS] }
   }
 }
 
 export const sanitizeAdminQuotationLayout = (layoutValue = {}) => {
-  const selectedFields = Array.isArray(layoutValue?.selectedFields) && layoutValue.selectedFields.length > 0
+  let selectedFields = Array.isArray(layoutValue?.selectedFields) && layoutValue.selectedFields.length > 0
     ? layoutValue.selectedFields.filter((fieldKey) => ADMIN_QUOTATION_FIELD_DEFINITIONS.some((field) => field.key === fieldKey))
-    : DEFAULT_SELECTED_ADMIN_QUOTATION_FIELDS
+    : [...DEFAULT_SELECTED_ADMIN_QUOTATION_FIELDS]
+
+  if (!selectedFields.includes('oldQuotationNumber')) {
+    const numIndex = selectedFields.indexOf('num')
+    if (numIndex >= 0) {
+      selectedFields.splice(numIndex, 0, 'oldQuotationNumber')
+    } else {
+      selectedFields.unshift('oldQuotationNumber')
+    }
+  }
 
   return {
     selectedFields: orderQuotationNumberFirst(selectedFields.length > 0 ? selectedFields : DEFAULT_SELECTED_ADMIN_QUOTATION_FIELDS),

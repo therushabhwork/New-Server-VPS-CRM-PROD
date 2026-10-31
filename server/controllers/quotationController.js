@@ -64,4 +64,21 @@ module.exports = {
       next(error)
     }
   },
+  bulkImport: async (req, res, next) => {
+    try {
+      const items = Array.isArray(req.body?.quotations) ? req.body.quotations : (Array.isArray(req.body) ? req.body : []);
+      const result = await quotationService.bulkImportQuotations(req.user, items);
+      res.status(200).json({
+        success: true,
+        data: result,
+        message: `Imported ${result.insertedCount || 0} quotations successfully.`,
+      });
+    } catch (error) {
+      console.error('Error in quotationController.bulkImport:', error);
+      res.status(500).json({
+        success: false,
+        message: error?.message || 'Internal Server Error during bulk import',
+      });
+    }
+  },
 }

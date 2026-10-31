@@ -137,4 +137,9 @@ export const quotationApi = {
     const response = await apiClient.get('/quotations/context-details', { params })
     return response.data?.data || response.data
   },
+
+  async importQuotations(quotations = []) {
+    const response = await apiClient.post('/quotations/bulk-import', { quotations })
+    return response.data
+  },
 }

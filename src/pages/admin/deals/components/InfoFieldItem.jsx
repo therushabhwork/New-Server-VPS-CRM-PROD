@@ -39,6 +39,15 @@ const InfoFieldItem = ({
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
+      if (type === 'textarea') {
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault()
+          if (!isSaving && onSave) {
+            onSave(itemKey, editValue)
+          }
+        }
+        return
+      }
       e.preventDefault()
       if (!isSaving && onSave) {
         onSave(itemKey, editValue)
@@ -108,6 +117,16 @@ const InfoFieldItem = ({
               <input
                 type="number"
                 className="c-deal-inline-input"
+                value={editValue}
+                onChange={(e) => onChangeEditValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isSaving}
+                autoFocus
+              />
+            ) : type === 'textarea' ? (
+              <textarea
+                className="c-deal-inline-input c-deal-inline-textarea"
+                rows={3}
                 value={editValue}
                 onChange={(e) => onChangeEditValue(e.target.value)}
                 onKeyDown={handleKeyDown}
