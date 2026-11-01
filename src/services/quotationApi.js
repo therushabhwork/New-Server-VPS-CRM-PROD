@@ -75,6 +75,7 @@ export const normalizeQuotationRecord = (quotation = {}) => {
     lineItems: lineItemsSource.map(normalizeLineItem),
     notes: mergedQuotation.notes || quotation.notes || mergedQuotation.quotationNotes || '',
     quotationNotes: mergedQuotation.quotationNotes || quotation.notes || '',
+    comments: mergedQuotation.comments || mergedQuotation.notes || quotation.comments || quotation.notes || '',
     userId: mergedQuotation.userId || quotation.createdBy || mergedQuotation.createdBy || '',
     createdBy: mergedQuotation.createdBy || quotation.createdBy || '',
     createdAt: mergedQuotation.createdAt || quotation.createdAt || '',
@@ -140,6 +141,11 @@ export const quotationApi = {
 
   async importQuotations(quotations = []) {
     const response = await apiClient.post('/quotations/bulk-import', { quotations })
+    return response.data
+  },
+
+  async updateComment(id, comments = '') {
+    const response = await apiClient.patch(`/quotations/${encodeURIComponent(id)}/comment`, { comments })
     return response.data
   },
 }

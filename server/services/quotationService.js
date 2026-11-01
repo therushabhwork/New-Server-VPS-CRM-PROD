@@ -552,9 +552,20 @@ const buildPayload = async (body, actor, existing) => {
     createdBy: existing?.createdBy ?? actor.id,
     selectedAccountOwner: body.selectedAccountOwner ?? body.accountOwner ?? existing?.selectedAccountOwner ?? existing?.accountOwner ?? existing?.data?.selectedAccountOwner ?? existing?.data?.accountOwner ?? '',
     accountOwner: body.selectedAccountOwner ?? body.accountOwner ?? existing?.selectedAccountOwner ?? existing?.accountOwner ?? existing?.data?.selectedAccountOwner ?? existing?.data?.accountOwner ?? '',
+    oldQuotationNumber: body.oldQuotationNumber ?? existing?.oldQuotationNumber ?? null,
+    oldQuoteNumber: body.oldQuoteNumber ?? existing?.oldQuoteNumber ?? null,
+    isOldQuotation: Boolean(body.isOldQuotation || existing?.isOldQuotation || body.oldQuotationNumber || existing?.oldQuotationNumber),
+    isExcelImport: Boolean(body.isExcelImport || existing?.isExcelImport),
+    comments: body.comments ?? existing?.comments ?? '',
+    remarks: body.remarks ?? existing?.remarks ?? '',
     data: {
       ...(existing?.data || {}),
       ...body,
+      oldQuotationNumber: body.oldQuotationNumber ?? existing?.data?.oldQuotationNumber ?? existing?.oldQuotationNumber ?? null,
+      oldQuoteNumber: body.oldQuoteNumber ?? existing?.data?.oldQuoteNumber ?? existing?.oldQuoteNumber ?? null,
+      isOldQuotation: Boolean(body.isOldQuotation || existing?.data?.isOldQuotation || existing?.isOldQuotation),
+      isExcelImport: Boolean(body.isExcelImport || existing?.data?.isExcelImport || existing?.isExcelImport),
+      comments: body.comments ?? existing?.data?.comments ?? existing?.comments ?? '',
       quoteNumber,
       quotationNumber: quoteNumber,
       quotationSequence,
@@ -913,16 +924,23 @@ module.exports = {
       ? toExplicitNumber(payload.totalAmount) ?? toExplicitNumber(payload.amount)
       : undefined
     const allQuotes = await quotationRepository.listAll()
+    const targetQuoteId = String(payload.id || payload._id || payload.quotationId || '').trim()
     const targetCustId = String(payload.customerId || payload.selectedAccountId || payload.data?.selectedAccountId || payload.data?.customerId || '').trim()
     const targetQuoteNo = String(payload.quoteNumber || payload.quotationNumber || payload.data?.quotationNumber || payload.data?.quoteNumber || '').trim()
+    const targetBaseQuote = targetQuoteNo.replace(/-R\d+$/i, '').trim().toLowerCase()
+    const targetOldQuote = String(payload.oldQuotationNumber || payload.oldQuoteNumber || payload.data?.oldQuotationNumber || payload.data?.oldQuoteNumber || '').trim().toLowerCase()
     const targetDealId = String(payload.dealId || payload.data?.dealId || payload.sourceDealId || payload.data?.sourceDealId || payload.dealNumber || payload.data?.dealNumber || '').trim()
     const targetAccNum = String(payload.clientAccountNumber || payload.data?.clientAccountNumber || '').trim().toLowerCase()
     const targetCompName = String(payload.companyName || payload.customerName || payload.data?.companyName || payload.data?.customerName || '').trim().toLowerCase()
     const targetContext = String(payload.quotationContext || payload.data?.quotationContext || (targetDealId ? 'deal' : 'account')).trim().toLowerCase()
 
     const existingMatch = allQuotes.find((q) => {
+      if (targetQuoteId && String(q.id || q._id) === targetQuoteId) return true
+
       const qCust = String(q.customerId || q.selectedAccountId || q.data?.selectedAccountId || q.data?.customerId || '').trim()
       const qNo = String(q.quoteNumber || q.quotationNumber || q.data?.quotationNumber || '').trim()
+      const qBase = qNo.replace(/-R\d+$/i, '').trim().toLowerCase()
+      const qOld = String(q.oldQuotationNumber || q.oldQuoteNumber || q.data?.oldQuotationNumber || q.data?.oldQuoteNumber || '').trim().toLowerCase()
       const qDeal = String(q.dealId || q.data?.dealId || q.sourceDealId || q.data?.sourceDealId || q.dealNumber || q.data?.dealNumber || '').trim()
       const qAccNum = String(q.clientAccountNumber || q.data?.clientAccountNumber || '').trim().toLowerCase()
       const qCompName = String(q.companyName || q.customerName || q.data?.companyName || q.data?.customerName || '').trim().toLowerCase()
@@ -938,16 +956,14 @@ module.exports = {
 
       if (targetCustId) return Boolean(qCust && qCust === targetCustId)
       if (targetAccNum && qAccNum && qAccNum === targetAccNum) return true
-      if (!hasStrongTarget && targetQuoteNo && qNo === targetQuoteNo) return true
-      if (!hasStrongTarget && targetCompName && qCompName && qCompName === targetCompName) return true
+      if (targetBaseQuote && qBase && qBase === targetBaseQuote) return true
+      if (targetOldQuote && qOld && qOld === targetOldQuote) return true
+      if (!hasStrongTarget && targetQuoteNo && qNo.toLowerCase() === targetQuoteNo.toLowerCase()) return true
+      if (!hasStrongTarget && !targetBaseQuote && !targetOldQuote && targetCompName && qCompName && qCompName === targetCompName) return true
       return false
     })
 
     if (existingMatch) {
-      const existingStatus = String(existingMatch.status || existingMatch.data?.status || '').toLowerCase()
-      if (existingStatus === 'approved') {
-        throw new AppError('This quotation is already approved and cannot receive another revision.', 409)
-      }
       const existingRevAmounts = existingMatch.quotationRevisionAmounts || existingMatch.data?.quotationRevisionAmounts || {}
       const existingRevisions = Array.isArray(existingMatch.revisions)
         ? existingMatch.revisions
@@ -957,6 +973,9 @@ module.exports = {
       const currentRevNo = savedRevisionNumbers.length > 0 ? Math.max(...savedRevisionNumbers) : -1
       const nextRevNo = currentRevNo + 1
       const nextRevCode = `R${nextRevNo}`
+      if (nextRevNo > 3) {
+        throw new AppError('This quotation has reached its maximum revision limit (R3).', 409)
+      }
       const newAmount = toExplicitNumber(payload[`r${nextRevNo}Amount`]) ?? uploadQuotationAmount
       if (newAmount === undefined) {
         throw new AppError(`${nextRevCode} Amount is required to create the next quotation revision.`, 400)
@@ -1020,6 +1039,10 @@ module.exports = {
 
       const updatePayload = {
         ...payload,
+        oldQuotationNumber: existingMatch.oldQuotationNumber || existingMatch.data?.oldQuotationNumber || payload.oldQuotationNumber || '',
+        oldQuoteNumber: existingMatch.oldQuoteNumber || existingMatch.data?.oldQuoteNumber || payload.oldQuoteNumber || '',
+        isOldQuotation: Boolean(existingMatch.isOldQuotation || existingMatch.data?.isOldQuotation || payload.isOldQuotation),
+        isExcelImport: Boolean(existingMatch.isExcelImport || existingMatch.data?.isExcelImport || payload.isExcelImport),
         quoteNumber: updatedQuoteNumber,
         quotationNumber: updatedQuoteNumber,
         revisionCode: nextRevCode,
@@ -1036,6 +1059,9 @@ module.exports = {
         quotationRevisionAmounts: updatedRevAmounts,
         revisions: updatedRevisionsList,
         status: 'Open',
+        comments: payload.comments || existingMatch.comments || existingMatch.data?.comments || '',
+        notes: payload.comments || existingMatch.notes || existingMatch.data?.notes || '',
+        remarks: payload.comments || existingMatch.remarks || existingMatch.data?.remarks || '',
       }
 
       const updatedResult = await quotationService.update(actor, existingMatch.id, updatePayload)
@@ -1060,33 +1086,35 @@ module.exports = {
     })
     await syncQuotationToLeadsAndDeals(result)
     try {
-      const { findUserById } = require('../repositories/userRepository')
-      const assignedUserId = result.assignedTo || actor.id
-      const userRecord = assignedUserId ? await findUserById(assignedUserId) : null
-      const ownerName = userRecord?.name || result.data?.selectedAccountOwner || result.data?.quotationOwner || ''
-      const ownerCode = userRecord?.ownerCode || result.ownerCode || result.data?.ownerCode || result.data?.customerOwnerCode || ''
+      if (!payload.isOldQuotation && !payload.isExcelImport && !payload.oldQuotationNumber && !payload.isRevision) {
+        const { findUserById } = require('../repositories/userRepository')
+        const assignedUserId = result.assignedTo || actor.id
+        const userRecord = assignedUserId ? await findUserById(assignedUserId) : null
+        const ownerName = userRecord?.name || result.data?.selectedAccountOwner || result.data?.quotationOwner || ''
+        const ownerCode = userRecord?.ownerCode || result.ownerCode || result.data?.ownerCode || result.data?.customerOwnerCode || ''
 
-      const customerService = require('./customerService')
-      const customerPayload = {
-        name: result.customerName || result.companyName || result.title || 'Quotation Customer',
-        accountId: result.customerId || null,
-        email: result.data?.email || result.data?.organizationEmail || null,
-        phone: result.data?.telephone || result.data?.phone || result.data?.organizationPhone || null,
-        company: result.companyName || result.customerName || null,
-        assignedTo: assignedUserId,
-        customerOwner: ownerName,
-        customerOwnerName: ownerName,
-        customerOwnerDisplay: ownerName,
-        customerOwnerCode: ownerCode,
-        customerStatus: 'pending',
-        customerCategory: 'SWATI',
-        contacts: [],
-        documents: []
-      };
-      
-      delete customerPayload.data;
-      
-      await customerService.create(actor, customerPayload)
+        const customerService = require('./customerService')
+        const customerPayload = {
+          name: result.customerName || result.companyName || result.title || 'Quotation Customer',
+          accountId: result.customerId || null,
+          email: result.data?.email || result.data?.organizationEmail || null,
+          phone: result.data?.telephone || result.data?.phone || result.data?.organizationPhone || null,
+          company: result.companyName || result.customerName || null,
+          assignedTo: assignedUserId,
+          customerOwner: ownerName,
+          customerOwnerName: ownerName,
+          customerOwnerDisplay: ownerName,
+          customerOwnerCode: ownerCode,
+          customerStatus: 'pending',
+          customerCategory: 'SWATI',
+          contacts: [],
+          documents: []
+        };
+        
+        delete customerPayload.data;
+        
+        await customerService.create(actor, customerPayload)
+      }
     } catch (err) {
       console.warn('Could not auto-create customer upon quotation generation', err)
     }
@@ -1394,6 +1422,8 @@ module.exports = {
     let duplicateCount = 0;
     let insertedCount = 0;
 
+    // Group items by base old quotation number so sibling revisions (R0, R1...) share one continuous new quotation record
+    const groupedMap = new Map();
     for (const raw of quotations) {
       count++;
       const rawQuoteNo = cleanStr(
@@ -1415,6 +1445,32 @@ module.exports = {
 
       const isDuplicate = Boolean(rawQuoteNo && existingQuoteNumbers.has(rawQuoteNo.toLowerCase()));
       if (isDuplicate) duplicateCount++;
+
+      const baseKey = rawQuoteNo ? rawQuoteNo.replace(/-R\d+$/i, '').trim().toLowerCase() : `item-${count}`;
+      if (!groupedMap.has(baseKey)) {
+        groupedMap.set(baseKey, []);
+      }
+      groupedMap.get(baseKey).push({ raw, rawQuoteNo, isDuplicate });
+    }
+
+    for (const [_, rowsInGroup] of groupedMap.entries()) {
+      // Sort sibling rows by revision number (R0, R1, R2...)
+      rowsInGroup.sort((a, b) => {
+        const getRev = (item) => {
+          const m = String(item.rawQuoteNo || item.raw.quotationNumber || '').match(/-R(\d+)$/i);
+          if (m) return parseInt(m[1], 10);
+          if (typeof item.raw.revisionNo === 'number') return item.raw.revisionNo;
+          const code = String(item.raw.revisionCode || item.raw['Revision'] || item.raw['Revision Code'] || item.raw['Rev'] || '').toUpperCase();
+          const num = parseInt(code.replace(/\D/g, ''), 10);
+          return isNaN(num) ? 0 : num;
+        };
+        return getRev(a) - getRev(b);
+      });
+
+      const primaryItem = rowsInGroup[rowsInGroup.length - 1];
+      const raw = primaryItem.raw;
+      const rawQuoteNo = primaryItem.rawQuoteNo;
+      const rawBaseOldQuoteNo = rawQuoteNo.replace(/-R\d+$/i, '').trim();
 
       const rawOwner = cleanStr(
         raw.quotationAddedBy ||
@@ -1474,7 +1530,6 @@ module.exports = {
       const projectName = cleanStr(raw.projectName || raw['Project Name'] || raw.dealName || raw['Deal Name'] || 'General Enquiry');
       const contactPerson = cleanStr(raw.contactPerson || raw['Contact Person'] || raw.contact || raw['Contact'] || '');
       const validUntil = cleanStr(raw.validUntil || raw['Quotation Valid Until'] || raw['Valid Until'] || raw.expiryDate || '');
-      const amount = cleanNum(raw.amount || raw['Quotation Total'] || raw['Total Amount'] || raw['Amount'] || raw.totalAmount || 0);
       const status = cleanStr(raw.status || raw['Status'] || 'Open') || 'Open';
       const rawQuotationDate = cleanStr(
         raw.oldQuotationDate ||
@@ -1488,31 +1543,75 @@ module.exports = {
         ''
       );
 
-      const quotationNumber = rawQuoteNo;
       const quotationDate = safeDateStr(rawQuotationDate);
       const isoCreatedAt = parseDateSafe(rawQuotationDate);
 
-      // Revision code and revision hierarchy identical to generated quotations
-      const revMatch = String(quotationNumber || '').match(/-(R\d+)$/i);
-      const initialRevCode = revMatch ? revMatch[1].toUpperCase() : 'R0';
-      const initialRevNo = revMatch ? parseInt(revMatch[1].slice(1), 10) : 0;
-      const initialRevAmount = amount || 0;
-      const initialRevisionItem = {
-        revisionCode: initialRevCode,
-        revisionNo: initialRevNo,
-        amount: initialRevAmount,
-        date: quotationDate || new Date().toISOString().slice(0, 10),
-        status: status || 'Open',
-      };
+      // Allocate New Quotation Number in live continuous cycle
+      let generatedNewNum = null;
+      try {
+        generatedNewNum = await quotationNumberService.generateQuotationNumber(actor, quotationDate);
+      } catch (genErr) {
+        console.warn('Could not allocate new quotation sequence number:', genErr?.message);
+      }
+      const newBaseQuoteNumber = generatedNewNum ? generatedNewNum.quoteNumber : (rawBaseOldQuoteNo || `SSIPL/${new Date(quotationDate).getFullYear()}/${count}`);
+
+      // Build cumulative revisions across all sibling rows in this group
+      const revAmounts = {};
+      const revisionsList = [];
+
+      rowsInGroup.forEach(({ raw: itemRaw, rawQuoteNo: itemQuoteNo }) => {
+        const revMatch = String(itemQuoteNo || itemRaw.quotationNumber || '').match(/-(R\d+)$/i);
+        const rCode = revMatch
+          ? revMatch[1].toUpperCase()
+          : (cleanStr(itemRaw.revisionCode || itemRaw['Revision'] || itemRaw['Revision Code'] || itemRaw['Rev'] || itemRaw['Rev No'] || '').toUpperCase() || 'R0');
+        const rNo = revMatch
+          ? parseInt(revMatch[1].slice(1), 10)
+          : (parseInt(rCode.replace(/\D/g, ''), 10) || 0);
+        const rAmt = cleanNum(itemRaw.amount || itemRaw['Quotation Total'] || itemRaw['Total Amount'] || itemRaw['Amount'] || itemRaw.totalAmount || 0);
+        const rStatus = cleanStr(itemRaw.status || itemRaw['Status'] || 'Open') || 'Open';
+        const rDate = safeDateStr(cleanStr(itemRaw.oldQuotationDate || itemRaw.quotationDate || itemRaw.date || rawQuotationDate));
+        const rComment = cleanStr(itemRaw.comments || itemRaw.comment || itemRaw.notes || itemRaw.remarks || itemRaw['Comment'] || itemRaw['Comments'] || itemRaw['Notes'] || itemRaw['Remarks'] || '');
+
+        revAmounts[rCode] = rAmt;
+        revisionsList.push({
+          revisionCode: rCode,
+          revisionNo: rNo,
+          amount: rAmt,
+          date: rDate,
+          status: rStatus,
+          comment: rComment,
+        });
+      });
+
+      if (!revAmounts.R0 && revisionsList.length > 0) {
+        const firstCode = revisionsList[0].revisionCode;
+        revAmounts.R0 = revAmounts[firstCode] || 0;
+      }
+
+      const activeRevItem = revisionsList[revisionsList.length - 1];
+      const activeRevCode = activeRevItem?.revisionCode || 'R0';
+      const activeRevNo = activeRevItem?.revisionNo || 0;
+      const activeRevAmount = activeRevItem?.amount || 0;
+
+      const finalNewQuotationNumber = quotationNumberService.formatQuotationNumberWithRevision(newBaseQuoteNumber, activeRevCode);
+      const rawComments = cleanStr(raw.comments || raw.comment || raw.notes || raw.remarks || raw['Comment'] || raw['Comments'] || raw['Notes'] || raw['Remarks'] || raw['Remark'] || '');
 
       const docToInsert = {
         ...orgDetails,
-        oldQuotationNumber: quotationNumber,
-        oldQuoteNumber: quotationNumber,
+        // Old Quotation Number preserved as the permanent historical identifier
+        oldQuotationNumber: rawBaseOldQuoteNo || rawQuoteNo,
+        oldQuoteNumber: rawBaseOldQuoteNo || rawQuoteNo,
         oldQuotationDate: quotationDate,
         oldDate: quotationDate,
-        quotationNumber,
-        quoteNumber: quotationNumber,
+
+        // New Quotation Number generated from the live continuous sequence cycle
+        quotationNumber: finalNewQuotationNumber,
+        quoteNumber: finalNewQuotationNumber,
+        quotationSequence: generatedNewNum?.sequence || parseQuotationNumber(finalNewQuotationNumber),
+        quotationSequenceMonth: String(generatedNewNum?.financialYear || new Date(quotationDate).getFullYear()),
+        financialYear: generatedNewNum?.financialYear,
+        ownerCode: generatedNewNum?.ownerCode || ownerCode,
+
         quotationDate,
         date: quotationDate,
         title: projectName || companyName || 'Imported Quotation',
@@ -1524,17 +1623,18 @@ module.exports = {
         contactPerson,
         validUntil,
         status,
-        amount: initialRevAmount,
-        totalAmount: initialRevAmount,
+        amount: activeRevAmount,
+        totalAmount: activeRevAmount,
         taxAmount: 0,
         discountAmount: 0,
         currency: 'INR',
         lineItems: [],
-        notes: '',
+        notes: rawComments,
+        comments: rawComments,
+        remarks: rawComments,
         ownerName,
         quotationOwner: ownerName,
         addedByName: ownerName,
-        ownerCode,
         userId,
         createdBy: actor?.id || null,
         ownerUserId: actor?.id || null,
@@ -1544,15 +1644,15 @@ module.exports = {
         profileName: resolvedProfileName,
         logoAsset: resolvedLogoAsset,
         logoType: 'image',
-        revisionCode: initialRevCode,
-        revisionNo: initialRevNo,
-        r0Amount: initialRevCode === 'R0' ? initialRevAmount : 0,
-        revisionAmountR0: initialRevCode === 'R0' ? initialRevAmount : 0,
-        quotationRevisionAmounts: { [initialRevCode]: initialRevAmount },
-        revisions: [initialRevisionItem],
+        revisionCode: activeRevCode,
+        revisionNo: activeRevNo,
+        r0Amount: revAmounts.R0 !== undefined ? revAmounts.R0 : activeRevAmount,
+        revisionAmountR0: revAmounts.R0 !== undefined ? revAmounts.R0 : activeRevAmount,
+        quotationRevisionAmounts: revAmounts,
+        revisions: revisionsList,
         isOldQuotation: true,
         isExcelImport: true,
-        isDuplicate,
+        isDuplicate: primaryItem.isDuplicate,
         data: {
           ...raw,
           ...orgDetails,
@@ -1561,38 +1661,41 @@ module.exports = {
           profileName: resolvedProfileName,
           logoAsset: resolvedLogoAsset,
           logoType: 'image',
-          revisionCode: initialRevCode,
-          revisionNo: initialRevNo,
-          r0Amount: initialRevCode === 'R0' ? initialRevAmount : 0,
-          revisionAmountR0: initialRevCode === 'R0' ? initialRevAmount : 0,
-          quotationRevisionAmounts: { [initialRevCode]: initialRevAmount },
-          revisions: [initialRevisionItem],
+          revisionCode: activeRevCode,
+          revisionNo: activeRevNo,
+          r0Amount: revAmounts.R0 !== undefined ? revAmounts.R0 : activeRevAmount,
+          revisionAmountR0: revAmounts.R0 !== undefined ? revAmounts.R0 : activeRevAmount,
+          quotationRevisionAmounts: revAmounts,
+          revisions: revisionsList,
           status,
           currency: 'INR',
           validUntil,
           lineItems: [],
-          oldQuotationNumber: quotationNumber,
-          oldQuoteNumber: quotationNumber,
+          oldQuotationNumber: rawBaseOldQuoteNo || rawQuoteNo,
+          oldQuoteNumber: rawBaseOldQuoteNo || rawQuoteNo,
           oldQuotationDate: quotationDate,
           oldDate: quotationDate,
-          quotationNumber,
-          quoteNumber: quotationNumber,
+          quotationNumber: finalNewQuotationNumber,
+          quoteNumber: finalNewQuotationNumber,
           quotationDate,
           clientName: companyName,
           companyName,
           accountName,
           projectName,
           contactPerson,
-          amount: initialRevAmount,
-          totalAmount: initialRevAmount,
+          amount: activeRevAmount,
+          totalAmount: activeRevAmount,
           selectedAccountOwner: ownerName,
           ownerName,
           quotationOwner: ownerName,
           quotationAddedBy: ownerName,
           quotationContext: 'account',
+          comments: rawComments,
+          notes: rawComments,
+          remarks: rawComments,
           isOldQuotation: true,
           isExcelImport: true,
-          isDuplicate,
+          isDuplicate: primaryItem.isDuplicate,
         },
         createdAt: isoCreatedAt,
         updatedAt: new Date().toISOString(),
@@ -1601,13 +1704,27 @@ module.exports = {
       try {
         await quotationRepository.create(docToInsert);
         insertedCount++;
-        if (quotationNumber) existingQuoteNumbers.add(quotationNumber.toLowerCase());
+        if (finalNewQuotationNumber) existingQuoteNumbers.add(finalNewQuotationNumber.toLowerCase());
+        if (rawBaseOldQuoteNo) existingQuoteNumbers.add(rawBaseOldQuoteNo.toLowerCase());
       } catch (itemErr) {
-        console.error(`Failed to insert imported quotation ${quotationNumber || count}:`, itemErr?.message || itemErr);
+        console.error(`Failed to insert imported quotation ${finalNewQuotationNumber || count}:`, itemErr?.message || itemErr);
       }
     }
 
     return { count, insertedCount, duplicateCount };
+  },
+  updateComment: async (actor, id, comments) => {
+    const cleanComment = String(comments || '').trim();
+    const updated = await quotationRepository.update(id, {
+      comments: cleanComment,
+      notes: cleanComment,
+      remarks: cleanComment,
+      'data.comments': cleanComment,
+      'data.notes': cleanComment,
+      'data.remarks': cleanComment,
+      updatedAt: new Date().toISOString(),
+    });
+    return updated;
   },
 }
 module.exports.normalizeLineItems = normalizeLineItems

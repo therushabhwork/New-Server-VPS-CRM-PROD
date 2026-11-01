@@ -247,6 +247,33 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
         const rawAmount = row['Quotation Total'] || row['Total Amount'] || row['Amount'] || row.amount || row.totalAmount || 0
         const status = String(row['Status'] || row.status || 'Open').trim() || 'Open'
 
+        const rawComments = String(
+          row['Comment'] ||
+          row['Comments'] ||
+          row['Notes'] ||
+          row['Remarks'] ||
+          row['Remark'] ||
+          row.comment ||
+          row.comments ||
+          row.notes ||
+          row.remarks ||
+          ''
+        ).trim()
+
+        const rawRevCode = String(
+          row['Revision'] ||
+          row['Revision Code'] ||
+          row['Rev'] ||
+          row['Rev No'] ||
+          row.revisionCode ||
+          ''
+        ).trim().toUpperCase()
+
+        const rawR0 = row['R0 Amount'] || row['R0'] || row.r0Amount
+        const rawR1 = row['R1 Amount'] || row['R1'] || row.r1Amount
+        const rawR2 = row['R2 Amount'] || row['R2'] || row.r2Amount
+        const rawR3 = row['R3 Amount'] || row['R3'] || row.r3Amount
+
         const importPayload = {
           ...row,
           oldQuotationNumber: rawOldQuoteNo,
@@ -263,6 +290,14 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
           amount: rawAmount,
           totalAmount: rawAmount,
           status,
+          comments: rawComments,
+          notes: rawComments,
+          remarks: rawComments,
+          revisionCode: rawRevCode,
+          r0Amount: rawR0,
+          r1Amount: rawR1,
+          r2Amount: rawR2,
+          r3Amount: rawR3,
           isOldQuotation: true,
           isDuplicate,
         }
@@ -276,6 +311,7 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
           'Quotation Added By': quotationOwner || '-',
           'Quotation Date': rawOldDate || '-',
           'Company Name': companyName || '-',
+          'Comment': rawComments || '-',
           'Quotation Total': rawAmount ? `₹${Number(rawAmount).toLocaleString('en-IN')}` : '₹0',
           'Status': status,
           'Project Name': projectName || '-',
@@ -294,6 +330,12 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
           amount: rawAmount,
           totalAmount: rawAmount,
           status,
+          comments: rawComments,
+          notes: rawComments,
+          remarks: rawComments,
+          revisionCode: rawRevCode,
+          r0Amount: rawR0,
+          r1Amount: rawR1,
           isDuplicate,
           importStatus: isDuplicate ? 'Duplicate' : 'Ready to import',
         }
@@ -372,9 +414,47 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
   const [rejectError, setRejectError] = useState('')
   const [actionLoadingId, setActionLoadingId] = useState('')
   const [revisionsModalRow, setRevisionsModalRow] = useState(null)
+  const [commentModalRow, setCommentModalRow] = useState(null)
+  const [commentModalText, setCommentModalText] = useState('')
+  const [commentModalSaving, setCommentModalSaving] = useState(false)
   const [openNumMenuRowId, setOpenNumMenuRowId] = useState(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const viewQuotationId = searchParams.get('view') || ''
+
+  const handleOpenCommentModal = (row) => {
+    setCommentModalRow(row)
+    setCommentModalText(String(row?.comments || row?.raw?.comments || row?.raw?.notes || row?.raw?.remarks || ''))
+  }
+
+  const handleSaveComment = async () => {
+    if (!commentModalRow) return
+    const targetId = commentModalRow.raw?.id || commentModalRow.id
+    try {
+      setCommentModalSaving(true)
+      await quotationApi.updateComment(targetId, commentModalText)
+      addNotification('success', 'Comment Updated', `Comment for ${commentModalRow.num || targetId} saved successfully.`)
+      
+      commentModalRow.comments = commentModalText
+      if (commentModalRow.raw) {
+        commentModalRow.raw.comments = commentModalText
+        commentModalRow.raw.notes = commentModalText
+        commentModalRow.raw.remarks = commentModalText
+        if (commentModalRow.raw.data) {
+          commentModalRow.raw.data.comments = commentModalText
+          commentModalRow.raw.data.notes = commentModalText
+          commentModalRow.raw.data.remarks = commentModalText
+        }
+      }
+      setCommentModalRow(null)
+      if (typeof refreshQuotations === 'function') {
+        refreshQuotations()
+      }
+    } catch (err) {
+      addNotification('error', 'Update Failed', err.response?.data?.message || err.message || 'Could not save comment.')
+    } finally {
+      setCommentModalSaving(false)
+    }
+  }
 
   useEffect(() => {
     if (!openNumMenuRowId) return undefined
@@ -495,6 +575,7 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
           contactPerson,
           validUntil,
           accountName,
+          comments: quotation.comments || quotation.notes || quotation.remarks || quotation.data?.comments || quotation.data?.notes || quotation.data?.remarks || '',
           amount: amountNumber,
           amountLabel: formatCurrency(amountNumber, quotation.currency || 'INR'),
           status: quotation.status || 'draft',
@@ -621,24 +702,24 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
 
   const siblingRevisions = useMemo(() => {
     if (!revisionsModalRow) return []
-    const targetNo = String(revisionsModalRow.num || revisionsModalRow.raw?.quotationNumber || '').replace(/-R\d+$/i, '')
+    const targetNo = String(revisionsModalRow.num || revisionsModalRow.raw?.quotationNumber || '').replace(/-R\d+$/i, '').trim().toLowerCase()
+    const targetOldNo = String(revisionsModalRow.oldQuotationNumber || revisionsModalRow.raw?.oldQuotationNumber || '').replace(/-R\d+$/i, '').trim().toLowerCase()
     const targetAccountId = String(revisionsModalRow.raw?.customerId || revisionsModalRow.raw?.selectedAccountId || revisionsModalRow.raw?.data?.selectedAccountId || '').trim()
     const targetDealId = String(revisionsModalRow.raw?.dealId || revisionsModalRow.raw?.data?.dealId || '').trim()
     const targetAccNum = String(revisionsModalRow.raw?.clientAccountNumber || revisionsModalRow.raw?.data?.clientAccountNumber || '').trim()
-    const targetComp = String(revisionsModalRow.raw?.companyName || revisionsModalRow.raw?.customerName || revisionsModalRow.company || '').trim().toLowerCase()
 
     return rows.filter((r) => {
-      const qNo = String(r.num || r.raw?.quotationNumber || '').replace(/-R\d+$/i, '')
+      const qNo = String(r.num || r.raw?.quotationNumber || '').replace(/-R\d+$/i, '').trim().toLowerCase()
+      const qOldNo = String(r.oldQuotationNumber || r.raw?.oldQuotationNumber || '').replace(/-R\d+$/i, '').trim().toLowerCase()
       const qCust = String(r.raw?.customerId || r.raw?.selectedAccountId || r.raw?.data?.selectedAccountId || '').trim()
       const qDeal = String(r.raw?.dealId || r.raw?.data?.dealId || '').trim()
       const qAccNum = String(r.raw?.clientAccountNumber || r.raw?.data?.clientAccountNumber || '').trim()
-      const qComp = String(r.raw?.companyName || r.raw?.customerName || r.company || '').trim().toLowerCase()
 
-      if (targetNo && qNo === targetNo) return true
+      if (targetNo && qNo && qNo === targetNo) return true
+      if (targetOldNo && qOldNo && qOldNo === targetOldNo) return true
       if (targetDealId && qDeal && qDeal === targetDealId) return true
       if (targetAccountId && qCust && qCust === targetAccountId) return true
       if (targetAccNum && qAccNum && qAccNum === targetAccNum) return true
-      if (targetComp && qComp && qComp === targetComp) return true
       return false
     }).sort((a, b) => (a.raw?.revisionNo ?? 0) - (b.raw?.revisionNo ?? 0))
   }, [revisionsModalRow, rows])
@@ -1670,6 +1751,44 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
                     )
                   }
 
+                  if (field.key === 'comments') {
+                    const commentVal = String(row.comments || '').trim()
+                    return (
+                      <td key={field.key} className={`aqp-td aqp-field--${field.key}`}>
+                        <button
+                          type="button"
+                          className={`aqp-comment-badge${commentVal ? ' aqp-comment-badge--has' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleOpenCommentModal(row)
+                          }}
+                          title={commentVal || 'Click to add comment'}
+                          style={{
+                            background: commentVal ? '#f0fdf4' : '#f8fafc',
+                            border: `1px solid ${commentVal ? '#86efac' : '#cbd5e1'}`,
+                            color: commentVal ? '#15803d' : '#64748b',
+                            borderRadius: '4px',
+                            padding: '4px 8px',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            maxWidth: '180px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {commentVal || '+ Add Comment'}
+                          </span>
+                        </button>
+                      </td>
+                    )
+                  }
+
                   const value = field.exportValue(row)
                   const className = field.key === 'company'
                     ? `aqp-td aqp-td--link aqp-field--${field.key}`
@@ -2291,6 +2410,50 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
             />
           </label>
           {rejectError ? <div className="aqp-form-error">{rejectError}</div> : null}
+        </ModalShell>
+      ) : null}
+
+      {commentModalRow ? (
+        <ModalShell
+          title={`Quotation Comment - ${commentModalRow.num || commentModalRow.oldQuotationNumber || ''}`}
+          onClose={() => setCommentModalRow(null)}
+          size="aqp-modal--md"
+          footer={(
+            <>
+              <button
+                type="button"
+                className="aqp-btn aqp-btn--gray"
+                onClick={() => setCommentModalRow(null)}
+                disabled={commentModalSaving}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="aqp-btn aqp-btn--blue"
+                onClick={handleSaveComment}
+                disabled={commentModalSaving}
+              >
+                {commentModalSaving ? 'Saving...' : 'Save Comment'}
+              </button>
+            </>
+          )}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
+              <strong>Company:</strong> {commentModalRow.company || '-'} &nbsp;|&nbsp; <strong>Quotation:</strong> {commentModalRow.num || '-'}
+            </div>
+            <label className="aqp-form-field">
+              <span className="aqp-form-label">Comment / Remarks</span>
+              <textarea
+                className="aqp-textarea"
+                rows={4}
+                value={commentModalText}
+                onChange={(e) => setCommentModalText(e.target.value)}
+                placeholder="Enter quotation comment or remarks..."
+              />
+            </label>
+          </div>
         </ModalShell>
       ) : null}
 

@@ -486,6 +486,25 @@ const buildQuotationFormFromExisting = (quotation = {}, nextQuotationNumber = ''
   const hasR2 = r2Val !== undefined && r2Val !== null && r2Val !== '' && r2Val !== 0 && r2Val !== '0'
   const hasR3 = r3Val !== undefined && r3Val !== null && r3Val !== '' && r3Val !== 0 && r3Val !== '0'
 
+  const savedRevNumbers = []
+  if (hasR0) savedRevNumbers.push(0)
+  if (hasR1) savedRevNumbers.push(1)
+  if (hasR2) savedRevNumbers.push(2)
+  if (hasR3) savedRevNumbers.push(3)
+  if (Array.isArray(quotation.revisions)) {
+    quotation.revisions.forEach((r) => {
+      const code = String(r?.revisionCode || '').toUpperCase()
+      const n = Number(code.replace(/\D/g, ''))
+      if (Number.isFinite(n) && !savedRevNumbers.includes(n)) savedRevNumbers.push(n)
+    })
+  }
+  const highestSavedRev = savedRevNumbers.length > 0 ? Math.max(...savedRevNumbers) : 0
+  const nextRevNum = highestSavedRev + 1
+  const nextRevCode = `R${nextRevNum}`
+
+  const rawBaseQuoteNo = String(quotation.quotationNumber || quotation.quoteNumber || '').replace(/-R\d+$/i, '').trim()
+  const targetQuoteNo = rawBaseQuoteNo ? `${rawBaseQuoteNo}-${nextRevCode}` : (nextQuotationNumber || quotation.quotationNumber || '')
+
   const resolvedProfile = getProfileByValue(
     quotation.profileKey ||
     quotation.brandKey ||
@@ -505,7 +524,15 @@ const buildQuotationFormFromExisting = (quotation = {}, nextQuotationNumber = ''
     organizationGstin: quotation.organizationGstin || quotation.data?.organizationGstin || resolvedProfile.organizationGstin,
     organizationStateCode: quotation.organizationStateCode || quotation.data?.organizationStateCode || resolvedProfile.organizationStateCode || '24',
     website: quotation.website || quotation.data?.website || resolvedProfile.website,
-    quotationNumber: nextQuotationNumber || quotation.quotationNumber || '',
+    quotationNumber: targetQuoteNo,
+    oldQuotationNumber: quotation.oldQuotationNumber || quotation.oldQuoteNumber || quotation.data?.oldQuotationNumber || quotation.data?.oldQuoteNumber || '',
+    oldQuoteNumber: quotation.oldQuotationNumber || quotation.oldQuoteNumber || quotation.data?.oldQuotationNumber || quotation.data?.oldQuoteNumber || '',
+    isOldQuotation: Boolean(quotation.isOldQuotation || quotation.oldQuotationNumber || quotation.data?.oldQuotationNumber),
+    isExcelImport: Boolean(quotation.isExcelImport || quotation.data?.isExcelImport),
+    isRevision: true,
+    nextRevisionCode: nextRevCode,
+    nextRevisionAllowed: nextRevNum <= 3,
+    currentRevisionCode: `R${highestSavedRev}`,
     quotationDate,
     validUntil: addDaysToInputValue(quotationDate, 7),
     status: 'approved',
@@ -518,9 +545,13 @@ const buildQuotationFormFromExisting = (quotation = {}, nextQuotationNumber = ''
     r2Amount: hasR2 ? String(r2Val) : '',
     r3Amount: hasR3 ? String(r3Val) : '',
     isR0Locked: hasR0,
+    savedR0InDb: hasR0,
     isR1Locked: hasR1,
+    savedR1InDb: hasR1,
     isR2Locked: hasR2,
+    savedR2InDb: hasR2,
     isR3Locked: hasR3,
+    savedR3InDb: hasR3,
     lineItems: clonedLineItems,
   }
 }
@@ -1002,6 +1033,43 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
   const viewQuotationId = searchParams.get('view') || ''
   const globalSearchQuery = searchParams.get('query') || ''
 
+  const [commentModalRow, setCommentModalRow] = useState(null)
+  const [commentModalText, setCommentModalText] = useState('')
+  const [commentModalSaving, setCommentModalSaving] = useState(false)
+
+  const handleOpenCommentModal = (row) => {
+    setCommentModalRow(row)
+    setCommentModalText(row?.comments || row?.raw?.comments || row?.raw?.notes || row?.raw?.remarks || '')
+  }
+
+  const handleSaveComment = async () => {
+    if (!commentModalRow) return
+    const rowId = commentModalRow.id || commentModalRow.raw?._id || commentModalRow.raw?.id
+    if (!rowId) return
+    setCommentModalSaving(true)
+    try {
+      await quotationApi.updateComment(rowId, commentModalText)
+      setUserQuotations((prev) => prev.map((q) => {
+        if (String(q.id || q._id) === String(rowId)) {
+          return {
+            ...q,
+            comments: commentModalText,
+            notes: commentModalText,
+            remarks: commentModalText,
+            data: { ...(q.data || {}), comments: commentModalText, notes: commentModalText, remarks: commentModalText }
+          }
+        }
+        return q
+      }))
+      addNotification?.('success', 'Comment saved', 'Quotation comment updated successfully')
+      setCommentModalRow(null)
+    } catch (err) {
+      addNotification?.('error', 'Error', err?.response?.data?.message || err?.message || 'Failed to update comment')
+    } finally {
+      setCommentModalSaving(false)
+    }
+  }
+
   const handleAddModalLineItem = (item) => {
     setQuotationForm(prev => {
       const newLineItem = {
@@ -1134,6 +1202,7 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
       linkedAccount,
       originalIndex: index,
       quotationScope,
+      comments: quotation.comments || quotation.notes || quotation.remarks || quotation.data?.comments || quotation.data?.notes || quotation.data?.remarks || '',
       raw: quotation,
     }
   }, [normalizedAccounts])
@@ -2153,14 +2222,21 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
       return
     }
 
+    const isImportedOrRevision = Boolean(
+      quotationForm.isOldQuotation ||
+      quotationForm.oldQuotationNumber ||
+      quotationForm.isRevision ||
+      quotationForm.parentQuotationId
+    )
+
     const isDealQuotation = quotationForm.quotationContext === 'deal' || (!quotationForm.selectedAccountId && quotationForm.clientAccountNumber)
     const isAccountQuotation = quotationForm.quotationContext === 'account'
-    if (isAccountQuotation && !String(quotationForm.selectedAccountId || '').trim()) {
+    if (!isImportedOrRevision && isAccountQuotation && !String(quotationForm.selectedAccountId || '').trim()) {
       setBuilderError('A valid account must be selected before generating an account quotation.')
       return
     }
-    if (!quotationForm.profileKey || (!quotationForm.selectedAccountId && !isDealQuotation)) {
-      setBuilderError('Profile and account selection are required to generate a quotation.')
+    if (!quotationForm.profileKey || (!quotationForm.selectedAccountId && !isDealQuotation && !isImportedOrRevision)) {
+      setBuilderError('Profile selection is required to generate a quotation.')
       return
     }
 
@@ -2210,15 +2286,15 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
       latestRevNum = nextRevisionNum
       revisionCodeVal = quotationForm.nextRevisionCode
       revisionNoVal = Number(String(quotationForm.nextRevisionCode).replace(/\D/g, ''))
-    } else if (r3Num !== undefined) {
+    } else if (r3Num !== undefined && (!quotationForm.savedR3InDb || !quotationForm.isR3Locked || quotationForm.nextRevisionCode === 'R3')) {
       latestRevNum = r3Num
       revisionCodeVal = 'R3'
       revisionNoVal = 3
-    } else if (r2Num !== undefined) {
+    } else if (r2Num !== undefined && (!quotationForm.savedR2InDb || !quotationForm.isR2Locked || quotationForm.nextRevisionCode === 'R2')) {
       latestRevNum = r2Num
       revisionCodeVal = 'R2'
       revisionNoVal = 2
-    } else if (r1Num !== undefined) {
+    } else if (r1Num !== undefined && (!quotationForm.savedR1InDb || !quotationForm.isR1Locked || quotationForm.nextRevisionCode === 'R1')) {
       latestRevNum = r1Num
       revisionCodeVal = 'R1'
       revisionNoVal = 1
@@ -2239,7 +2315,13 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
     const targetDealName = (quotationForm.dealName || quotationForm.projectName || quotationForm.quotationSubject || '').trim()
 
     const payload = {
+      id: quotationForm.id || quotationForm._id || undefined,
       quotationNumber: quotationForm.quotationNumber.trim() || nextQuotationNumber,
+      oldQuotationNumber: quotationForm.oldQuotationNumber || quotationForm.oldQuoteNumber || '',
+      oldQuoteNumber: quotationForm.oldQuotationNumber || quotationForm.oldQuoteNumber || '',
+      isOldQuotation: Boolean(quotationForm.isOldQuotation || quotationForm.oldQuotationNumber),
+      isExcelImport: Boolean(quotationForm.isExcelImport),
+      comments: quotationForm.comments || quotationForm.notes || quotationForm.remarks || '',
       clientName: quotationForm.contactPerson || targetAccountName || quotationForm.clientAccountNumber,
       companyName: targetAccountName,
       customerName: targetAccountName,
@@ -2911,6 +2993,44 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
                           return (
                             <td key={field.key} className={`aqp-td aqp-field--${field.key}`}>
                               <StatusBadge status={row.status} />
+                            </td>
+                          )
+                        }
+
+                        if (field.key === 'comments') {
+                          const commentVal = String(row.comments || row.raw?.comments || row.raw?.notes || row.raw?.remarks || '').trim()
+                          return (
+                            <td key={field.key} className={`aqp-td aqp-field--${field.key}`}>
+                              <button
+                                type="button"
+                                className={`aqp-comment-badge${commentVal ? ' aqp-comment-badge--has' : ''}`}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleOpenCommentModal(row)
+                                }}
+                                title={commentVal || 'Click to add comment'}
+                                style={{
+                                  background: commentVal ? '#f0fdf4' : '#f8fafc',
+                                  border: `1px solid ${commentVal ? '#86efac' : '#cbd5e1'}`,
+                                  color: commentVal ? '#15803d' : '#64748b',
+                                  borderRadius: '4px',
+                                  padding: '4px 8px',
+                                  fontSize: '0.8rem',
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  maxWidth: '180px',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {commentVal || '+ Add Comment'}
+                                </span>
+                              </button>
                             </td>
                           )
                         }
@@ -3825,6 +3945,50 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
         isImporting={isImporting}
         onConfirmImport={handleConfirmImportQuotations}
       />
+
+      {commentModalRow ? (
+        <ModalShell
+          title={`Quotation Comment - ${commentModalRow.num || commentModalRow.oldQuotationNumber || ''}`}
+          onClose={() => setCommentModalRow(null)}
+          size="aqp-modal--md"
+          footer={(
+            <>
+              <button
+                type="button"
+                className="aqp-btn aqp-btn--gray"
+                onClick={() => setCommentModalRow(null)}
+                disabled={commentModalSaving}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="aqp-btn aqp-btn--blue"
+                onClick={handleSaveComment}
+                disabled={commentModalSaving}
+              >
+                {commentModalSaving ? 'Saving...' : 'Save Comment'}
+              </button>
+            </>
+          )}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
+              <strong>Company:</strong> {commentModalRow.company || '-'} &nbsp;|&nbsp; <strong>Quotation:</strong> {commentModalRow.num || '-'}
+            </div>
+            <label className="aqp-form-field">
+              <span className="aqp-form-label">Comment / Remarks</span>
+              <textarea
+                className="aqp-textarea"
+                rows={4}
+                value={commentModalText}
+                onChange={(e) => setCommentModalText(e.target.value)}
+                placeholder="Enter quotation comment or remarks..."
+              />
+            </label>
+          </div>
+        </ModalShell>
+      ) : null}
     </div>
   )
 }

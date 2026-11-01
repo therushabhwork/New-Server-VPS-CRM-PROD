@@ -153,6 +153,7 @@ export const ADMIN_QUOTATION_FIELD_DEFINITIONS = [
   { key: 'company', label: 'Company Name', exportValue: (row) => row.company },
   { key: 'contactPerson', label: 'Contact Person', exportValue: (row) => row.contactPerson },
   { key: 'validUntil', label: 'Quotation Valid Until', exportValue: (row) => row.validUntil },
+  { key: 'comments', label: 'Comment', exportValue: (row) => row.comments || row.notes || row.remarks || '-' },
   { key: 'status', label: 'Status', exportValue: (row) => row.statusLabel },
   { key: 'amount', label: 'Quotation Total', exportValue: (row) => row.amountLabel },
   { key: 'owner', label: 'Quotation Added By', exportValue: (row) => row.owner },
@@ -166,13 +167,14 @@ export const ADMIN_QUOTATION_MANAGER_EXPORT_COLUMNS = [
   { key: 'date', label: 'Quotation Date', type: 'date', align: 'center', width: 18 },
   { key: 'owner', label: 'Quotation Owner', type: 'text', width: 22 },
   { key: 'company', label: 'Company Name', type: 'text', width: 28 },
+  { key: 'comments', label: 'Comment', type: 'text', width: 25 },
   { key: 'project', label: 'Project Name', type: 'text', width: 28 },
   { key: 'amountLabel', label: 'Amount', type: 'text', width: 18 },
   { key: 'statusLabel', label: 'Status', type: 'text', width: 16 },
 ]
 
 export const DEFAULT_SELECTED_ADMIN_QUOTATION_FIELDS = [
-  'oldQuotationNumber', 'num', 'owner', 'date', 'amount', 'status', 'company', 'project'
+  'oldQuotationNumber', 'num', 'owner', 'date', 'amount', 'status', 'company', 'comments', 'project'
 ]
 
 export const orderQuotationNumberFirst = (fieldKeys = [], activeTab = 'deal') => {
@@ -2541,16 +2543,22 @@ export function RevisionsListModal({
   const targetAccountNo = row.raw?.customerId || row.raw?.selectedAccountId || row.raw?.accountNumber || row.accountNumber
   const targetDealNo = row.raw?.dealId || row.dealNumber
   const targetQuoteNo = row.num || row.quoteNumber || row.quotationNumber || row.raw?.quotationNumber || ''
+  const targetOldQuoteNo = row.oldQuotationNumber || row.raw?.oldQuotationNumber || row.raw?.oldQuoteNumber || row.raw?.data?.oldQuotationNumber || ''
 
   const siblingRevisions = allQuotations.filter((q) => {
     const qNum = q.num || q.quoteNumber || q.quotationNumber || q.raw?.quoteNumber || q.raw?.quotationNumber || ''
+    const qOldNum = q.oldQuotationNumber || q.raw?.oldQuotationNumber || q.raw?.oldQuoteNumber || q.raw?.data?.oldQuotationNumber || ''
     const qAccount = q.raw?.customerId || q.raw?.selectedAccountId || q.raw?.accountNumber || q.accountNumber
     const qDeal = q.raw?.dealId || q.dealNumber || q.raw?.sourceDealId
 
     const targetBase = targetQuoteNo.replace(/-R\d+$/i, '').trim().toLowerCase()
     const qBase = qNum.replace(/-R\d+$/i, '').trim().toLowerCase()
-
     if (targetBase && qBase && targetBase === qBase) return true
+
+    const targetOldBase = targetOldQuoteNo.replace(/-R\d+$/i, '').trim().toLowerCase()
+    const qOldBase = qOldNum.replace(/-R\d+$/i, '').trim().toLowerCase()
+    if (targetOldBase && qOldBase && targetOldBase === qOldBase) return true
+
     if (targetDealNo && qDeal && String(targetDealNo) === String(qDeal)) return true
     if (targetAccountNo && qAccount && String(targetAccountNo) === String(qAccount)) return true
     return false
@@ -2746,7 +2754,8 @@ export function RevisionsListModal({
           <tbody>
             {revisionRowsList.map((rev) => {
               const isApproved = String(rev.status || '').toLowerCase() === 'approved'
-              const revRowCodeNum = Number(rev.revisionCode.replace(/\D/g, '')) || 1
+              const parsedRevNum = Number.parseInt(String(rev.revisionCode || '').replace(/\D/g, ''), 10)
+              const revRowCodeNum = Number.isNaN(parsedRevNum) ? 0 : parsedRevNum
               const attachment = getQuotationAttachment(rev)
 
               return (
@@ -2768,7 +2777,8 @@ export function RevisionsListModal({
                   <td style={{ padding: '12px 14px' }}>{rev.company || '-'}</td>
                   {allRevisionCodes.map((code) => {
                     const isCurrentCellCode = rev.revisionCode === code
-                    const cellCodeNum = Number(code.replace(/\D/g, '')) || 1
+                    const parsedCellNum = Number.parseInt(String(code || '').replace(/\D/g, ''), 10)
+                    const cellCodeNum = Number.isNaN(parsedCellNum) ? 0 : parsedCellNum
 
                     let cellVal = '-'
                     const matchRev = revisionRowsList.find((r) => r.revisionCode === code)

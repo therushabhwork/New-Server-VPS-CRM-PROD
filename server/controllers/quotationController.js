@@ -81,4 +81,16 @@ module.exports = {
       });
     }
   },
+  updateComment: async (req, res, next) => {
+    try {
+      const result = await quotationService.updateComment(req.user, req.params.id, req.body.comments || req.body.comment || req.body.notes || req.body.remarks);
+      res.status(200).json({
+        success: true,
+        data: result,
+        message: 'Comment updated successfully.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
 }
