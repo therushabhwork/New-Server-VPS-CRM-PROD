@@ -55,7 +55,9 @@ const accountCategories = [
 ]
 
 const accountSources = ACCOUNT_SOURCE_OPTIONS
-const customerTypes = CUSTOMER_TYPE_OPTIONS
+const customerTypes = CUSTOMER_TYPE_OPTIONS.filter(
+  (opt) => String(opt.value || opt.label || '').trim().toUpperCase() !== 'SWATI'
+)
 const industryTypes = INDUSTRY_TYPE_OPTIONS
 const states = STATE_OPTIONS
 
@@ -94,7 +96,7 @@ const initialFormData = {
   accountCategory: 'SWATI',
   accountSource: '',
   accountState: '',
-  customerType: 'SWATI',
+  customerType: '',
   productCategory: '',
   panelAssemblies: [],
   industryType: '',
@@ -227,6 +229,7 @@ const AddAccountWizard = () => {
   const [isExistingCustomer, setIsExistingCustomer] = useState(false)
   const [customerSearch, setCustomerSearch] = useState('')
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
+  const [persistedCustomerDetails, setPersistedCustomerDetails] = useState(null)
   const [selectedSource, setSelectedSource] = useState(null)
   const [sourceOptions, setSourceOptions] = useState([])
   const [customers, setCustomers] = useState(() => customerService.getCustomers())
@@ -525,6 +528,19 @@ const AddAccountWizard = () => {
 
     const resolvedProjectName = customer.projectName || customer.dealName || customer.data?.projectName || customer.data?.dealName || customer.formData?.projectName || customer.formData?.dealName || ''
 
+    setPersistedCustomerDetails({
+      customerName: customer.customerName || customer.accountName || customer.name || displayName || '',
+      productCategory: customer.productCategory || customer.data?.productCategory || customer.formData?.productCategory || '',
+      accountCategory: customer.customerCategory || customer.accountCategory || customer.category || customer.formData?.accountCategory || '',
+      projectName: resolvedProjectName || customer.projectName || customer.dealName || '',
+      accountOwner: customer.customerOwnerDisplay || customer.customerOwner || customer.accountOwnerDisplay || customer.accountOwner || customer.ownerName || '',
+      state: customer.state || customer.formData?.state || '',
+      accountState: customer.customerStatus || customer.accountStatus || customer.accountState || customer.status || 'converted',
+      industryType: customer.industryType || customer.industry || customer.formData?.industryType || '',
+      address: customer.address || customer.formData?.address || '',
+      gstin: customer.gstin || customer.formData?.gstin || '',
+    })
+
     setFormData((prev) => ({
       ...prev,
       accountName: customer.accountName || customer.customerName || prev.accountName,
@@ -607,7 +623,7 @@ const AddAccountWizard = () => {
       if (!String(formData.accountSource || '').trim()) collectedErrors.accountSource = 'Account Source is required.'
       if (!String(formData.state || formData.accountState || '').trim()) collectedErrors.state = 'State is required.'
       if (!String(formData.industryType || '').trim()) collectedErrors.industryType = 'Industry Type is required.'
-      if (!String(formData.customerType || formData.customerCategory || '').trim()) collectedErrors.customerType = 'Customer Type is required.'
+      if (!String(formData.customerType || '').trim()) collectedErrors.customerType = 'Customer Type is required.'
     }
 
     if (!String(formData.contactMobile || '').trim()) {
@@ -817,7 +833,7 @@ const AddAccountWizard = () => {
       ...formData,
       accountCategory: (formData.accountCategory && formData.accountCategory !== 'TENDER ENQUIRY' && formData.accountCategory !== 'PURCHASE ENQUIRY') ? formData.accountCategory : 'SWATI',
       customerCategory: (formData.accountCategory && formData.accountCategory !== 'TENDER ENQUIRY' && formData.accountCategory !== 'PURCHASE ENQUIRY') ? formData.accountCategory : 'SWATI',
-      customerType: (formData.customerType && formData.customerType !== 'TENDER ENQUIRY' && formData.customerType !== 'PURCHASE ENQUIRY') ? formData.customerType : ((formData.accountCategory && formData.accountCategory !== 'TENDER ENQUIRY') ? formData.accountCategory : 'SWATI'),
+      customerType: (formData.customerType && formData.customerType !== 'TENDER ENQUIRY' && formData.customerType !== 'PURCHASE ENQUIRY' && formData.customerType !== 'SWATI') ? formData.customerType : '',
       accountName: formData.accountName,
       customerName: resolvedCustomerName,
       projectName: projectLabel,
@@ -864,7 +880,7 @@ const AddAccountWizard = () => {
       // Also mirror account to MongoDB customers collection with identical customerName
       if (formData.accountName) {
         const resolvedCategory = (formData.accountCategory && formData.accountCategory !== 'TENDER ENQUIRY' && formData.accountCategory !== 'PURCHASE ENQUIRY') ? formData.accountCategory : 'SWATI'
-        const resolvedCustomerType = (formData.customerType && formData.customerType !== 'TENDER ENQUIRY' && formData.customerType !== 'PURCHASE ENQUIRY') ? formData.customerType : resolvedCategory
+        const resolvedCustomerType = (formData.customerType && formData.customerType !== 'TENDER ENQUIRY' && formData.customerType !== 'PURCHASE ENQUIRY' && formData.customerType !== 'SWATI') ? formData.customerType : ''
         customerService.saveCustomer({
           customerName: resolvedCustomerName,
           customerOwner: finalOwnerName,
@@ -1099,6 +1115,7 @@ const AddAccountWizard = () => {
                     const checked = e.target.checked
                     setIsExistingCustomer(checked)
                     setSelectedCustomerId('')
+                    setPersistedCustomerDetails(null)
                     setSelectedSource(null)
                     setSourceOptions([])
                     setErrors({})
@@ -1109,7 +1126,7 @@ const AddAccountWizard = () => {
               </label>
               
               {isExistingCustomer && (
-                <div className="mb-6 relative">
+                <div className="mb-6 relative w-full max-w-md">
                   <label className="block text-[11px] font-medium mb-1 text-slate-500">
                     Customer Search <span className="text-red-600">*</span>
                   </label>
@@ -1119,6 +1136,7 @@ const AddAccountWizard = () => {
                     onChange={(e) => {
                       setCustomerSearch(e.target.value)
                       setSelectedCustomerId('')
+                      setPersistedCustomerDetails(null)
                       setSelectedSource(null)
                     }}
                     placeholder="Start typing the customer name (e.g. Tata, Demo)"
@@ -1126,13 +1144,13 @@ const AddAccountWizard = () => {
                   />
                   {errors.customer && <p className="text-xs text-red-600 mt-1 legacy-form-error-message">{errors.customer}</p>}
                   {filteredCustomers.length > 0 && !selectedCustomerId && (
-                    <div className="absolute z-10 w-full bg-white border border-gray-200 mt-1 rounded shadow-lg max-h-60 overflow-y-auto">
+                    <div className="customer-search-dropdown-menu absolute z-50 w-full bg-white border border-gray-200 mt-1 rounded shadow-lg">
                       {filteredCustomers.map(c => {
                         const displayName = (c.sourceType === 'lead' || c.sourceType === 'account')
                           ? (c.accountName || c.customerName)
                           : (c.customerName || c.accountName)
                         return (
-                          <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-3 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-0">
+                          <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-3 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-0 break-words">
                             <div className="font-semibold text-sm text-slate-800">{displayName}</div>
                             <div className="text-xs text-slate-500">
                               <span className="bg-gray-100 px-1 py-0.5 rounded mr-2">{c.sourceType === 'lead' || c.sourceType === 'account' ? 'Account' : c.sourceType === 'deal' ? 'Deal' : 'Customer'}</span>
@@ -1156,16 +1174,16 @@ const AddAccountWizard = () => {
                   <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 mb-6">
                     <h3 className="text-base font-bold text-slate-800 mb-3 border-b border-slate-200 pb-2">Customer Details (Non-Editable)</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-                      <div><span className="font-semibold text-slate-600">Customer Name:</span> <span className="text-slate-900 font-medium">{formData.customerName || formData.accountName || '-'}</span></div>
-                      <div><span className="font-semibold text-slate-600">Product Category:</span> <span className="text-slate-900 font-medium">{formData.productCategory || '-'}</span></div>
-                      <div><span className="font-semibold text-slate-600">Customer Category:</span> <span className="text-slate-900 font-medium">{formData.accountCategory || '-'}</span></div>
-                      <div><span className="font-semibold text-slate-600">Project Name:</span> <span className="text-slate-900 font-medium">{formData.projectName || formData.dealName || '-'}</span></div>
-                      <div><span className="font-semibold text-slate-600">Customer Owner:</span> <span className="text-slate-900 font-medium">{formData.accountOwner || '-'}</span></div>
-                      <div><span className="font-semibold text-slate-600">State:</span> <span className="text-slate-900 font-medium">{formData.state || '-'}</span></div>
-                      <div><span className="font-semibold text-slate-600">Customer Status:</span> <span className="text-slate-900 font-medium">{formData.accountState || 'converted'}</span></div>
-                      <div><span className="font-semibold text-slate-600">Industry Type:</span> <span className="text-slate-900 font-medium">{formData.industryType || '-'}</span></div>
-                      <div><span className="font-semibold text-slate-600">Address:</span> <span className="text-slate-900 font-medium">{formData.address || '-'}</span></div>
-                      <div><span className="font-semibold text-slate-600">GSTIN:</span> <span className="text-slate-900 font-medium">{formData.gstin || '-'}</span></div>
+                      <div><span className="font-semibold text-slate-600">Customer Name:</span> <span className="text-slate-900 font-medium">{persistedCustomerDetails?.customerName || '-'}</span></div>
+                      <div><span className="font-semibold text-slate-600">Product Category:</span> <span className="text-slate-900 font-medium">{persistedCustomerDetails?.productCategory || '-'}</span></div>
+                      <div><span className="font-semibold text-slate-600">Customer Category:</span> <span className="text-slate-900 font-medium">{persistedCustomerDetails?.accountCategory || '-'}</span></div>
+                      <div><span className="font-semibold text-slate-600">Project Name:</span> <span className="text-slate-900 font-medium">{persistedCustomerDetails?.projectName || '-'}</span></div>
+                      <div><span className="font-semibold text-slate-600">Customer Owner:</span> <span className="text-slate-900 font-medium">{persistedCustomerDetails?.accountOwner || '-'}</span></div>
+                      <div><span className="font-semibold text-slate-600">State:</span> <span className="text-slate-900 font-medium">{persistedCustomerDetails?.state || '-'}</span></div>
+                      <div><span className="font-semibold text-slate-600">Customer Status:</span> <span className="text-slate-900 font-medium">{persistedCustomerDetails?.accountState || 'converted'}</span></div>
+                      <div><span className="font-semibold text-slate-600">Industry Type:</span> <span className="text-slate-900 font-medium">{persistedCustomerDetails?.industryType || '-'}</span></div>
+                      <div><span className="font-semibold text-slate-600">Address:</span> <span className="text-slate-900 font-medium">{persistedCustomerDetails?.address || '-'}</span></div>
+                      <div><span className="font-semibold text-slate-600">GSTIN:</span> <span className="text-slate-900 font-medium">{persistedCustomerDetails?.gstin || '-'}</span></div>
                     </div>
                   </div>
                 ) : null

@@ -29,6 +29,25 @@ const normalizeOwnerCodeInput = (value) => {
   return Number.isFinite(parsedValue) ? parsedValue : null
 }
 
+const ALLOWED_CUSTOMER_TYPES = [
+  'Consultant',
+  'Contractor',
+  'End-User',
+  'Internal Lead',
+  'OEM',
+  'Project Manager',
+]
+
+const resolveCustomerType = (val) => {
+  if (!val || typeof val !== 'string') return ''
+  const trimmed = val.trim()
+  if (!trimmed) return ''
+  const lower = trimmed.toLowerCase()
+  if (lower === 'swati' || lower === 'marketing swati' || lower === 'prospect') return ''
+  const match = ALLOWED_CUSTOMER_TYPES.find((item) => item.toLowerCase() === lower)
+  return match || trimmed
+}
+
 const emitConvertedDealRealtime = (action, convertedDeal, actor) => {
   const socketServer = getSocketServer()
   if (!socketServer || !convertedDeal) return
@@ -281,8 +300,10 @@ const buildLeadPayload = async (payload = {}, actor, existingLead = null) => {
 
   const rawCategory = String(sanitizedPayload.accountCategory || sanitizedPayload.customerCategory || existingLead?.accountCategory || existingLead?.customerCategory || '').trim().toUpperCase()
   const resolvedCategory = (rawCategory === 'LUMOS' || rawCategory === 'SWATI') ? rawCategory : 'SWATI'
-  const rawCustomerType = String(sanitizedPayload.customerType || existingLead?.customerType || '').trim().toUpperCase()
-  const resolvedCustomerType = (rawCustomerType === 'LUMOS' || rawCustomerType === 'SWATI') ? rawCustomerType : resolvedCategory
+  const candidateCustomerType = sanitizedPayload.customerType !== undefined
+    ? sanitizedPayload.customerType
+    : (existingLead?.customerType || existingLead?.formData?.customerType || '')
+  const resolvedCustomerType = resolveCustomerType(candidateCustomerType)
 
   const normalizedPayload = applyOwnershipMetadata(actor, {
     ...sanitizedPayload,

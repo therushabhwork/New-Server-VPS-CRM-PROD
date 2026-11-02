@@ -41,7 +41,7 @@ export default function CustomerProjectCard({
   canEdit = true,
 }) {
   // Column 1: Customer Info
-  const customerType = form.customerType || account.customerType || form.accountCategory || ''
+  const customerType = form.customerType || account.customerType || ''
   const customerName = form.customerName || account.customerName || deal.customerName || account.name || ''
   const customerRefNo = form.customerRefNo || account.customerRefNo || deal.customerRefNo || ''
   const customerRefDate = form.customerRefDate || account.customerRefDate || deal.customerRefDate || ''

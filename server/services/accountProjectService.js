@@ -210,7 +210,7 @@ const buildSharedPayload = (source, formData = {}, actor = {}) => {
     source: text(formData.accountSource, formData.dealSource, source.sourceType),
     accountSource: text(formData.accountSource, formData.dealSource, source.sourceType),
     accountCategory: sanitizeCategory(formData.accountCategory) || sanitizeCategory(source.customerCategory) || 'SWATI',
-    customerType: text(formData.customerType, sanitizeCategory(formData.accountCategory), sanitizeCategory(source.customerCategory), 'SWATI'),
+    customerType: text(formData.customerType, source.customerType, ''),
     state: text(formData.state, source.state),
     address: text(formData.address, source.address),
     gstin: text(formData.gstin, source.gstin),

@@ -868,6 +868,18 @@ const renderDealBrandBadge = (deal) => {
 
 const formatGridDate = (value) => {
   if (!value) return ''
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (/^\d{2}-\d{2}-\d{4}$/.test(trimmed)) return trimmed
+    const ymdMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (ymdMatch) {
+      return `${ymdMatch[3]}-${ymdMatch[2]}-${ymdMatch[1]}`
+    }
+    const dmyMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+    if (dmyMatch) {
+      return `${dmyMatch[1]}-${dmyMatch[2]}-${dmyMatch[3]}`
+    }
+  }
   const date = new Date(value)
 
   if (Number.isNaN(date.getTime())) {
@@ -4475,7 +4487,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
     {
       key: 'dealDate',
       label: 'Deal Date',
-      render: (value, row) => getDealEffectiveDate(row?.rawDeal || row) || formatDate(value || row.createdAt || '') || '-',
+      render: (value, row) => getDealEffectiveDate(row?.rawDeal || row) || formatGridDate(value || row?.createdAt || '') || '-',
     },
     {
       key: 'dealOwner',
@@ -4600,7 +4612,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
       const effectiveDate = getDealEffectiveDate(row?.rawDeal || row)
       if (effectiveDate) return effectiveDate
       const rawDate = row.dealDate || row.rawDeal?.dealDate || row.data?.dealDate || row.rawDeal?.data?.dealDate || row.accountDate || row.createdAt || row.rawDeal?.createdAt || row.data?.createdAt
-      return formatGridDate(rawDate) || formatDate(rawDate) || (rawDate ? String(rawDate) : '-')
+      return formatGridDate(rawDate) || (rawDate ? String(rawDate) : '-')
     }
 
     if (columnKey === 'projectName') {
@@ -4673,6 +4685,8 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
               const basePath = window.location.pathname.startsWith('/admin') ? '/admin/quotation-manager/view' : '/quotation-manager/view'
               const query = new URLSearchParams({
                 tab: 'deals',
+                revision: quoteStr,
+                dealId: String(activeDeal.id || activeDeal._id || activeDeal.dealNumber || ''),
                 accountId: activeDeal.accountId || activeDeal.id || '',
                 accountName: activeDeal.accountName || activeDeal.customerName || activeDeal.linkedAccountName || '',
                 accountNo: activeDeal.accountNumber || activeDeal.dealNumber || '',

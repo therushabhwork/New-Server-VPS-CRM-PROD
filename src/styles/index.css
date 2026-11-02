@@ -2799,12 +2799,42 @@ html.is-user:not([data-theme="dark"]) .header.header--user .hdr-user-btn .hdr-ca
 }
 
 html.is-user:not([data-theme="dark"]) .header.header--user .hdr-badge,
-html.is-user:not([data-theme="dark"]) .layout--user :where(.badge, [class*="badge"], [class*="status"]):not(.sb-section-label):not([class*="sr-"]):not([class*="crm-deal-status"]):not([class*="crm-action"]):not([class*="c-account-stage"]):not([class*="c-deal-stage"]) {
+html.is-user:not([data-theme="dark"]) .layout--user :where(.badge, [class*="badge"], [class*="status"]):not(.sb-section-label):not([class*="sr-"]):not([class*="crm-deal-status"]):not([class*="crm-action"]):not([class*="c-account-stage"]):not([class*="c-deal-stage"]):not([class*="aqp-"]):not(.aqp-field--status):not(.aqp-status) {
   border-color: #FFFFFF !important;
   background: #E51F25 !important;
   background-color: #E51F25 !important;
   color: #FFFFFF !important;
   -webkit-text-fill-color: #FFFFFF !important;
+}
+
+/* Quotation Manager - Replicate admin status styling on user portal without red cell background */
+html.is-user:not([data-theme="dark"]) .layout--user .aqp-table td.aqp-field--status {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+html.is-user:not([data-theme="dark"]) .layout--user .aqp-table .aqp-status {
+  border: none !important;
+  background: var(--surface-muted, #f1f5f9) !important;
+}
+html.is-user:not([data-theme="dark"]) .layout--user .aqp-table .aqp-status--approved {
+  color: var(--color-success, #16a34a) !important;
+  -webkit-text-fill-color: var(--color-success, #16a34a) !important;
+  background: var(--surface-muted, #f1f5f9) !important;
+}
+html.is-user:not([data-theme="dark"]) .layout--user .aqp-table .aqp-status--rejected {
+  color: var(--color-danger, #dc2626) !important;
+  -webkit-text-fill-color: var(--color-danger, #dc2626) !important;
+  background: var(--surface-card, #ffffff) !important;
+}
+html.is-user:not([data-theme="dark"]) .layout--user .aqp-table .aqp-status--open {
+  color: var(--color-primary, #dc2626) !important;
+  -webkit-text-fill-color: var(--color-primary, #dc2626) !important;
+  background: var(--surface-muted, #f1f5f9) !important;
+}
+html.is-user:not([data-theme="dark"]) .layout--user .aqp-table .aqp-status--sent {
+  color: var(--text-primary, #1e293b) !important;
+  -webkit-text-fill-color: var(--text-primary, #1e293b) !important;
+  background: var(--surface-card, #ffffff) !important;
 }
 
 html.is-user:not([data-theme="dark"]) .layout--user .sidebar--user {

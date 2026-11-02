@@ -2551,8 +2551,9 @@ export function RevisionsListModal({
     const qBase = qNum.replace(/-R\d+$/i, '').trim().toLowerCase()
 
     if (targetBase && qBase && targetBase === qBase) return true
-    if (targetDealNo && qDeal && String(targetDealNo) === String(qDeal)) return true
-    if (targetAccountNo && qAccount && String(targetAccountNo) === String(qAccount)) return true
+    if (targetDealNo && qDeal && String(targetDealNo) === String(qDeal)) {
+      if (!targetBase || !qBase || targetBase === qBase) return true
+    }
     return false
   }).sort((a, b) => {
     const revA = a.raw?.revisionNo ?? a.revisionNo ?? (a.raw?.revisionCode === 'Normal' ? 1 : 1)

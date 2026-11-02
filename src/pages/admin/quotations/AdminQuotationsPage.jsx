@@ -516,6 +516,8 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
     const accountNoParam = searchParams.get('accountNo')
     const accountIdParam = searchParams.get('accountId')
     const viewParam = searchParams.get('view')
+    const revisionParam = searchParams.get('revision') || searchParams.get('quotationNumber') || searchParams.get('revisionQuote')
+    const dealIdParam = searchParams.get('dealId')
 
     const stateActiveTab = location.state?.activeTab
     const hasPreselectedDeal = Boolean(location.state?.preselectedDeal)
@@ -550,6 +552,32 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
           setActiveTab(match.quotationContext)
         }
       }
+    } else if (revisionParam && rows.length > 0 && !revisionsModalRow && !viewRow) {
+      const targetClean = String(revisionParam).trim().toLowerCase()
+      const targetBase = targetClean.replace(/-r\d+$/i, '')
+      const targetMatch = rows.find((r) => {
+        const qNum = String(r.num || r.raw?.quotationNumber || r.raw?.quoteNumber || r.id || '').trim().toLowerCase()
+        const qBase = qNum.replace(/-r\d+$/i, '')
+        const qDealId = r.raw?.dealId || r.dealNumber || r.raw?.sourceDealId || ''
+        if (qNum === targetClean) return true
+        if (targetBase && qBase === targetBase) {
+          if (dealIdParam && qDealId && String(qDealId) === String(dealIdParam)) return true
+          if (!dealIdParam) return true
+        }
+        return false
+      }) || rows.find((r) => {
+        const qNum = String(r.num || r.raw?.quotationNumber || r.raw?.quoteNumber || r.id || '').trim().toLowerCase()
+        const qBase = qNum.replace(/-r\d+$/i, '')
+        return targetBase && qBase === targetBase
+      })
+      if (targetMatch) {
+        setRevisionsModalRow(targetMatch)
+        if (targetMatch.quotationContext && (targetMatch.quotationContext === 'deal' || targetMatch.quotationContext === 'account')) {
+          setActiveTab(targetMatch.quotationContext)
+        } else {
+          setActiveTab('deal')
+        }
+      }
     } else if ((accountIdParam || accountNoParam || accountNameParam) && rows.length > 0 && !revisionsModalRow && !viewRow) {
       const targetMatch = rows.find((r) => {
         const rCustId = r.raw?.customerId || r.raw?.selectedAccountId || ''
@@ -572,6 +600,10 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
     nextParams.delete('accountId')
     nextParams.delete('accountName')
     nextParams.delete('accountNo')
+    nextParams.delete('revision')
+    nextParams.delete('quotationNumber')
+    nextParams.delete('revisionQuote')
+    nextParams.delete('dealId')
     nextParams.set('tab', 'deals')
     setSearchParams(nextParams, { replace: true })
     setActiveTab('deal')
