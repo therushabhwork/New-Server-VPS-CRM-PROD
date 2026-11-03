@@ -354,12 +354,13 @@ const AdminDealDetailPage = () => {
     })
   }
 
-  const handleSavedReminder = async (reminderData) => {
+  const handleSavedReminder = async (reminderData = {}) => {
+    const noteText = String(reminderData.note || reminderData.message || '').trim()
     await updateDeal(deal.sourceDealId || deal.source_deal_id || deal.id, {
       reminderDate: reminderData.reminderDate,
       reminderTime: reminderData.reminderTime,
       reminderMode: reminderData.reminderMode,
-      reminderNote: reminderData.note.trim(),
+      reminderNote: noteText,
     })
     setIsReminderOpen(false)
   }

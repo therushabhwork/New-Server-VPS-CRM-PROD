@@ -1207,7 +1207,7 @@ const CRMActionPage = () => {
     if (dealOnly) {
       if (!location.pathname.startsWith('/admin')) {
         return (
-          <div className="crm-action-context" style={{ margin: '0 0 1rem', padding: '1rem', border: '1px solid var(--border-subtle, #e2e8f0)', background: '#ffffff', borderRadius: '8px' }}>
+          <div className="crm-action-context" style={{ margin: '0 0 1rem', padding: '1rem', border: 'none', background: '#ffffff', borderRadius: '8px' }}>
             <div><span>Deal Name</span><strong>{getEntityLabel(entity) || '-'}</strong></div>
             <div><span>Deal No.</span><strong>{entity.dealNumber || entity.accountNumber || entity.customerNumber || '-'}</strong></div>
             <div><span>Contact Name</span><strong>{getEntityContactName(entity) || '-'}</strong></div>

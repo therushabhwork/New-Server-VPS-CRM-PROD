@@ -1022,6 +1022,7 @@ module.exports = {
         [nextRevCode]: newAmount,
       }
 
+      const originalOwnerName = existingMatch.originalOwner || existingMatch.createdByName || existingMatch.selectedAccountOwner || existingMatch.dealOwner || existingMatch.data?.dealOwner || existingMatch.ownerName || 'Keval V Shah'
       const updatedRevisionsList = [...existingRevisions]
       for (let i = 0; i < nextRevNo; i++) {
         const revCode = `R${i}`
@@ -1034,8 +1035,12 @@ module.exports = {
           if (priorAmt !== undefined && priorAmt !== null && priorAmt !== '') {
             updatedRevisionsList[revIndex].amount = Number(priorAmt)
           }
+          if (i === 0 && !updatedRevisionsList[revIndex].owner) {
+            updatedRevisionsList[revIndex].owner = originalOwnerName
+            updatedRevisionsList[revIndex].createdByName = originalOwnerName
+          }
         } else if (priorAmt !== undefined && priorAmt !== null && priorAmt !== '') {
-          const originalCreator = existingMatch.originalOwner || existingMatch.createdByName || existingMatch.dealOwner || existingMatch.data?.dealOwner || existingMatch.ownerName || 'Keval V Shah'
+          const originalCreator = originalOwnerName
           updatedRevisionsList.push({
             revisionCode: revCode,
             revisionNo: i,
@@ -1085,6 +1090,12 @@ module.exports = {
 
       const updatePayload = {
         ...payload,
+        originalOwner: originalOwnerName,
+        selectedAccountOwner: activeCreatorName,
+        accountOwner: activeCreatorName,
+        quotationOwner: activeCreatorName,
+        quotationOwnerName: activeCreatorName,
+        dealOwner: activeCreatorName,
         quoteNumber: updatedQuoteNumber,
         quotationNumber: updatedQuoteNumber,
         revisionCode: nextRevCode,
@@ -1105,6 +1116,12 @@ module.exports = {
           ...(existingMatch.data || {}),
           ...payload.data,
           ...payload,
+          originalOwner: originalOwnerName,
+          selectedAccountOwner: activeCreatorName,
+          accountOwner: activeCreatorName,
+          quotationOwner: activeCreatorName,
+          quotationOwnerName: activeCreatorName,
+          dealOwner: activeCreatorName,
           quoteNumber: updatedQuoteNumber,
           quotationNumber: updatedQuoteNumber,
           revisionCode: nextRevCode,

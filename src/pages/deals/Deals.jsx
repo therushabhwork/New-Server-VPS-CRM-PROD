@@ -918,8 +918,17 @@ const getQuotationNumberFromRecord = (record = {}) => (
   ).trim()
 )
 
-const getQuotationOwnerFromRecord = (record = {}) => (
-  String(
+const getQuotationOwnerFromRecord = (record = {}) => {
+  const revisions = record.revisions || record.data?.revisions
+  if (Array.isArray(revisions) && revisions.length > 0) {
+    const latestRev = revisions[revisions.length - 1]
+    const latestOwner = latestRev?.owner || latestRev?.createdByName || latestRev?.ownerName
+    if (latestOwner && typeof latestOwner === 'string' && latestOwner.trim() && latestOwner.trim() !== '-' && latestOwner.trim().toLowerCase() !== 'null' && latestOwner.trim().toLowerCase() !== 'undefined') {
+      return latestOwner.trim()
+    }
+  }
+
+  return String(
     record.selectedAccountOwner
     || record.data?.selectedAccountOwner
     || record.quotationOwnerName
@@ -933,7 +942,7 @@ const getQuotationOwnerFromRecord = (record = {}) => (
     || record.data?.dealOwner
     || ''
   ).trim()
-)
+}
 
 const isDealNumberFallback = (value = '', deal = {}) => {
   const normalizedValue = normalizeSearchValue(value)

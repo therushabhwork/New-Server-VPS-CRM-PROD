@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { FaCalendarAlt } from 'react-icons/fa'
 import { useAuth } from '../../context/AuthContext'
 import { useData } from '../../context/DataContext'
@@ -48,12 +49,35 @@ const AddReminderModal = ({
   const [selectedAccountId, setSelectedAccountId] = useState('')
   const [selectedDealId, setSelectedDealId] = useState('')
 
-  if (!isOpen) return null
-
   const handleClose = () => {
     setForm(getInitialFormState())
     onClose()
   }
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === 'Escape' && isOpen) {
+        handleClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [isOpen])
+
+  if (!isOpen) return null
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -184,8 +208,8 @@ const AddReminderModal = ({
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }))
 
-  return (
-    <div className="arm-overlay" role="dialog" aria-modal="true" aria-label="Add Reminder">
+  return createPortal(
+    <div className="arm-overlay" role="dialog" aria-modal="true" aria-label="Add Reminder" onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
       <div className="arm-card">
         {/* ── Header ── */}
         <div className="arm-head">
@@ -389,7 +413,8 @@ const AddReminderModal = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 

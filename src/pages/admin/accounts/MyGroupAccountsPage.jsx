@@ -220,6 +220,15 @@ const normalizeMatchValue = (value) =>
   String(value || '').trim().toLowerCase()
 
 const getQuotationOwnerName = (quotation = {}, availableUsers = []) => {
+  const revisions = quotation.revisions || quotation.data?.revisions
+  if (Array.isArray(revisions) && revisions.length > 0) {
+    const latestRev = revisions[revisions.length - 1]
+    const latestOwner = latestRev?.owner || latestRev?.createdByName || latestRev?.ownerName
+    if (latestOwner && typeof latestOwner === 'string' && latestOwner.trim() && latestOwner.trim() !== '-' && latestOwner.trim().toLowerCase() !== 'null' && latestOwner.trim().toLowerCase() !== 'undefined') {
+      return latestOwner.trim()
+    }
+  }
+
   const rawOwner = quotation.selectedAccountOwner
     || quotation.data?.selectedAccountOwner
     || quotation.quotationOwnerName

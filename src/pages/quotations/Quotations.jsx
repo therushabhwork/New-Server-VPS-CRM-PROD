@@ -2298,14 +2298,17 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
 
     const grandTotal = latestRevNum
 
+    const activeUserName = user?.name || quotationForm.selectedAccountOwner || 'User'
+    const originalOwnerVal = quotationForm.originalOwner || (revisionCodeVal === 'R0' ? activeUserName : 'Keval V Shah')
+
     const builtRevisions = []
     if (r0Num !== undefined) {
       builtRevisions.push({
         revisionCode: 'R0',
         revisionNo: 0,
         amount: r0Num,
-        owner: quotationForm.originalOwner || quotationForm.selectedAccountOwner || user?.name || 'Keval V Shah',
-        createdByName: quotationForm.originalOwner || quotationForm.selectedAccountOwner || user?.name || 'Keval V Shah',
+        owner: originalOwnerVal,
+        createdByName: originalOwnerVal,
         date: quotationForm.quotationDate || new Date().toISOString().slice(0, 10),
         status: 'Open',
       })
@@ -2315,8 +2318,8 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
         revisionCode: 'R1',
         revisionNo: 1,
         amount: r1Num,
-        owner: user?.name || quotationForm.selectedAccountOwner || 'User',
-        createdByName: user?.name || quotationForm.selectedAccountOwner || 'User',
+        owner: activeUserName,
+        createdByName: activeUserName,
         date: quotationForm.quotationDate || new Date().toISOString().slice(0, 10),
         status: 'Open',
       })
@@ -2326,8 +2329,8 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
         revisionCode: 'R2',
         revisionNo: 2,
         amount: r2Num,
-        owner: user?.name || quotationForm.selectedAccountOwner || 'User',
-        createdByName: user?.name || quotationForm.selectedAccountOwner || 'User',
+        owner: activeUserName,
+        createdByName: activeUserName,
         date: quotationForm.quotationDate || new Date().toISOString().slice(0, 10),
         status: 'Open',
       })
@@ -2337,8 +2340,8 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
         revisionCode: 'R3',
         revisionNo: 3,
         amount: r3Num,
-        owner: user?.name || quotationForm.selectedAccountOwner || 'User',
-        createdByName: user?.name || quotationForm.selectedAccountOwner || 'User',
+        owner: activeUserName,
+        createdByName: activeUserName,
         date: quotationForm.quotationDate || new Date().toISOString().slice(0, 10),
         status: 'Open',
       })
@@ -2381,7 +2384,12 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
       organizationTagline: quotationForm.organizationTagline,
       selectedAccountId: quotationForm.selectedAccountId,
       dealId: quotationForm.dealId,
-      selectedAccountOwner: quotationForm.selectedAccountOwner,
+      originalOwner: originalOwnerVal,
+      selectedAccountOwner: activeUserName,
+      accountOwner: activeUserName,
+      quotationOwner: activeUserName,
+      quotationOwnerName: activeUserName,
+      dealOwner: isDealQuotation ? (quotationForm.dealOwner || activeUserName) : activeUserName,
       quotationContext: isDealQuotation ? 'deal' : 'account',
       quotationScope: isDealQuotation ? 'deal' : 'account',
       architectName: quotationForm.architectName,

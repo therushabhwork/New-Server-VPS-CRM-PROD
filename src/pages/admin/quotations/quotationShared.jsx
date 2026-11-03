@@ -714,6 +714,15 @@ export const resolveQuotationOwner = (quotation = {}, linkedAccount = null, link
   const rawData = quotation.data || quotation.raw?.data || {}
   const rawQuotation = quotation.raw || quotation
 
+  const revisions = quotation.revisions || rawQuotation.revisions || rawData.revisions
+  if (Array.isArray(revisions) && revisions.length > 0) {
+    const latestRev = revisions[revisions.length - 1]
+    const latestOwner = latestRev?.owner || latestRev?.createdByName || latestRev?.ownerName
+    if (latestOwner && typeof latestOwner === 'string' && latestOwner.trim() && latestOwner.trim() !== '-' && latestOwner.trim().toLowerCase() !== 'null' && latestOwner.trim().toLowerCase() !== 'undefined') {
+      return latestOwner.trim()
+    }
+  }
+
   const candidateOwners = [
     quotation.quotationOwner,
     quotation.quotationOwnerName,
@@ -2656,7 +2665,8 @@ export function RevisionsListModal({
         const dateVal = revItem.date || q.date || q.raw?.quotationDate || '-'
         const attachment = withRevisionAttachment(revCode, revItem)
 
-        const revOwner = revItem.owner || revItem.createdByName || revItem.ownerName || (revCode === 'R0' ? (q.raw?.originalOwner || q.raw?.createdByName || ownerName) : ownerName)
+        const originalCreator = q.raw?.originalOwner || q.originalOwner || q.raw?.data?.originalOwner || q.raw?.createdByName || q.createdByName
+        const revOwner = revItem.owner || revItem.createdByName || revItem.ownerName || (revCode === 'R0' ? (originalCreator || ownerName) : ownerName)
 
         revisionRowsMap.set(revCode, {
           key: revCode,

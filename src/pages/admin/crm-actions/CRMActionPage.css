@@ -1107,9 +1107,25 @@ html.is-user:not([data-theme="dark"]) .layout--user .crm-deal-status-footer butt
   border: 1px solid #c60016 !important;
 }
 
-html.is-user:not([data-theme="dark"]) .layout--user .crm-action-context {
+html.is-user:not([data-theme="dark"]) .layout--user .crm-action-context,
+html.is-user:not([data-theme="dark"]) .crm-action-context {
   background: #ffffff !important;
-  border-color: #e2e8f0 !important;
+  border: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html.is-user:not([data-theme="dark"]) .layout--user .crm-deal-status-card,
+html.is-user:not([data-theme="dark"]) .crm-deal-status-card {
+  border: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html.is-user:not([data-theme="dark"]) .layout--user .crm-action-page .crm-action-card,
+html.is-user:not([data-theme="dark"]) .crm-action-page .crm-action-card {
+  border: none !important;
+  box-shadow: none !important;
 }
 
 html.is-user:not([data-theme="dark"]) .layout--user .crm-action-context span {

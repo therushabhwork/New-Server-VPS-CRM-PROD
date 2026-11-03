@@ -587,6 +587,20 @@ module.exports = {
             ...(dealCustId ? [{ customerId: dealCustId }, { 'data.customerId': dealCustId }, { selectedAccountId: dealCustId }, { 'data.selectedAccountId': dealCustId }] : []),
           ]
           if (quoteFilters.length > 0) {
+            const uninitializedQuotes = await Quotation.find({
+              $or: quoteFilters,
+              $or: [{ originalOwner: { $exists: false } }, { originalOwner: null }, { originalOwner: '' }],
+            }).lean().catch(() => [])
+            if (Array.isArray(uninitializedQuotes) && uninitializedQuotes.length > 0) {
+              for (const q of uninitializedQuotes) {
+                const prevOwner = q.originalOwner || q.createdByName || q.selectedAccountOwner || q.quotationOwner || 'Keval V Shah'
+                await Quotation.updateOne(
+                  { _id: q._id },
+                  { $set: { originalOwner: prevOwner, 'data.originalOwner': prevOwner } }
+                ).catch(() => {})
+              }
+            }
+
             const quoteUpdateSet = {
               ...(targetOwnerName ? {
                 dealOwner: targetOwnerName,
