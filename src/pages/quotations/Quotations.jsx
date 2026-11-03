@@ -468,11 +468,23 @@ const buildQuotationFormFromExisting = (quotation = {}, nextQuotationNumber = ''
     : [createEmptyLineItem()]
 
   const revAmounts = quotation.quotationRevisionAmounts || quotation.data?.quotationRevisionAmounts || {}
+  const revisionsList = Array.isArray(quotation.revisions)
+    ? quotation.revisions
+    : (Array.isArray(quotation.data?.revisions) ? quotation.data.revisions : [])
   const revisionValue = (code) => {
     const key = `${code.toLowerCase()}Amount`
     if (Object.prototype.hasOwnProperty.call(revAmounts, code) && revAmounts[code] !== null && revAmounts[code] !== '') return revAmounts[code]
     if (Object.prototype.hasOwnProperty.call(quotation, key) && quotation[key] !== null && quotation[key] !== '') return quotation[key]
     if (Object.prototype.hasOwnProperty.call(quotation.data || {}, key) && quotation.data[key] !== null && quotation.data[key] !== '') return quotation.data[key]
+    const foundRev = revisionsList.find((r) => {
+      const rCode = r?.revisionCode || (r?.revisionNo === 0 ? 'R0' : r?.revisionNo ? `R${r.revisionNo}` : '')
+      return String(rCode).toUpperCase() === String(code).toUpperCase()
+    })
+    if (foundRev && foundRev.amount !== null && foundRev.amount !== undefined && foundRev.amount !== '') return foundRev.amount
+    if (code === 'R0') {
+      const baseAmt = quotation.amount ?? quotation.totalAmount ?? quotation.data?.amount
+      if (baseAmt !== null && baseAmt !== undefined && baseAmt !== '' && baseAmt !== 0 && baseAmt !== '0') return baseAmt
+    }
     const legacy = quotation[`revisionAmount${code}`] ?? quotation.data?.[`revisionAmount${code}`]
     return legacy !== undefined && legacy !== null && legacy !== 0 && legacy !== '0' ? legacy : ''
   }
@@ -486,6 +498,16 @@ const buildQuotationFormFromExisting = (quotation = {}, nextQuotationNumber = ''
   const hasR2 = r2Val !== undefined && r2Val !== null && r2Val !== '' && r2Val !== 0 && r2Val !== '0'
   const hasR3 = r3Val !== undefined && r3Val !== null && r3Val !== '' && r3Val !== 0 && r3Val !== '0'
 
+  const candidateAccountId = quotation.selectedAccountId
+    || quotation.customerId
+    || quotation.accountId
+    || quotation.data?.selectedAccountId
+    || quotation.data?.customerId
+    || quotation.data?.accountId
+    || quotation.clientAccountNumber
+    || quotation.accountNumber
+    || ''
+
   const resolvedProfile = getProfileByValue(
     quotation.profileKey ||
     quotation.brandKey ||
@@ -496,6 +518,8 @@ const buildQuotationFormFromExisting = (quotation = {}, nextQuotationNumber = ''
   return {
     ...createInitialQuotationForm(),
     ...quotation,
+    selectedAccountId: candidateAccountId,
+    customerId: candidateAccountId || quotation.customerId || '',
     profileKey: quotation.profileKey || resolvedProfile.value,
     profileName: quotation.profileName || resolvedProfile.label,
     organizationName: quotation.organizationName || quotation.data?.organizationName || resolvedProfile.organizationName,
@@ -1552,7 +1576,27 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
       setIsGenerateOpen(false)
       setIsAccountListOpen(false)
       setSelectedProfile(draftQuotation.profileKey || '')
-      setSelectedAccountId(draftQuotation.selectedAccountId || '')
+      const candidateAccountId = draftQuotation.selectedAccountId
+        || draftQuotation.customerId
+        || draftQuotation.accountId
+        || draftQuotation.data?.selectedAccountId
+        || draftQuotation.data?.customerId
+        || draftQuotation.data?.accountId
+        || draftQuotation.clientAccountNumber
+        || draftQuotation.accountNumber
+        || ''
+      let resolvedAccountId = candidateAccountId
+      if (!resolvedAccountId && normalizedAccounts?.length > 0) {
+        const comp = String(draftQuotation.companyName || draftQuotation.customerName || draftQuotation.data?.companyName || '').trim().toLowerCase()
+        const matched = normalizedAccounts.find((a) => (
+          (comp && String(a.companyName || a.name || '').trim().toLowerCase() === comp)
+          || (draftQuotation.clientAccountNumber && String(a.accountNumber || '').trim() === String(draftQuotation.clientAccountNumber).trim())
+        ))
+        if (matched) {
+          resolvedAccountId = matched.id || matched._id || ''
+        }
+      }
+      setSelectedAccountId(resolvedAccountId)
       setAdditionalSections([])
       const isRevision = Boolean(location.state?.isRevision || draftQuotation.isRevision)
       setQuotationForm(buildQuotationFormFromExisting(
@@ -2153,13 +2197,32 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
       return
     }
 
+    if (!quotationForm.selectedAccountId && normalizedAccounts?.length > 0) {
+      const comp = String(quotationForm.companyName || '').trim().toLowerCase()
+      const match = normalizedAccounts.find((a) => (
+        (comp && String(a.companyName || a.name || '').trim().toLowerCase() === comp) ||
+        (quotationForm.clientAccountNumber && String(a.accountNumber || '').trim() === String(quotationForm.clientAccountNumber).trim())
+      ))
+      if (match) {
+        quotationForm.selectedAccountId = match.id || match._id
+      }
+    }
+
+    const hasAccountIdentity = Boolean(
+      String(quotationForm.selectedAccountId || '').trim() ||
+      String(quotationForm.customerId || '').trim() ||
+      String(quotationForm.clientAccountNumber || '').trim() ||
+      (quotationForm.isRevision && quotationForm.companyName?.trim()) ||
+      (quotationForm.quotationNumber && quotationForm.companyName?.trim())
+    )
+
     const isDealQuotation = quotationForm.quotationContext === 'deal' || (!quotationForm.selectedAccountId && quotationForm.clientAccountNumber)
     const isAccountQuotation = quotationForm.quotationContext === 'account'
-    if (isAccountQuotation && !String(quotationForm.selectedAccountId || '').trim()) {
+    if (isAccountQuotation && !hasAccountIdentity) {
       setBuilderError('A valid account must be selected before generating an account quotation.')
       return
     }
-    if (!quotationForm.profileKey || (!quotationForm.selectedAccountId && !isDealQuotation)) {
+    if (!quotationForm.profileKey || (!hasAccountIdentity && !isDealQuotation)) {
       setBuilderError('Profile and account selection are required to generate a quotation.')
       return
     }
@@ -2234,6 +2297,52 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
     }
 
     const grandTotal = latestRevNum
+
+    const builtRevisions = []
+    if (r0Num !== undefined) {
+      builtRevisions.push({
+        revisionCode: 'R0',
+        revisionNo: 0,
+        amount: r0Num,
+        owner: quotationForm.originalOwner || quotationForm.selectedAccountOwner || user?.name || 'Keval V Shah',
+        createdByName: quotationForm.originalOwner || quotationForm.selectedAccountOwner || user?.name || 'Keval V Shah',
+        date: quotationForm.quotationDate || new Date().toISOString().slice(0, 10),
+        status: 'Open',
+      })
+    }
+    if (r1Num !== undefined) {
+      builtRevisions.push({
+        revisionCode: 'R1',
+        revisionNo: 1,
+        amount: r1Num,
+        owner: user?.name || quotationForm.selectedAccountOwner || 'User',
+        createdByName: user?.name || quotationForm.selectedAccountOwner || 'User',
+        date: quotationForm.quotationDate || new Date().toISOString().slice(0, 10),
+        status: 'Open',
+      })
+    }
+    if (r2Num !== undefined) {
+      builtRevisions.push({
+        revisionCode: 'R2',
+        revisionNo: 2,
+        amount: r2Num,
+        owner: user?.name || quotationForm.selectedAccountOwner || 'User',
+        createdByName: user?.name || quotationForm.selectedAccountOwner || 'User',
+        date: quotationForm.quotationDate || new Date().toISOString().slice(0, 10),
+        status: 'Open',
+      })
+    }
+    if (r3Num !== undefined) {
+      builtRevisions.push({
+        revisionCode: 'R3',
+        revisionNo: 3,
+        amount: r3Num,
+        owner: user?.name || quotationForm.selectedAccountOwner || 'User',
+        createdByName: user?.name || quotationForm.selectedAccountOwner || 'User',
+        date: quotationForm.quotationDate || new Date().toISOString().slice(0, 10),
+        status: 'Open',
+      })
+    }
 
     const targetAccountName = (quotationForm.accountName || quotationForm.companyName || '').trim()
     const targetDealName = (quotationForm.dealName || quotationForm.projectName || quotationForm.quotationSubject || '').trim()
@@ -2319,6 +2428,8 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
       uploadedQuotationFileSize: quotationForm.uploadedQuotationFileSize || 0,
       uploadedQuotationFileType: quotationForm.uploadedQuotationFileType || '',
       lineItems: persistedLineItems,
+      ...(builtRevisions.length > 0 ? { revisions: builtRevisions } : {}),
+      ...(quotationForm.parentQuotationId || quotationForm.id || quotationForm.legacyId ? { parentQuotationId: quotationForm.parentQuotationId || quotationForm.id || quotationForm.legacyId } : {}),
     }
 
     // Do not block generation with duplicate warning when adding/updating revisions for an Account or Deal

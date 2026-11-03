@@ -32,6 +32,10 @@ const USER_NAME_FIELDS = [
   'accountOwnerName',
   'ownerName',
   'dealOwner',
+  'dealOwnerName',
+  'quotationOwner',
+  'quotationOwnerName',
+  'selectedAccountOwner',
   'customerOwner',
   'contactPerson',
   'addedByName',
@@ -55,7 +59,9 @@ const getUserNameLookup = () => authService
 
 const collectCandidateNames = (record = {}) => unique([
   ...USER_NAME_FIELDS.map((field) => record[field]),
+  ...USER_NAME_FIELDS.map((field) => record.data?.[field]),
   ...USER_NAME_ARRAY_FIELDS.flatMap((field) => record[field] || []),
+  ...USER_NAME_ARRAY_FIELDS.flatMap((field) => record.data?.[field] || []),
 ].map((value) => String(value || '').trim()).filter(Boolean))
 
 const resolveLinkedUserScope = (user = {}) => {

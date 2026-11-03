@@ -78,6 +78,21 @@ const getExplicitRevisionAmount = (source = {}, code) => {
   const hasRawRevisionField = Object.prototype.hasOwnProperty.call(source, key) || Object.prototype.hasOwnProperty.call(data, key)
   if (Object.prototype.hasOwnProperty.call(source, key) && hasExplicitValue(source[key])) return source[key]
   if (Object.prototype.hasOwnProperty.call(data, key) && hasExplicitValue(data[key])) return data[key]
+
+  const revisionsList = Array.isArray(source.revisions)
+    ? source.revisions
+    : (Array.isArray(data.revisions) ? data.revisions : [])
+  const foundRev = revisionsList.find((r) => {
+    const revCode = r?.revisionCode || (r?.revisionNo === 0 ? 'R0' : r?.revisionNo ? `R${r.revisionNo}` : '')
+    return String(revCode).toUpperCase() === String(code).toUpperCase()
+  })
+  if (foundRev && hasExplicitValue(foundRev.amount)) return foundRev.amount
+
+  if (String(code).toUpperCase() === 'R0') {
+    const baseAmt = source.amount ?? data.amount
+    if (hasExplicitValue(baseAmt)) return baseAmt
+  }
+
   // Legacy revisionAmountR* fields are only valid when no raw r*Amount field
   // exists. Old documents use zero/nonzero placeholders in these fields.
   if (!hasRawRevisionField && hasExplicitValue(source[`revisionAmount${code}`]) && Number(source[`revisionAmount${code}`]) !== 0) return source[`revisionAmount${code}`]
@@ -526,6 +541,13 @@ const buildPayload = async (body, actor, existing) => {
 
   const revisionReason = body.revisionReason || existing?.revisionReason || ''
 
+  const revisions = body.revisions ?? existing?.revisions ?? existing?.data?.revisions ?? null
+  const quotationRevisionAmounts = body.quotationRevisionAmounts ?? existing?.quotationRevisionAmounts ?? existing?.data?.quotationRevisionAmounts ?? null
+  const r0Amount = body.r0Amount ?? existing?.r0Amount ?? existing?.data?.r0Amount
+  const r1Amount = body.r1Amount ?? existing?.r1Amount ?? existing?.data?.r1Amount
+  const r2Amount = body.r2Amount ?? existing?.r2Amount ?? existing?.data?.r2Amount
+  const r3Amount = body.r3Amount ?? existing?.r3Amount ?? existing?.data?.r3Amount
+
   return {
     quoteNumber,
     quotationNumber: quoteNumber,
@@ -552,6 +574,12 @@ const buildPayload = async (body, actor, existing) => {
     createdBy: existing?.createdBy ?? actor.id,
     selectedAccountOwner: body.selectedAccountOwner ?? body.accountOwner ?? existing?.selectedAccountOwner ?? existing?.accountOwner ?? existing?.data?.selectedAccountOwner ?? existing?.data?.accountOwner ?? '',
     accountOwner: body.selectedAccountOwner ?? body.accountOwner ?? existing?.selectedAccountOwner ?? existing?.accountOwner ?? existing?.data?.selectedAccountOwner ?? existing?.data?.accountOwner ?? '',
+    ...(revisions ? { revisions } : {}),
+    ...(quotationRevisionAmounts ? { quotationRevisionAmounts } : {}),
+    ...(r0Amount !== undefined ? { r0Amount } : {}),
+    ...(r1Amount !== undefined ? { r1Amount } : {}),
+    ...(r2Amount !== undefined ? { r2Amount } : {}),
+    ...(r3Amount !== undefined ? { r3Amount } : {}),
     data: {
       ...(existing?.data || {}),
       ...body,
@@ -577,6 +605,12 @@ const buildPayload = async (body, actor, existing) => {
       selectedAccountOwner: body.selectedAccountOwner ?? body.accountOwner ?? existing?.data?.selectedAccountOwner ?? existing?.selectedAccountOwner ?? '',
       accountOwner: body.selectedAccountOwner ?? body.accountOwner ?? existing?.data?.accountOwner ?? existing?.accountOwner ?? '',
       userId: body.userId ?? existing?.data?.userId ?? existing?.createdBy ?? actor.id,
+      ...(revisions ? { revisions } : {}),
+      ...(quotationRevisionAmounts ? { quotationRevisionAmounts } : {}),
+      ...(r0Amount !== undefined ? { r0Amount } : {}),
+      ...(r1Amount !== undefined ? { r1Amount } : {}),
+      ...(r2Amount !== undefined ? { r2Amount } : {}),
+      ...(r3Amount !== undefined ? { r3Amount } : {}),
     },
   }
 }
@@ -913,6 +947,7 @@ module.exports = {
       ? toExplicitNumber(payload.totalAmount) ?? toExplicitNumber(payload.amount)
       : undefined
     const allQuotes = await quotationRepository.listAll()
+    const targetParentId = String(payload.parentQuotationId || payload.data?.parentQuotationId || '').trim()
     const targetCustId = String(payload.customerId || payload.selectedAccountId || payload.data?.selectedAccountId || payload.data?.customerId || '').trim()
     const targetQuoteNo = String(payload.quoteNumber || payload.quotationNumber || payload.data?.quotationNumber || payload.data?.quoteNumber || '').trim()
     const targetDealId = String(payload.dealId || payload.data?.dealId || payload.sourceDealId || payload.data?.sourceDealId || payload.dealNumber || payload.data?.dealNumber || '').trim()
@@ -928,6 +963,10 @@ module.exports = {
       const qCompName = String(q.companyName || q.customerName || q.data?.companyName || q.data?.customerName || '').trim().toLowerCase()
       const hasStrongTarget = Boolean(targetDealId || targetCustId || targetAccNum)
       const qContext = String(q.quotationContext || q.data?.quotationContext || (qDeal ? 'deal' : 'account')).trim().toLowerCase()
+
+      if (targetParentId && (String(q.id) === targetParentId || String(q.legacyId) === targetParentId || String(q._id) === targetParentId)) {
+        return true
+      }
 
       if (targetContext === 'deal') {
         if (targetDealId && qDeal === targetDealId) return true
@@ -984,17 +1023,38 @@ module.exports = {
       }
 
       const updatedRevisionsList = [...existingRevisions]
-      if (updatedRevisionsList.length === 0 && r0Amt !== undefined && r0Amt !== null && r0Amt !== '') {
-        updatedRevisionsList.push({
-          revisionCode: 'R0',
-          amount: Number(r0Amt),
-          date: existingMatch.quotationDate || existingMatch.data?.quotationDate || existingMatch.createdAt || new Date().toISOString().slice(0, 10),
-          status: existingMatch.status || 'Open',
+      for (let i = 0; i < nextRevNo; i++) {
+        const revCode = `R${i}`
+        const revIndex = updatedRevisionsList.findIndex((r) => {
+          const code = r.revisionCode || (r.revisionNo === 0 ? 'R0' : r.revisionNo ? `R${r.revisionNo}` : '')
+          return code === revCode
         })
+        const priorAmt = resolveRevisionAmount(revCode)
+        if (revIndex >= 0) {
+          if (priorAmt !== undefined && priorAmt !== null && priorAmt !== '') {
+            updatedRevisionsList[revIndex].amount = Number(priorAmt)
+          }
+        } else if (priorAmt !== undefined && priorAmt !== null && priorAmt !== '') {
+          const originalCreator = existingMatch.originalOwner || existingMatch.createdByName || existingMatch.dealOwner || existingMatch.data?.dealOwner || existingMatch.ownerName || 'Keval V Shah'
+          updatedRevisionsList.push({
+            revisionCode: revCode,
+            revisionNo: i,
+            amount: Number(priorAmt),
+            owner: i === 0 ? originalCreator : (actor?.name || 'User'),
+            createdByName: i === 0 ? originalCreator : (actor?.name || 'User'),
+            date: existingMatch.quotationDate || existingMatch.data?.quotationDate || existingMatch.createdAt || new Date().toISOString().slice(0, 10),
+            status: 'Open',
+          })
+        }
       }
+      const activeCreatorName = actor?.name || existingMatch.dealOwner || 'User'
       const nextRevisionEntry = {
         revisionCode: nextRevCode,
+        revisionNo: nextRevNo,
         amount: newAmount,
+        owner: activeCreatorName,
+        createdBy: actor?.id,
+        createdByName: activeCreatorName,
         date: new Date().toISOString().slice(0, 10),
         status: 'Open',
       }
@@ -1010,6 +1070,11 @@ module.exports = {
       } else {
         updatedRevisionsList.push(nextRevisionEntry)
       }
+      updatedRevisionsList.sort((a, b) => {
+        const numA = parseInt(String(a.revisionCode || a.revisionNo || '').replace(/\D/g, ''), 10) || 0
+        const numB = parseInt(String(b.revisionCode || b.revisionNo || '').replace(/\D/g, ''), 10) || 0
+        return numA - numB
+      })
 
       const baseQuoteNo = existingMatch.quoteNumber || existingMatch.quotationNumber || existingMatch.data?.quotationNumber || existingMatch.data?.quoteNumber || ''
       let retainedQuoteNo = baseQuoteNo
@@ -1036,6 +1101,27 @@ module.exports = {
         quotationRevisionAmounts: updatedRevAmounts,
         revisions: updatedRevisionsList,
         status: 'Open',
+        data: {
+          ...(existingMatch.data || {}),
+          ...payload.data,
+          ...payload,
+          quoteNumber: updatedQuoteNumber,
+          quotationNumber: updatedQuoteNumber,
+          revisionCode: nextRevCode,
+          revisionNo: nextRevNo,
+          r0Amount: r0Amt !== undefined ? String(r0Amt) : existingMatch.data?.r0Amount,
+          r1Amount: r1Amt !== undefined ? String(r1Amt) : existingMatch.data?.r1Amount,
+          r2Amount: r2Amt !== undefined ? String(r2Amt) : existingMatch.data?.r2Amount,
+          r3Amount: r3Amt !== undefined ? String(r3Amt) : existingMatch.data?.r3Amount,
+          revisionAmountR0: r0Amt !== undefined ? Number(r0Amt) : existingMatch.revisionAmountR0,
+          revisionAmountR1: r1Amt !== undefined ? Number(r1Amt) : existingMatch.revisionAmountR1,
+          revisionAmountR2: r2Amt !== undefined ? Number(r2Amt) : existingMatch.revisionAmountR2,
+          revisionAmountR3: r3Amt !== undefined ? Number(r3Amt) : existingMatch.revisionAmountR3,
+          [`revisionAmount${nextRevCode}`]: newAmount,
+          quotationRevisionAmounts: updatedRevAmounts,
+          revisions: updatedRevisionsList,
+          status: 'Open',
+        },
       }
 
       const updatedResult = await quotationService.update(actor, existingMatch.id, updatePayload)
@@ -1043,20 +1129,83 @@ module.exports = {
       return updatedResult
     }
 
-    const initialAmount = toExplicitNumber(payload.r0Amount) ?? toExplicitNumber(payload.revisionAmountR0) ?? uploadQuotationAmount
+    const r0Val = toExplicitNumber(payload.r0Amount) ?? toExplicitNumber(payload.revisionAmountR0) ?? (payload.revisionCode === 'R0' ? uploadQuotationAmount : undefined)
+    const r1Val = toExplicitNumber(payload.r1Amount) ?? toExplicitNumber(payload.revisionAmountR1) ?? (payload.revisionCode === 'R1' ? (uploadQuotationAmount ?? toExplicitNumber(payload.totalAmount)) : undefined)
+    const r2Val = toExplicitNumber(payload.r2Amount) ?? toExplicitNumber(payload.revisionAmountR2) ?? (payload.revisionCode === 'R2' ? (uploadQuotationAmount ?? toExplicitNumber(payload.totalAmount)) : undefined)
+    const r3Val = toExplicitNumber(payload.r3Amount) ?? toExplicitNumber(payload.revisionAmountR3) ?? (payload.revisionCode === 'R3' ? (uploadQuotationAmount ?? toExplicitNumber(payload.totalAmount)) : undefined)
+
+    const initialAmount = r0Val ?? r1Val ?? uploadQuotationAmount ?? toExplicitNumber(payload.totalAmount)
     if (initialAmount === undefined) {
       throw new AppError('R0 Amount is required to create the first quotation revision.', 400)
     }
     const initialRevCode = payload.revisionCode || 'R0'
-    const initialRevNo = payload.revisionNo ?? 0
+    const initialRevNo = payload.revisionNo ?? (parseInt(initialRevCode.replace(/\D/g, ''), 10) || 0)
+
+    const constructedRevAmounts = {
+      ...(payload.quotationRevisionAmounts || {}),
+      ...(r0Val !== undefined ? { R0: Number(r0Val) } : {}),
+      ...(r1Val !== undefined ? { R1: Number(r1Val) } : {}),
+      ...(r2Val !== undefined ? { R2: Number(r2Val) } : {}),
+      ...(r3Val !== undefined ? { R3: Number(r3Val) } : {}),
+      [initialRevCode]: toExplicitNumber(payload[`${initialRevCode.toLowerCase()}Amount`]) ?? initialAmount,
+    }
+
+    let constructedRevisions = Array.isArray(payload.revisions) && payload.revisions.length > 0 ? [...payload.revisions] : []
+    if (constructedRevisions.length === 0) {
+      if (r0Val !== undefined && r0Val !== null) {
+        constructedRevisions.push({
+          revisionCode: 'R0',
+          revisionNo: 0,
+          amount: Number(r0Val),
+          owner: payload.originalOwner || 'Keval V Shah',
+          createdBy: actor?.id,
+          createdByName: payload.originalOwner || 'Keval V Shah',
+          date: payload.quotationDate || new Date().toISOString().slice(0, 10),
+          status: 'Open',
+        })
+      }
+      if (initialRevCode !== 'R0') {
+        const thisRevAmt = toExplicitNumber(payload[`${initialRevCode.toLowerCase()}Amount`]) ?? (uploadQuotationAmount ?? toExplicitNumber(payload.totalAmount) ?? initialAmount)
+        constructedRevisions.push({
+          revisionCode: initialRevCode,
+          revisionNo: initialRevNo,
+          amount: Number(thisRevAmt),
+          owner: actor?.name || 'User',
+          createdBy: actor?.id,
+          createdByName: actor?.name || 'User',
+          date: new Date().toISOString().slice(0, 10),
+          status: 'Open',
+        })
+      } else if (constructedRevisions.length === 0) {
+        constructedRevisions.push({
+          revisionCode: 'R0',
+          revisionNo: 0,
+          amount: Number(initialAmount),
+          owner: actor?.name || 'User',
+          createdBy: actor?.id,
+          createdByName: actor?.name || 'User',
+          date: new Date().toISOString().slice(0, 10),
+          status: 'Open',
+        })
+      }
+    }
+
     const result = await quotationService.create(actor, {
       ...payload,
       status: 'Open',
       revisionCode: initialRevCode,
       revisionNo: initialRevNo,
-      revisionAmountR0: payload.revisionAmountR0 ?? (initialRevCode === 'R0' ? initialAmount : 0),
-      quotationRevisionAmounts: payload.quotationRevisionAmounts || { [initialRevCode]: initialAmount },
-      revisions: payload.revisions || [{ revisionCode: initialRevCode, amount: initialAmount, date: new Date().toISOString().slice(0, 10), status: 'Open' }],
+      r0Amount: r0Val !== undefined ? String(r0Val) : payload.r0Amount,
+      r1Amount: r1Val !== undefined ? String(r1Val) : payload.r1Amount,
+      r2Amount: r2Val !== undefined ? String(r2Val) : payload.r2Amount,
+      r3Amount: r3Val !== undefined ? String(r3Val) : payload.r3Amount,
+      revisionAmountR0: r0Val !== undefined ? Number(r0Val) : (payload.revisionAmountR0 ?? (initialRevCode === 'R0' ? initialAmount : 0)),
+      revisionAmountR1: r1Val !== undefined ? Number(r1Val) : payload.revisionAmountR1,
+      revisionAmountR2: r2Val !== undefined ? Number(r2Val) : payload.revisionAmountR2,
+      revisionAmountR3: r3Val !== undefined ? Number(r3Val) : payload.revisionAmountR3,
+      quotationRevisionAmounts: constructedRevAmounts,
+      revisions: constructedRevisions,
+      originalOwner: payload.originalOwner || actor?.name || 'User',
     })
     await syncQuotationToLeadsAndDeals(result)
     try {
@@ -1144,7 +1293,47 @@ module.exports = {
     await syncQuotationToLeadsAndDeals(result)
     return result
   },
-  list: (actor, filters = {}) => quotationService.list(applyStrictIsolation(actor), filters),
+  list: async (actor, filters = {}) => {
+    const isolatedActor = applyStrictIsolation(actor)
+    const baseList = await quotationService.list(isolatedActor, filters)
+    if (isolatedActor.role === 'admin') return baseList
+
+    try {
+      const { getMongoModel } = require('../models/mongoModels')
+      const QuotationModel = getMongoModel('quotations')
+      const userName = actor?.name || ''
+      if (QuotationModel && userName) {
+        const extraFilter = {
+          $or: [
+            { dealOwner: userName },
+            { 'data.dealOwner': userName },
+            { selectedAccountOwner: userName },
+            { 'data.selectedAccountOwner': userName },
+            { quotationOwner: userName },
+            { 'data.quotationOwner': userName },
+            { quotationOwnerName: userName },
+            { 'data.quotationOwnerName': userName },
+          ],
+        }
+        const extraDocs = await QuotationModel.find(extraFilter).lean()
+        const { mapMongoDocument } = require('../utils/mongoRecordMapper')
+        const mappedExtras = extraDocs.map(mapMongoDocument)
+        const existingIds = new Set(baseList.map((q) => String(q.id || q._id || '')))
+        const combined = [...baseList]
+        mappedExtras.forEach((extra) => {
+          const idStr = String(extra.id || extra._id || '')
+          if (idStr && !existingIds.has(idStr)) {
+            existingIds.add(idStr)
+            combined.push(extra)
+          }
+        })
+        return combined
+      }
+    } catch (e) {
+      // fallback to baseList
+    }
+    return baseList
+  },
   get: (actor, id) => quotationService.get(applyStrictIsolation(actor), id),
   search: (actor, query) => quotationService.search(applyStrictIsolation(actor), query),
   getQuotationContextDetails: async (actor, queryParams = {}) => {

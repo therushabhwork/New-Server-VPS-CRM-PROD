@@ -315,7 +315,7 @@ const CRMActionPage = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuth()
-  const { accounts, deals, quotations, updateDeal, createQuotation, addNotification } = useData()
+  const { accounts, deals, quotations, updateDeal, updateQuotation, createQuotation, addNotification } = useData()
   const editorRef = useRef(null)
 
   const [recordModule, setRecordModule] = useState(searchParams.get('module') || 'deal')
@@ -838,6 +838,30 @@ const CRMActionPage = () => {
     if (!result.success) {
       setErrors({ record: result.message || 'Unable to re-assign deal.' })
       return
+    }
+
+    try {
+      const dealIdStr = String(selectedDeal.id || '')
+      const dealNoStr = String(selectedDeal.dealNumber || '')
+      const linkedQuotes = (quotations || []).filter((q) => {
+        const qDealId = String(q.dealId || q.data?.dealId || '')
+        const qDealNo = String(q.dealNumber || q.data?.dealNumber || '')
+        return (dealIdStr && qDealId === dealIdStr) || (dealNoStr && qDealNo === dealNoStr)
+      })
+      for (const lq of linkedQuotes) {
+        if (lq.id && updateQuotation) {
+          await updateQuotation(lq.id, {
+            dealOwner: nextOwnerName,
+            selectedAccountOwner: nextOwnerName,
+            quotationOwner: nextOwnerName,
+            quotationOwnerName: nextOwnerName,
+            assignedTo: apiOwnerId || resolvedOwnerId,
+            userId: resolvedOwnerId,
+          }).catch(() => {})
+        }
+      }
+    } catch (e) {
+      // ignore
     }
 
     const dynamicReassignMessage = `Re-assign deal From ${previousOwner || 'Previous Owner'} To ${nextOwnerName || 'New Owner'}`

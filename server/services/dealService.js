@@ -565,6 +565,69 @@ module.exports = {
             { $set: reassignUpdateSet }
           ).catch(() => {})
         }
+
+        const Quotation = getMongoModel('quotations')
+        if (Quotation) {
+          const targetOwnerName = enhancedBody.dealOwner || enhancedBody.ownerName || updatedDeal.dealOwner || updatedDeal.ownerName || ''
+          const targetAssignedTo = enhancedBody.assignedTo || enhancedBody.assignedUserId || enhancedBody.ownerUserId || updatedDeal.assignedTo || ''
+          const dealIdStr = String(updatedDeal.id || '')
+          const dealIdNum = Number(updatedDeal.id)
+          const legacyIdNum = Number(updatedDeal.legacyId)
+          const dealNumberStr = String(updatedDeal.dealNumber || '')
+          const targetQuoteNo = String(updatedDeal.quotationNumber || updatedDeal.quoteNumber || updatedDeal.latestQuotationNumber || updatedDeal.data?.quotationNumber || updatedDeal.data?.quoteNumber || '').trim()
+          const baseQuoteNo = targetQuoteNo.replace(/-R\d+$/i, '').trim()
+          const dealCustId = String(updatedDeal.customerId || updatedDeal.accountId || updatedDeal.data?.customerId || updatedDeal.data?.accountId || '').trim()
+          const quoteFilters = [
+            ...(dealIdStr ? [{ dealId: dealIdStr }, { 'data.dealId': dealIdStr }, { sourceDealId: dealIdStr }, { 'data.sourceDealId': dealIdStr }] : []),
+            ...(Number.isInteger(dealIdNum) ? [{ dealId: dealIdNum }, { 'data.dealId': dealIdNum }, { sourceDealId: dealIdNum }, { 'data.sourceDealId': dealIdNum }] : []),
+            ...(Number.isInteger(legacyIdNum) ? [{ dealId: legacyIdNum }, { 'data.dealId': legacyIdNum }, { sourceDealId: legacyIdNum }, { 'data.sourceDealId': legacyIdNum }] : []),
+            ...(dealNumberStr ? [{ dealNumber: dealNumberStr }, { 'data.dealNumber': dealNumberStr }] : []),
+            ...(targetQuoteNo ? [{ quoteNumber: targetQuoteNo }, { quotationNumber: targetQuoteNo }, { 'data.quoteNumber': targetQuoteNo }, { 'data.quotationNumber': targetQuoteNo }] : []),
+            ...(baseQuoteNo ? [{ quoteNumber: new RegExp(`^${baseQuoteNo}`, 'i') }, { quotationNumber: new RegExp(`^${baseQuoteNo}`, 'i') }] : []),
+            ...(dealCustId ? [{ customerId: dealCustId }, { 'data.customerId': dealCustId }, { selectedAccountId: dealCustId }, { 'data.selectedAccountId': dealCustId }] : []),
+          ]
+          if (quoteFilters.length > 0) {
+            const quoteUpdateSet = {
+              ...(targetOwnerName ? {
+                dealOwner: targetOwnerName,
+                selectedAccountOwner: targetOwnerName,
+                quotationOwner: targetOwnerName,
+                quotationOwnerName: targetOwnerName,
+                'data.dealOwner': targetOwnerName,
+                'data.selectedAccountOwner': targetOwnerName,
+                'data.quotationOwner': targetOwnerName,
+                'data.quotationOwnerName': targetOwnerName,
+              } : {}),
+              ...(targetAssignedTo ? {
+                assignedTo: targetAssignedTo,
+                userId: targetAssignedTo,
+                'data.assignedTo': targetAssignedTo,
+                'data.userId': targetAssignedTo,
+              } : {}),
+              updatedAt: nowIso,
+              'data.updatedAt': nowIso,
+            }
+            await Quotation.updateMany({ $or: quoteFilters }, { $set: quoteUpdateSet }).catch(() => {})
+
+            const matchedQuote = await Quotation.findOne({ $or: quoteFilters }).lean().catch(() => null)
+            if (matchedQuote) {
+              const matchedQuoteNum = matchedQuote.quotationNumber || matchedQuote.quoteNumber || matchedQuote.data?.quotationNumber || matchedQuote.data?.quoteNumber
+              if (matchedQuoteNum && Deal && dealMatchFilters.length > 0) {
+                await Deal.updateMany(
+                  { $or: dealMatchFilters },
+                  {
+                    $set: {
+                      latestQuotationNumber: matchedQuoteNum,
+                      quotationNumber: matchedQuoteNum,
+                      'data.latestQuotationNumber': matchedQuoteNum,
+                      'data.quotationNumber': matchedQuoteNum,
+                    },
+                  }
+                ).catch(() => {})
+              }
+            }
+          }
+        }
       }
 
       // Dynamic secondaryPhoneNumber sync across deals and leads collections

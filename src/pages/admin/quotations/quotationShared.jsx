@@ -79,6 +79,25 @@ const getExplicitRevisionAmount = (quotation = {}, revisionCode) => {
   if (Object.prototype.hasOwnProperty.call(raw, key) && hasExplicitRevisionValue(raw[key])) return raw[key]
   if (Object.prototype.hasOwnProperty.call(data, key) && hasExplicitRevisionValue(data[key])) return data[key]
   if (hasExplicitRevisionValue(quotation[key])) return quotation[key]
+
+  const revisionsList = Array.isArray(raw.revisions)
+    ? raw.revisions
+    : Array.isArray(data.revisions)
+      ? data.revisions
+      : Array.isArray(quotation.revisions)
+        ? quotation.revisions
+        : []
+  const foundRev = revisionsList.find(
+    (r) => String(r?.revisionCode || '').toUpperCase() === String(revisionCode).toUpperCase()
+      || Number(r?.revisionNumber) === Number(String(revisionCode).replace(/\D/g, ''))
+  )
+  if (foundRev && hasExplicitRevisionValue(foundRev.amount)) return foundRev.amount
+
+  if (String(revisionCode).toUpperCase() === 'R0') {
+    const baseAmt = raw.amount || data.amount || quotation.amount
+    if (hasExplicitRevisionValue(baseAmt)) return baseAmt
+  }
+
   if (!hasRawRevisionField && hasExplicitRevisionValue(raw[`revisionAmount${revisionCode}`]) && Number(raw[`revisionAmount${revisionCode}`]) !== 0) return raw[`revisionAmount${revisionCode}`]
   if (!hasRawRevisionField && hasExplicitRevisionValue(data[`revisionAmount${revisionCode}`]) && Number(data[`revisionAmount${revisionCode}`]) !== 0) return data[`revisionAmount${revisionCode}`]
   return ''
@@ -448,6 +467,8 @@ export const formatListDate = (value) => {
   const year = date.getFullYear()
   return `${day}-${month}-${year}`
 }
+
+export const formatDdMmYyyy = (value) => formatListDate(value)
 
 export const formatDocumentDate = (value) => {
   if (!value) return '-'
@@ -2574,9 +2595,15 @@ export function RevisionsListModal({
   const revisionRowsMap = new Map()
 
   recordsToProcess.forEach((q) => {
-    const qRevisions = Array.isArray(q.raw?.revisions) && q.raw.revisions.length > 0
+    const qRevisions = (Array.isArray(q.raw?.revisions) && q.raw.revisions.length > 0)
       ? q.raw.revisions
-      : (Array.isArray(q.revisions) && q.revisions.length > 0 ? q.revisions : null)
+      : ((Array.isArray(q.raw?.data?.revisions) && q.raw.data.revisions.length > 0)
+        ? q.raw.data.revisions
+        : ((Array.isArray(q.revisions) && q.revisions.length > 0)
+          ? q.revisions
+          : ((Array.isArray(q.data?.revisions) && q.data.revisions.length > 0)
+            ? q.data.revisions
+            : null)))
 
     const ownerName = resolveQuotationOwner(q, q.linkedAccount || row?.linkedAccount, q.linkedDeal || row?.linkedDeal)
     const projName = q.project || q.raw?.projectName || row.project || '-'
@@ -2602,9 +2629,10 @@ export function RevisionsListModal({
         let revCode = revItem.revisionCode || (revItem.revisionNo === 0 ? 'R0' : revItem.revisionNo ? `R${revItem.revisionNo}` : 'R0')
         if (revCode === 'Normal') revCode = 'R0'
         const formattedNum = `${rawBaseQuoteNo}-${revCode}`
-        const explicitAmt = hasExplicitRevisionValue(revItem.amount)
-          ? revItem.amount
-          : getExplicitRevisionAmount(q, revCode)
+        const explicitRevAmount = getExplicitRevisionAmount(q, revCode)
+        const explicitAmt = hasExplicitRevisionValue(explicitRevAmount)
+          ? explicitRevAmount
+          : (hasExplicitRevisionValue(revItem.amount) ? revItem.amount : '')
         const rawAmt = hasExplicitRevisionValue(explicitAmt) ? Number(explicitAmt) : ''
         const amtLabel = hasExplicitRevisionValue(rawAmt) ? formatCurrency(rawAmt, q.currency || 'INR') : '-'
         const rawStatus = q.raw?.status || q.status || q.raw?.data?.status || ''
@@ -2628,11 +2656,13 @@ export function RevisionsListModal({
         const dateVal = revItem.date || q.date || q.raw?.quotationDate || '-'
         const attachment = withRevisionAttachment(revCode, revItem)
 
+        const revOwner = revItem.owner || revItem.createdByName || revItem.ownerName || (revCode === 'R0' ? (q.raw?.originalOwner || q.raw?.createdByName || ownerName) : ownerName)
+
         revisionRowsMap.set(revCode, {
           key: revCode,
           revisionCode: revCode,
           quotationNumber: formattedNum,
-          owner: ownerName,
+          owner: revOwner,
           date: dateVal,
           company: compName,
           amount: rawAmt,
@@ -2675,6 +2705,56 @@ export function RevisionsListModal({
       })
     }
   })
+
+  let maxFoundRevNo = 0
+  revisionRowsMap.forEach((_, code) => {
+    const n = parseInt(String(code || '').replace(/\D/g, ''), 10)
+    if (!Number.isNaN(n) && n > maxFoundRevNo) maxFoundRevNo = n
+  })
+  recordsToProcess.forEach((q) => {
+    const raw = q.raw || q
+    const data = raw.data || q.data || {}
+    const revAmounts = raw.quotationRevisionAmounts || q.quotationRevisionAmounts || data.quotationRevisionAmounts || {}
+    Object.keys(revAmounts).forEach((code) => {
+      const n = parseInt(String(code || '').replace(/\D/g, ''), 10)
+      if (!Number.isNaN(n) && n > maxFoundRevNo) maxFoundRevNo = n
+    })
+    const qRevNo = parseInt(String(raw.revisionNo || raw.revisionCode || data.revisionNo || data.revisionCode || '').replace(/\D/g, ''), 10)
+    if (!Number.isNaN(qRevNo) && qRevNo > maxFoundRevNo) maxFoundRevNo = qRevNo
+  })
+
+  const primaryRecord = recordsToProcess[0] || row || {}
+  const primaryRaw = primaryRecord.raw || primaryRecord
+  const primaryOwner = resolveQuotationOwner(primaryRecord, primaryRecord.linkedAccount || row?.linkedAccount, primaryRecord.linkedDeal || row?.linkedDeal)
+  const primaryProj = primaryRecord.project || primaryRaw.projectName || row.project || '-'
+  const primaryComp = primaryRecord.company || primaryRaw.companyName || primaryRaw.customerName || row.company || '-'
+  const primaryDate = primaryRecord.date || primaryRaw.quotationDate || row.date || '-'
+
+  for (let i = 0; i <= maxFoundRevNo; i++) {
+    const revCode = `R${i}`
+    if (!revisionRowsMap.has(revCode)) {
+      const explicitAmt = getExplicitRevisionAmount(primaryRecord, revCode)
+      const rawAmt = hasExplicitRevisionValue(explicitAmt) ? Number(explicitAmt) : ''
+      const amtLabel = hasExplicitRevisionValue(rawAmt) ? formatCurrency(rawAmt, primaryRecord.currency || 'INR') : '-'
+      const revOwner = revCode === 'R0'
+        ? (primaryRaw.originalOwner || primaryRaw.createdByName || primaryRaw.selectedAccountOwner || primaryOwner)
+        : primaryOwner
+      revisionRowsMap.set(revCode, {
+        key: revCode,
+        revisionCode: revCode,
+        quotationNumber: `${rawBaseQuoteNo}-${revCode}`,
+        owner: revOwner,
+        date: primaryDate,
+        company: primaryComp,
+        amount: rawAmt,
+        amountLabel: amtLabel,
+        status: 'Open',
+        project: primaryProj,
+        attachment: null,
+        rawRecord: primaryRecord,
+      })
+    }
+  }
 
   const parseRevNum = (code) => {
     const num = parseInt(String(code || '').replace(/\D/g, ''), 10)
@@ -2747,7 +2827,7 @@ export function RevisionsListModal({
           <tbody>
             {revisionRowsList.map((rev) => {
               const isApproved = String(rev.status || '').toLowerCase() === 'approved'
-              const revRowCodeNum = Number(rev.revisionCode.replace(/\D/g, '')) || 1
+              const revRowCodeNum = parseRevNum(rev.revisionCode)
               const attachment = getQuotationAttachment(rev)
 
               return (
@@ -2765,16 +2845,27 @@ export function RevisionsListModal({
                     {rev.quotationNumber}
                   </td>
                   <td style={{ padding: '12px 14px' }}>{rev.owner || '-'}</td>
-                  <td style={{ padding: '12px 14px' }}>{rev.date || '-'}</td>
+                  <td style={{ padding: '12px 14px' }}>{formatListDate(rev.date)}</td>
                   <td style={{ padding: '12px 14px' }}>{rev.company || '-'}</td>
                   {allRevisionCodes.map((code) => {
                     const isCurrentCellCode = rev.revisionCode === code
-                    const cellCodeNum = Number(code.replace(/\D/g, '')) || 1
+                    const cellCodeNum = parseRevNum(code)
 
                     let cellVal = '-'
                     const matchRev = revisionRowsList.find((r) => r.revisionCode === code)
-                    if (matchRev && hasExplicitRevisionValue(matchRev.amount) && cellCodeNum <= revRowCodeNum) {
-                      cellVal = matchRev.amountLabel
+                    const explicitPrimaryAmt = getExplicitRevisionAmount(primaryRecord, code)
+                    let resolvedAmt = hasExplicitRevisionValue(explicitPrimaryAmt)
+                      ? explicitPrimaryAmt
+                      : ((matchRev && hasExplicitRevisionValue(matchRev.amount))
+                        ? matchRev.amount
+                        : '')
+
+                    if (!hasExplicitRevisionValue(resolvedAmt) && String(code).toUpperCase() === 'R0') {
+                      resolvedAmt = primaryRecord.amount || primaryRecord.totalAmount || primaryRecord.raw?.amount || primaryRecord.raw?.totalAmount || primaryRecord.raw?.data?.amount
+                    }
+
+                    if (hasExplicitRevisionValue(resolvedAmt) && cellCodeNum <= revRowCodeNum) {
+                      cellVal = formatCurrency(Number(resolvedAmt), primaryRecord.currency || 'INR')
                     }
 
                     return (
@@ -2870,17 +2961,34 @@ export function SequentialRevisionSummaryCard({
     }).sort((a, b) => (a.raw?.revisionNo ?? a.revisionNo ?? 0) - (b.raw?.revisionNo ?? b.revisionNo ?? 0))
   }, [allQuotations, targetAccountId, targetDealId])
 
-  const existingRevisionCount = siblingQuotes.length
-  const nextRevisionCode = existingRevisionCount === 0 ? 'R0' : `R${existingRevisionCount}`
-
   const revisionAmounts = {}
   siblingQuotes.forEach((q) => {
-    const code = q.raw?.revisionCode || (q.raw?.revisionNo === 0 ? 'R0' : `R${q.raw?.revisionNo}`)
+    const raw = q.raw || q
+    const data = raw.data || q.data || {}
+    const revs = Array.isArray(raw.revisions) ? raw.revisions : (Array.isArray(data.revisions) ? data.revisions : [])
+    revs.forEach((r) => {
+      const c = r.revisionCode || (r.revisionNo === 0 ? 'R0' : `R${r.revisionNo}`)
+      if (c && hasExplicitRevisionValue(r.amount)) revisionAmounts[c] = Number(r.amount)
+    })
+    const revMap = raw.quotationRevisionAmounts || q.quotationRevisionAmounts || data.quotationRevisionAmounts || {}
+    Object.entries(revMap).forEach(([c, amt]) => {
+      if (hasExplicitRevisionValue(amt)) revisionAmounts[c] = Number(amt)
+    })
+    ;['R0', 'R1', 'R2', 'R3'].forEach((c) => {
+      const explicitAmt = getExplicitRevisionAmount(q, c)
+      if (hasExplicitRevisionValue(explicitAmt) && !revisionAmounts[c]) {
+        revisionAmounts[c] = Number(explicitAmt)
+      }
+    })
+    const code = raw.revisionCode || (raw.revisionNo === 0 ? 'R0' : raw.revisionNo ? `R${raw.revisionNo}` : 'R0')
     const explicitAmt = getExplicitRevisionAmount(q, code)
-    if (hasExplicitRevisionValue(explicitAmt)) {
+    if (hasExplicitRevisionValue(explicitAmt) && !revisionAmounts[code]) {
       revisionAmounts[code] = Number(explicitAmt)
     }
   })
+
+  const existingRevisionCount = Math.max(siblingQuotes.length, Object.keys(revisionAmounts).length)
+  const nextRevisionCode = existingRevisionCount === 0 ? 'R0' : `R${existingRevisionCount}`
 
   return (
     <div style={{
