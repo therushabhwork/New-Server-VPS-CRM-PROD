@@ -60,7 +60,7 @@ const UserDashboardPage = () => {
   } = useData()
   const [todoReplies, setTodoReplies] = useState([])
   const [communicationRemarks, setCommunicationRemarks] = useState([])
-  const customers = useMemo(() => customerService.getCustomers(), [])
+  const [customers, setCustomers] = useState(() => customerService.getCustomers())
 
   const fetchTodoReplies = useCallback(async () => {
     try {
@@ -82,6 +82,14 @@ const UserDashboardPage = () => {
     return () => { isMounted = false }
   }, [fetchTodoReplies, user])
 
+  useEffect(() => {
+    const unsubscribe = customerService.subscribe((nextCustomers) => {
+      setCustomers(Array.isArray(nextCustomers) ? [...nextCustomers] : [])
+    })
+    customerService.loadCustomers().catch(() => {})
+    return () => unsubscribe()
+  }, [])
+
   const stats = useMemo(() => {
     const pendingTasks = tasks.filter((task) => task.status === 'pending')
     const openDeals = deals.filter((deal) => !['won', 'lost'].includes(String(deal.status || '').toLowerCase()))
@@ -89,6 +97,7 @@ const UserDashboardPage = () => {
 
     return {
       accounts: accounts.length,
+      customers: customers.length,
       deals: deals.length,
       dealValue: deals.reduce((sum, deal) => sum + (Number(deal.value) || 0), 0),
       openDeals: openDeals.length,
@@ -99,7 +108,7 @@ const UserDashboardPage = () => {
       notifications: notifications.length,
       quotations: quotations.length,
     }
-  }, [accounts, deals, notifications.length, quotations.length, supportRequests, tasks])
+  }, [accounts, customers.length, deals, notifications.length, quotations.length, supportRequests, tasks])
 
   const userIdentity = useMemo(() => [
     user?.id,
@@ -366,7 +375,7 @@ const UserDashboardPage = () => {
           </div>
           <div className="ud-stat-content">
             <div className="ud-stat-num-row">
-              <span className="ud-stat-number">0</span>
+              <span className="ud-stat-number">{customers?.length || 0}</span>
               <span className="ud-stat-badge ud-stat-badge--gray">0%</span>
             </div>
             <span className="ud-stat-title">Customers</span>

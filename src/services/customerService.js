@@ -6,10 +6,45 @@ import {
   isSameCrmOwner,
 } from '../features/users/crmUserDirectory'
 
-let customerCache = []
+const getCustomerCacheKey = () => {
+  try {
+    const rawUser = typeof window !== 'undefined' ? window.localStorage.getItem('crm_user') : null
+    const user = rawUser ? JSON.parse(rawUser) : null
+    const id = user?.id || user?._id || user?.email || 'default'
+    return `crm_customers_cache_${id}`
+  } catch {
+    return 'crm_customers_cache_default'
+  }
+}
+
+const loadCachedCustomersFromStorage = () => {
+  try {
+    if (typeof window === 'undefined') return []
+    const key = getCustomerCacheKey()
+    const raw = window.localStorage.getItem(key)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+const saveCachedCustomersToStorage = (customers = []) => {
+  try {
+    if (typeof window === 'undefined') return
+    const key = getCustomerCacheKey()
+    window.localStorage.setItem(key, JSON.stringify(customers))
+  } catch {
+    // Best-effort cache
+  }
+}
+
+let customerCache = loadCachedCustomersFromStorage()
 const subscribers = new Set()
 
 const notifySubscribers = () => {
+  saveCachedCustomersToStorage(customerCache)
   subscribers.forEach((subscriber) => subscriber(customerCache))
 }
 
@@ -147,10 +182,21 @@ const normalizePayload = (customer = {}) => {
 class CustomerService {
   subscribe(listener) {
     subscribers.add(listener)
+    try {
+      listener(customerCache)
+    } catch (err) {
+      console.error('Customer subscriber notification failed:', err)
+    }
     return () => subscribers.delete(listener)
   }
 
   getCustomers() {
+    if ((!customerCache || customerCache.length === 0) && typeof window !== 'undefined') {
+      const fromStorage = loadCachedCustomersFromStorage()
+      if (fromStorage.length > 0) {
+        customerCache = fromStorage
+      }
+    }
     return customerCache
   }
 

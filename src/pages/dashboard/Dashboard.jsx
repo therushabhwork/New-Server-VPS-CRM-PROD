@@ -37,6 +37,7 @@ import { useData } from '../../context/DataContext'
 import { useAuth } from '../../context/AuthContext'
 import { formatCurrency, formatDate, getStatusColor } from '../../utils/helpers'
 import { remarkApi } from '../../services/remarkApi'
+import { customerService } from '../../services/customerService'
 import { filterCommunicationActivitiesForUser } from '../../utils/communicationActivityAccess'
 import './Dashboard.css'
 
@@ -79,6 +80,15 @@ const Dashboard = () => {
   const { accounts, deals, tasks, reminders = [] } = useData()
   const { user } = useAuth()
   const [communicationRemarks, setCommunicationRemarks] = useState([])
+  const [customers, setCustomers] = useState(() => customerService.getCustomers())
+
+  useEffect(() => {
+    const unsubscribe = customerService.subscribe((next) => {
+      setCustomers(Array.isArray(next) ? [...next] : [])
+    })
+    customerService.loadCustomers().catch(() => {})
+    return () => unsubscribe()
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -292,7 +302,7 @@ const Dashboard = () => {
             </svg>
           </div>
           <div className="md-kpi-content">
-            <h2 className="md-kpi-value">0</h2>
+            <h2 className="md-kpi-value">{customers?.length || 0}</h2>
             <p className="md-kpi-label">Customer</p>
           </div>
           <div className="md-kpi-trend trend-neutral">0%</div>

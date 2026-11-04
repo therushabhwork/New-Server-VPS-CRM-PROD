@@ -239,7 +239,7 @@ const AdminPanel = () => {
   const [todoFilter, setTodoFilter] = useState('all')
   const [reminderStatesById, setReminderStatesById] = useState(() => getAdminReminderStates())
   const menuRef = useClickOutside(() => setOpenMenuState(null))
-  const customers = useMemo(() => customerService.getCustomers(), [])
+  const [customers, setCustomers] = useState(() => customerService.getCustomers())
   const isAdmin = user?.role === 'admin'
 
   const [analyticsData, setAnalyticsData] = useState(null)
@@ -411,6 +411,13 @@ const AdminPanel = () => {
     fetchTodoReplies()
   }, [fetchTodoReplies])
   useEffect(() => subscribeAdminReminderStates(setReminderStatesById), [])
+  useEffect(() => {
+    const unsubscribe = customerService.subscribe((nextCustomers) => {
+      setCustomers(Array.isArray(nextCustomers) ? [...nextCustomers] : [])
+    })
+    customerService.loadCustomers().catch(() => {})
+    return () => unsubscribe()
+  }, [])
 
   const weeklyData = useMemo(() => getWeeklyReportsAllBoardData(accounts), [accounts])
   const swBarodaData = useMemo(() => getSwBarodaMumBoardData(accounts), [accounts])
