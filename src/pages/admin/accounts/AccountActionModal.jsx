@@ -6,6 +6,8 @@ import AddReminderModal from '../../../components/common/AddReminderModal'
 import Button from '../../../components/common/Button'
 import OutlookEmailComposerModal from '../../../components/integrations/OutlookEmailComposerModal'
 import { useData } from '../../../context/DataContext'
+import { useAuth } from '../../../context/AuthContext'
+import { getCrmOwnerRecord } from '../../../features/users/crmUserDirectory'
 import { remarkApi } from '../../../services/remarkApi'
 import { reminderApi } from '../../../services/reminderApi'
 import { calendarApi } from '../../../services/calendarApi'
@@ -19,6 +21,7 @@ import {
   shouldShowAccountPoDetails,
 } from '../../../features/adminAccounts/config/accountStages'
 import './MyGroupAccounts.css'
+import AccountReassignReminderForm from '../../../features/adminAccounts/components/AccountReassignReminderForm'
 
 const documentTypes = ['Proposal', 'Quotation', 'PO', 'Drawing', 'Site Photo', 'Other']
 const getTodayInputValue = () => new Date().toISOString().slice(0, 10)
@@ -38,6 +41,7 @@ const getAllowedActionStatusOption = (value) => {
 const AccountActionModal = ({ account, actionKey, onClose, onSaved }) => {
   const location = useLocation()
   const isAdminRoute = location.pathname.startsWith('/admin')
+  const { user } = useAuth()
   const { addNotification, updateAccount } = useData()
   const action = ACCOUNT_ACTION_MAP[actionKey] || (actionKey === 'send-mail' ? { key: 'send-mail', label: 'Send Mail', heading: 'Send Mail' } : null)
   const [stage, setStage] = useState(ACCOUNT_CHANGE_STATUS_OPTIONS[0]?.value || 'new')
@@ -312,13 +316,76 @@ const AccountActionModal = ({ account, actionKey, onClose, onSaved }) => {
       }
 
       const owner = ownerOptions.find((entry) => entry.name === ownerName)
+
+      const resolveOwnerDisplayName = (rawOwner, ownerId) => {
+        if (!rawOwner && !ownerId) return 'User'
+        const match = ownerOptions.find((u) => (
+          (ownerId && (String(u.id) === String(ownerId) || String(u._id) === String(ownerId)))
+          || (rawOwner && (
+            String(u.name || '').trim().toLowerCase() === String(rawOwner).trim().toLowerCase()
+            || String(u.ownerDisplayName || '').trim().toLowerCase() === String(rawOwner).trim().toLowerCase()
+            || String(u.username || '').trim().toLowerCase() === String(rawOwner).trim().toLowerCase()
+            || String(u.ownerCode || '').trim() === String(rawOwner).trim()
+          ))
+        ))
+        if (match) return match.ownerDisplayName || match.name || match.username
+        const crmRecord = typeof getCrmOwnerRecord === 'function' ? getCrmOwnerRecord(rawOwner) : null
+        if (crmRecord?.ownerDisplayName || crmRecord?.name) return crmRecord.ownerDisplayName || crmRecord.name
+        return String(rawOwner || '').trim().replace(/^\d{3,}\s*-+\s*/u, '') || 'User'
+      }
+
+      const oldOwnerName = resolveOwnerDisplayName(
+        account.accountOwnerDisplay || account.accountOwnerName || account.accountOwner || account.ownerName || account.raw?.accountOwner || account.raw?.ownerName,
+        account.ownerId || account.assignedUserId || account.raw?.ownerId || account.raw?.assignedUserId
+      )
+      const newOwnerName = resolveOwnerDisplayName(owner?.ownerDisplayName || owner?.name || ownerName, owner?.id)
+      const reassignMessage = `Re-assign Account from ${oldOwnerName} to ${newOwnerName}.`
+      const reassignTimestamp = new Date().toISOString()
+
+      const newOwnershipEntry = {
+        id: `reassign-${Date.now()}`,
+        title: 'Account Reassigned',
+        content: reassignMessage,
+        fromOwner: oldOwnerName,
+        toOwner: newOwnerName,
+        changedAt: reassignTimestamp,
+        changedBy: user?.name || user?.username || 'System',
+        author: user?.name || user?.username || 'System',
+        createdAt: reassignTimestamp,
+      }
+
       updates = {
-        accountOwner: ownerName,
-        ownerName,
+        accountOwner: newOwnerName,
+        ownerName: newOwnerName,
         ownerId: owner?.id || account.raw?.ownerId || null,
         assignedUserId: owner?.id || account.raw?.assignedUserId || null,
         accountOwnerCode: owner?.ownerCode || '',
         company: owner?.company || owner?.companyName || account.accountCategory || '',
+        accountDate: reassignTimestamp,
+        lastReassignedAt: reassignTimestamp,
+        updatedAt: reassignTimestamp,
+        latestRemark: reassignMessage,
+        ownershipHistory: [
+          ...(Array.isArray(account.ownershipHistory) ? account.ownershipHistory : (Array.isArray(account.raw?.ownershipHistory) ? account.raw.ownershipHistory : [])),
+          newOwnershipEntry,
+        ],
+        systemUpdates: [
+          ...(Array.isArray(account.systemUpdates) ? account.systemUpdates : (Array.isArray(account.raw?.systemUpdates) ? account.raw.systemUpdates : [])),
+          newOwnershipEntry,
+        ],
+      }
+
+      const saveRemarkFn = remarkApi?.createRemark || remarkApi?.addRemark
+      if (typeof saveRemarkFn === 'function') {
+        saveRemarkFn.call(remarkApi, {
+          accountId: account.raw?.id || account.id,
+          relatedEntityId: account.raw?.id || account.id,
+          relatedEntityType: 'account',
+          content: reassignMessage,
+          category: 'system',
+          type: 'system',
+          title: 'Account Reassigned',
+        }).catch(() => {})
       }
     } else if (actionKey === 'add-document') {
       if (!documentFile) {
@@ -600,6 +667,21 @@ const AccountActionModal = ({ account, actionKey, onClose, onSaved }) => {
       <p className="admin-accounts-bulk-help">
         This action is already available in the current account workspace.
       </p>
+    )
+  }
+
+  if (actionKey === 're-assign-account') {
+    return (
+      <div className="admin-accounts-inline-action-layer" role="dialog" aria-modal="true" aria-label={action.label} onClick={onClose}>
+        <div onClick={(event) => event.stopPropagation()} style={{ margin: 'auto' }}>
+          <AccountReassignReminderForm
+            account={account}
+            ownerOptions={ownerOptions}
+            onClose={onClose}
+            onSaved={onSaved}
+          />
+        </div>
+      </div>
     )
   }
 

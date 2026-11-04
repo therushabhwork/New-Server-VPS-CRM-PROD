@@ -259,7 +259,7 @@ export const SWATI_PROFILE_FALLBACK = {
     'Ahmedabad - 382210',
   ],
   organizationEmail: 'mkt@swatiswitchgears.com',
-  organizationPhone: '9913536307',
+  organizationPhone: '',
   organizationGstin: '24AAACZ0615P1Z7',
   organizationStateCode: '24',
   website: 'www.swatiswitchgears.com',
@@ -273,7 +273,7 @@ export const LUMOS_PROFILE_FALLBACK = {
   organizationLegalName: 'Lumos Building Automation Pvt. Ltd.',
   organizationAddress: 'Vadodara, Gujarat, India',
   organizationEmail: 'sales@lumosbuildingautomation.com',
-  organizationPhone: '+91 265 4000 222',
+  organizationPhone: '',
   organizationGstin: '24AAECL9020K1ZY',
   organizationStateCode: '24',
   website: 'www.lumosbuildingautomation.com',
@@ -544,7 +544,11 @@ export const getUserIdentityValues = (user = {}) => (
 
 export const getAllowedQuotationActionKeys = (user, row) => {
   const role = safeLower(user?.role)
-  const isAdmin = role === 'admin' || role === 'super_admin'
+  const emailStr = String(user?.email || '').toLowerCase()
+  const nameStr = String(user?.name || '').toLowerCase()
+  const idStr = String(user?.id || user?.legacyId || '')
+  const isPrivileged = emailStr.includes('samirsheth') || emailStr.includes('keval') || nameStr.includes('samir sheth') || nameStr.includes('samir seth') || nameStr.includes('keval') || idStr === '15' || idStr === '16'
+  const isAdmin = role === 'admin' || role === 'super_admin' || isPrivileged
   if (isAdmin) {
     return ACTIONS.map((action) => action.key)
   }
@@ -863,14 +867,16 @@ export const buildQuotationDocumentData = (quotation, linkedAccount) => {
     )) || (quotation.userId && String(u.id) === String(quotation.userId))
   )) || currentUser
 
-  const userPhone = matchingUser?.quotationOwnerMobileNumber
-    || (matchingUser?.email ? localStorage.getItem(`orgPhone_${String(matchingUser.email).trim().toLowerCase()}`) : '')
-    || matchingUser?.mobile
+  const userPhone = matchingUser?.mobile
     || matchingUser?.phone
-    || currentUser?.quotationOwnerMobileNumber
-    || (currentUser?.email ? localStorage.getItem(`orgPhone_${String(currentUser.email).trim().toLowerCase()}`) : '')
+    || matchingUser?.mobileNumber
+    || matchingUser?.quotationOwnerMobileNumber
+    || (matchingUser?.email ? localStorage.getItem(`orgPhone_${String(matchingUser.email).trim().toLowerCase()}`) : '')
     || currentUser?.mobile
     || currentUser?.phone
+    || currentUser?.mobileNumber
+    || currentUser?.quotationOwnerMobileNumber
+    || (currentUser?.email ? localStorage.getItem(`orgPhone_${String(currentUser.email).trim().toLowerCase()}`) : '')
     || ''
 
   const userEmail = matchingUser?.email || currentUser?.email || ''
@@ -889,7 +895,7 @@ export const buildQuotationDocumentData = (quotation, linkedAccount) => {
 
   const organizationPhone = (rawOrgPhone !== undefined && rawOrgPhone !== null && String(rawOrgPhone).trim() !== '')
     ? String(rawOrgPhone).trim()
-    : (userPhone || (isKnownProfileDocument ? (resolvedProfileFallback.organizationPhone || '') : SWATI_PROFILE_FALLBACK.organizationPhone))
+    : (userPhone || '')
   const organizationGstin = isKnownProfileDocument
     ? resolvedProfileFallback.organizationGstin || ''
     : quotation.organizationGstin || resolvedProfileFallback.organizationGstin || SWATI_PROFILE_FALLBACK.organizationGstin
@@ -1469,14 +1475,17 @@ export const buildPrintableHtml = (doc) => {
               <h2 class="company-name">${escapeHtml(doc.organizationName)}</h2>
               <div class="company-contact">
                 ${escapeHtml(doc.organizationAddress)}<br />
-                Email: ${escapeHtml(doc.organizationEmail)} | Phone: ${escapeHtml(doc.organizationPhone)} | GSTIN: ${escapeHtml(doc.organizationGstin)}
+                ${[
+                  doc.organizationEmail ? `Email: ${escapeHtml(doc.organizationEmail)}` : '',
+                  doc.organizationPhone ? `Phone: ${escapeHtml(doc.organizationPhone)}` : '',
+                  doc.organizationGstin ? `GSTIN: ${escapeHtml(doc.organizationGstin)}` : '',
+                ].filter(Boolean).join(' | ')}
               </div>
             </div>
             <div class="party-grid">
               <div class="party-card">
                 <div class="section-label">Customer Details</div>
                 <div class="field-row"><strong>Customer Name</strong><span>${escapeHtml(displayValue(doc.companyName))}</span></div>
-                <div class="field-row"><strong>Client Account No.</strong><span>${escapeHtml(displayValue(doc.clientAccountNumber))}</span></div>
                 <div class="field-row"><strong>Contact Person</strong><span>${escapeHtml(displayValue(doc.contactPerson))}</span></div>
                 <div class="field-row"><strong>Email</strong><span>${escapeHtml(displayValue(doc.email))}</span></div>
                 <div class="field-row"><strong>GSTIN</strong><span>${escapeHtml(displayValue(doc.gstin))}</span></div>
@@ -1568,7 +1577,11 @@ export const buildPrintableHtml = (doc) => {
           </div>
           <div class="quotation-footer">
             <strong>${escapeHtml(doc.organizationName)}</strong><br />
-            Website: ${escapeHtml(doc.website || SWATI_PROFILE_FALLBACK.website)} | Email: ${escapeHtml(doc.organizationEmail)} | Phone: ${escapeHtml(doc.organizationPhone)}
+            ${[
+              (doc.website || SWATI_PROFILE_FALLBACK.website) ? `Website: ${escapeHtml(doc.website || SWATI_PROFILE_FALLBACK.website)}` : '',
+              doc.organizationEmail ? `Email: ${escapeHtml(doc.organizationEmail)}` : '',
+              doc.organizationPhone ? `Phone: ${escapeHtml(doc.organizationPhone)}` : '',
+            ].filter(Boolean).join(' | ')}
           </div>
         </div>
       </div>
@@ -1828,7 +1841,11 @@ export function QuotationDocument({ documentData, editable = false, onEditField 
           <p>
             {documentData.organizationAddress}
             <br />
-            Email: {documentData.organizationEmail} | Phone: {documentData.organizationPhone} | GSTIN: {documentData.organizationGstin}
+            {[
+              documentData.organizationEmail ? `Email: ${documentData.organizationEmail}` : '',
+              documentData.organizationPhone ? `Phone: ${documentData.organizationPhone}` : '',
+              documentData.organizationGstin ? `GSTIN: ${documentData.organizationGstin}` : '',
+            ].filter(Boolean).join(' | ')}
           </p>
         </div>
 
@@ -1836,7 +1853,6 @@ export function QuotationDocument({ documentData, editable = false, onEditField 
           <section className="aqp-doc__party-card">
             <div className="aqp-doc__eyebrow">Customer Details</div>
             <div className="aqp-doc__field-row"><strong>Customer Name</strong>{editValue('companyName', displayValue(documentData.companyName))}</div>
-            <div className="aqp-doc__field-row"><strong>Client Account No.</strong>{editValue('clientAccountNumber', displayValue(documentData.clientAccountNumber))}</div>
             <div className="aqp-doc__field-row"><strong>Contact Person</strong>{editValue('contactPerson', displayValue(documentData.contactPerson))}</div>
             <div className="aqp-doc__field-row"><strong>Email</strong>{editValue('email', displayValue(documentData.email))}</div>
             <div className="aqp-doc__field-row"><strong>GSTIN</strong>{editValue('gstin', displayValue(documentData.gstin))}</div>
@@ -1975,7 +1991,11 @@ export function QuotationDocument({ documentData, editable = false, onEditField 
         <div className="aqp-doc__footer">
           <strong>{documentData.organizationName}</strong>
           <br />
-          Website: {documentData.website || SWATI_PROFILE_FALLBACK.website} | Email: {documentData.organizationEmail} | Phone: {documentData.organizationPhone}
+          {[
+            (documentData.website || SWATI_PROFILE_FALLBACK.website) ? `Website: ${documentData.website || SWATI_PROFILE_FALLBACK.website}` : '',
+            documentData.organizationEmail ? `Email: ${documentData.organizationEmail}` : '',
+            documentData.organizationPhone ? `Phone: ${documentData.organizationPhone}` : '',
+          ].filter(Boolean).join(' | ')}
         </div>
       </div>
     </div>
@@ -2248,10 +2268,6 @@ export function SimplifiedQuotationViewer({
               <div className="aqp-simple-row">
                 <span className="aqp-simple-label">Customer Name</span>
                 <span className="aqp-simple-val">{editValue('companyName', displayValue(documentData.companyName))}</span>
-              </div>
-              <div className="aqp-simple-row">
-                <span className="aqp-simple-label">Account No</span>
-                <span className="aqp-simple-val">{editValue('clientAccountNumber', displayValue(documentData.clientAccountNumber))}</span>
               </div>
               <div className="aqp-simple-row">
                 <span className="aqp-simple-label">Contact Person</span>

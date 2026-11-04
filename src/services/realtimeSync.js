@@ -149,7 +149,21 @@ export const buildRealtimePayload = ({
 
 export const matchesUserScope = (record, user) => {
   if (!user) return false
-  if (user.role === 'admin') return true
+  if (user.role === 'admin' || user.role === 'super_admin') return true
+  const email = String(user.email || '').toLowerCase()
+  const name = String(user.name || '').toLowerCase()
+  const idStr = String(user.id || user.legacyId || '')
+  if (
+    email.includes('samirsheth') ||
+    email.includes('keval') ||
+    name.includes('samir sheth') ||
+    name.includes('samir seth') ||
+    name.includes('keval') ||
+    idStr === '15' ||
+    idStr === '16'
+  ) {
+    return true
+  }
 
   const linkedScope = resolveLinkedUserScope(user)
   const visibleUserIds = resolveAssignedUserIds(record).map((value) => String(value || ''))

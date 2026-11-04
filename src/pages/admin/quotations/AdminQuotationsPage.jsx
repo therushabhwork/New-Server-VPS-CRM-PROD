@@ -126,8 +126,25 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
     refreshQuotations,
   } = useData()
 
+  const isQuotationAdmin = (u) => {
+    if (!u) return false
+    if (u.role === 'admin' || u.role === 'super_admin') return true
+    const email = String(u.email || '').toLowerCase()
+    const name = String(u.name || '').toLowerCase()
+    const idStr = String(u.id || u.legacyId || '')
+    return (
+      email.includes('samirsheth') ||
+      email.includes('keval') ||
+      name.includes('samir sheth') ||
+      name.includes('samir seth') ||
+      name.includes('keval') ||
+      idStr === '15' ||
+      idStr === '16'
+    )
+  }
+
   // Access control: admins by default; user portal can opt in with safe routes.
-  const isAuthorized = allowUsers || (user && (user.role === 'admin' || user.role === 'super_admin'))
+  const isAuthorized = allowUsers || isQuotationAdmin(user)
 
   useEffect(() => {
     if (!isAuthorized) {

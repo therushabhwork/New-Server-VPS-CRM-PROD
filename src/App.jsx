@@ -150,7 +150,11 @@ const RootRouteHandler = () => {
   if (!user) {
     return <LandingPage />
   }
-  if (user.role === 'admin' && location.pathname.startsWith('/quotation-manager')) {
+  const emailStr = String(user.email || '').toLowerCase()
+  const nameStr = String(user.name || '').toLowerCase()
+  const idStr = String(user.id || user.legacyId || '')
+  const isQuotationAdmin = user.role === 'admin' || user.role === 'super_admin' || emailStr.includes('samirsheth') || emailStr.includes('keval') || nameStr.includes('samir sheth') || nameStr.includes('samir seth') || nameStr.includes('keval') || idStr === '15' || idStr === '16'
+  if (isQuotationAdmin && location.pathname.startsWith('/quotation-manager')) {
     return <Navigate to={`/admin${location.pathname}${location.search}`} replace />
   }
   return (

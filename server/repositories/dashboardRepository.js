@@ -61,10 +61,12 @@ const safeCount = async (Model, filter) => {
 
 const applyStrictIsolation = (actor, includeSupport = false) => {
   const email = String(actor?.email || '').toLowerCase().trim()
-  const isKeval = email === 'keval@swatiswitchgears.com'
+  const name = String(actor?.name || '').toLowerCase().trim()
+  const actorId = String(actor?.id || actor?._id || actor?.legacyId || '').trim()
+  const isKeval = email === 'keval@swatiswitchgears.com' || name.includes('keval') || actorId === '16'
+  const isSamir = email === 'samirsheth@swatiswitchgears.com' || email.startsWith('samir.sheth@') || email.startsWith('samirsheth@') || name.includes('samir sheth') || name.includes('samir seth') || actorId === '15'
   const isSupport = includeSupport && email.endsWith('@support.com')
-  
-  if (isKeval || isSupport) return { ...actor, role: 'admin' }
+  if (isKeval || isSamir || isSupport || actor?.role === 'admin' || actor?.role === 'super_admin') return { ...actor, role: 'admin' }
   return { ...actor, role: 'user' }
 }
 

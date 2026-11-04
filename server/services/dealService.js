@@ -157,14 +157,50 @@ const isConvertedDealRecord = (deal = {}) => {
 
 const { isPrivilegedRole } = require('../security/accessScope')
 
+const isPrivilegedDealAdmin = (actor) => {
+  if (!actor) return false
+  const email = String(actor?.email || '').toLowerCase().trim()
+  const name = String(actor?.name || '').toLowerCase().trim()
+  const username = String(actor?.username || '').toLowerCase().trim()
+  const actorId = String(actor?.id || actor?._id || actor?.legacyId || '').trim()
+
+  // Keval V Shah
+  if (
+    email === 'keval@swatiswitchgears.com' ||
+    name === 'keval v shah' ||
+    name === 'keval shah' ||
+    username === 'kevalvshah' ||
+    actorId === '16'
+  ) {
+    return true
+  }
+
+  // Samir Sheth
+  if (
+    email === 'samirsheth@swatiswitchgears.com' ||
+    email.startsWith('samir.sheth@') ||
+    email.startsWith('samirsheth@') ||
+    email.startsWith('samir.seth@') ||
+    email.startsWith('samirseth@') ||
+    name === 'samir sheth' ||
+    name === 'samir seth' ||
+    username === 'samir-sheth' ||
+    username === 'samirsheth' ||
+    actorId === '15'
+  ) {
+    return true
+  }
+
+  if (isPrivilegedRole(actor.role)) return true
+  return false
+}
+
 const baseService = createCrudService({
   repository: dealRepository,
   entityLabel: 'Deal',
   entityType: 'deal',
   buildPayload,
-  customScopeBypass: (actor) => {
-    return isPrivilegedRole(actor.role) || (actor.email && actor.email.toLowerCase() === 'keval@swatiswitchgears.com')
-  }
+  customScopeBypass: (actor) => isPrivilegedDealAdmin(actor)
 })
 
 const ensureUniqueDeal = async (actor, payload, excludeId = null) => {
@@ -179,8 +215,7 @@ const ensureUniqueDeal = async (actor, payload, excludeId = null) => {
 }
 
 const applyStrictIsolation = (actor) => {
-  const email = String(actor?.email || '').toLowerCase().trim()
-  if (email === 'keval@swatiswitchgears.com') return { ...actor, role: 'admin' }
+  if (isPrivilegedDealAdmin(actor)) return { ...actor, role: 'admin' }
   return { ...actor, role: 'user' }
 }
 

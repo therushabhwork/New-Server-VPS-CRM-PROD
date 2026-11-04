@@ -6,6 +6,7 @@ import AddRemarksModal from '../../../components/common/AddRemarksModal'
 import RemarksTimeline from '../../../components/common/RemarksTimeline'
 import { useData } from '../../../context/DataContext'
 import { useAuth } from '../../../context/AuthContext'
+import { getCrmOwnerRecord } from '../../../features/users/crmUserDirectory'
 import { remarkApi } from '../../../services/remarkApi'
 import { reminderApi } from '../../../services/reminderApi'
 import { calendarApi } from '../../../services/calendarApi'
@@ -25,6 +26,7 @@ import { buildCrmAccountActionUrl } from '../crm-actions/CRMActionPage'
 import BulkUploadAccountsPage from './BulkUploadAccountsPage'
 import AccountDetailsDrawer from './AccountDetailsDrawer'
 import AccountActionModal from './AccountActionModal'
+import AccountReassignReminderForm from '../../../features/adminAccounts/components/AccountReassignReminderForm'
 import './MyGroupAccounts.css'
 
 const reminderModes = ['Call', 'Email', 'Meeting', 'Visit', 'WhatsApp', 'Follow Up']
@@ -308,11 +310,76 @@ const AccountActionPlaceholderPage = () => {
       }
 
       const owner = ownerOptions.find((entry) => entry.name === ownerName)
+
+      const resolveOwnerDisplayName = (rawOwner, ownerId) => {
+        if (!rawOwner && !ownerId) return 'User'
+        const match = ownerOptions.find((u) => (
+          (ownerId && (String(u.id) === String(ownerId) || String(u._id) === String(ownerId)))
+          || (rawOwner && (
+            String(u.name || '').trim().toLowerCase() === String(rawOwner).trim().toLowerCase()
+            || String(u.ownerDisplayName || '').trim().toLowerCase() === String(rawOwner).trim().toLowerCase()
+            || String(u.username || '').trim().toLowerCase() === String(rawOwner).trim().toLowerCase()
+            || String(u.ownerCode || '').trim() === String(rawOwner).trim()
+          ))
+        ))
+        if (match) return match.ownerDisplayName || match.name || match.username
+        const crmRecord = typeof getCrmOwnerRecord === 'function' ? getCrmOwnerRecord(rawOwner) : null
+        if (crmRecord?.ownerDisplayName || crmRecord?.name) return crmRecord.ownerDisplayName || crmRecord.name
+        return String(rawOwner || '').trim().replace(/^\d{3,}\s*-+\s*/u, '') || 'User'
+      }
+
+      const oldOwnerName = resolveOwnerDisplayName(
+        selectedAccount.accountOwnerDisplay || selectedAccount.accountOwnerName || selectedAccount.accountOwner || selectedAccount.ownerName || selectedAccount.raw?.accountOwner || selectedAccount.raw?.ownerName,
+        selectedAccount.ownerId || selectedAccount.assignedUserId || selectedAccount.raw?.ownerId || selectedAccount.raw?.assignedUserId
+      )
+      const newOwnerName = resolveOwnerDisplayName(owner?.ownerDisplayName || owner?.name || ownerName, owner?.id)
+      const reassignMessage = `Re-assign Account from ${oldOwnerName} to ${newOwnerName}.`
+      const reassignTimestamp = new Date().toISOString()
+
+      const newOwnershipEntry = {
+        id: `reassign-${Date.now()}`,
+        title: 'Account Reassigned',
+        content: reassignMessage,
+        fromOwner: oldOwnerName,
+        toOwner: newOwnerName,
+        changedAt: reassignTimestamp,
+        changedBy: user?.name || user?.username || 'System',
+        author: user?.name || user?.username || 'System',
+        createdAt: reassignTimestamp,
+      }
+
       updates = {
-        accountOwner: ownerName,
-        ownerName,
+        accountOwner: newOwnerName,
+        ownerName: newOwnerName,
         ownerId: owner?.id || selectedAccount.raw?.ownerId || null,
         assignedUserId: owner?.id || selectedAccount.raw?.assignedUserId || null,
+        accountOwnerCode: owner?.ownerCode || '',
+        company: owner?.company || owner?.companyName || selectedAccount.accountCategory || '',
+        accountDate: reassignTimestamp,
+        lastReassignedAt: reassignTimestamp,
+        updatedAt: reassignTimestamp,
+        latestRemark: reassignMessage,
+        ownershipHistory: [
+          ...(Array.isArray(selectedAccount.ownershipHistory) ? selectedAccount.ownershipHistory : (Array.isArray(selectedAccount.raw?.ownershipHistory) ? selectedAccount.raw.ownershipHistory : [])),
+          newOwnershipEntry,
+        ],
+        systemUpdates: [
+          ...(Array.isArray(selectedAccount.systemUpdates) ? selectedAccount.systemUpdates : (Array.isArray(selectedAccount.raw?.systemUpdates) ? selectedAccount.raw.systemUpdates : [])),
+          newOwnershipEntry,
+        ],
+      }
+
+      const saveRemarkFn = remarkApi?.createRemark || remarkApi?.addRemark
+      if (typeof saveRemarkFn === 'function') {
+        saveRemarkFn.call(remarkApi, {
+          accountId: selectedAccount.raw?.id || selectedAccount.id,
+          relatedEntityId: selectedAccount.raw?.id || selectedAccount.id,
+          relatedEntityType: 'account',
+          content: reassignMessage,
+          category: 'system',
+          type: 'system',
+          title: 'Account Reassigned',
+        }).catch(() => {})
       }
     } else if (actionKey === 'add-document') {
       if (!documentFile) {
@@ -680,6 +747,19 @@ const AccountActionPlaceholderPage = () => {
     if (actionKey === 'bulk-upload-accounts') {
       return <BulkUploadAccountsPage />
     }
+  }
+
+  if (actionKey === 're-assign-account' && selectedAccount) {
+    return (
+      <div className="admin-accounts-placeholder-page" style={{ padding: '2rem 1rem' }}>
+        <AccountReassignReminderForm
+          account={selectedAccount}
+          ownerOptions={ownerOptions}
+          onClose={() => navigate(boardUrl)}
+          onSaved={() => navigate(boardUrl)}
+        />
+      </div>
+    )
   }
 
   if (actionKey === 'add-note-remarks') {

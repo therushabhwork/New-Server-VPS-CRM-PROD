@@ -1137,3 +1137,149 @@ html.is-user:not([data-theme="dark"]) .layout--user .crm-action-context strong {
   color: #0f172a !important;
   -webkit-text-fill-color: #0f172a !important;
 }
+
+/* ==========================================================================
+   Deal Context Inline Editing Fields & Hover Pencil Icon
+   ========================================================================== */
+
+.admin-deal-detail-flat-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem;
+}
+
+.admin-deal-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  position: relative;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.admin-deal-detail-field-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.admin-deal-detail-field-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  padding: 0;
+  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.admin-deal-detail-field:hover .admin-deal-detail-field-edit-btn,
+.admin-deal-detail-field:focus-within .admin-deal-detail-field-edit-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.admin-deal-detail-field-edit-btn:hover {
+  color: #c60016;
+  background: #fff1f2;
+}
+
+@media (hover: none) {
+  .admin-deal-detail-field-edit-btn {
+    opacity: 0.7;
+    pointer-events: auto;
+  }
+}
+
+.admin-deal-detail-field-value {
+  display: block;
+  min-width: 0;
+  color: var(--text-primary, #0f172a);
+  font-size: 0.95rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.admin-deal-detail-field-value strong {
+  font-weight: 600;
+}
+
+.admin-deal-detail-inline-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.admin-deal-detail-inline-editor input {
+  width: 100%;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: #ffffff;
+  color: #0f172a;
+  box-sizing: border-box;
+}
+
+.admin-deal-detail-inline-editor input:focus {
+  outline: none;
+  border-color: #c60016;
+  box-shadow: 0 0 0 2px rgba(198, 0, 22, 0.12);
+}
+
+.admin-deal-detail-inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.admin-deal-detail-inline-actions button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.admin-deal-detail-inline-actions button:first-child {
+  background: #c60016;
+  border: 1px solid #c60016;
+  color: #ffffff;
+}
+
+.admin-deal-detail-inline-actions button:first-child:hover:not(:disabled) {
+  background: #991b1b;
+  border-color: #991b1b;
+}
+
+.admin-deal-detail-inline-actions button:last-child {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+}
+
+.admin-deal-detail-inline-actions button:last-child:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.admin-deal-detail-flat-fields--user {
+  border: none !important;
+  box-shadow: none !important;
+  background: #ffffff !important;
+}
+

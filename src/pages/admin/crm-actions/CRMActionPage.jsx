@@ -397,10 +397,25 @@ const CRMActionPage = () => {
 
   const renderInlineEditor = (key, type = 'text') => (
     <div className="admin-deal-detail-inline-editor">
-      <input type={type} value={editValue} onChange={(e) => setEditValue(e.target.value)} disabled={isSavingField} />
+      <input
+        type={type}
+        value={editValue}
+        autoFocus
+        onChange={(e) => setEditValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            handleSaveField(key)
+          } else if (e.key === 'Escape') {
+            handleCancelEditing()
+          }
+        }}
+        onBlur={() => handleSaveField(key)}
+        disabled={isSavingField}
+      />
       <div className="admin-deal-detail-inline-actions">
         <button type="button" onClick={() => handleSaveField(key)} disabled={isSavingField}>{isSavingField ? 'Saving...' : 'Save'}</button>
-        <button type="button" onClick={handleCancelEditing} disabled={isSavingField}>Cancel</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={handleCancelEditing} disabled={isSavingField}>Cancel</button>
       </div>
     </div>
   )
@@ -1205,21 +1220,9 @@ const CRMActionPage = () => {
     if (!entity) return null
 
     if (dealOnly) {
-      if (!location.pathname.startsWith('/admin')) {
-        return (
-          <div className="crm-action-context" style={{ margin: '0 0 1rem', padding: '1rem', border: 'none', background: '#ffffff', borderRadius: '8px' }}>
-            <div><span>Deal Name</span><strong>{getEntityLabel(entity) || '-'}</strong></div>
-            <div><span>Deal No.</span><strong>{entity.dealNumber || entity.accountNumber || entity.customerNumber || '-'}</strong></div>
-            <div><span>Contact Name</span><strong>{getEntityContactName(entity) || '-'}</strong></div>
-            <div><span>Email ID</span><strong>{getEntityEmail(entity) || '-'}</strong></div>
-            <div><span>Company Name</span><strong>{getEntityCompanyName(entity) || '-'}</strong></div>
-            <div><span>Deal Reference</span><strong>{selectedDeal?.dealNumber || entity.dealNumber || '-'}</strong></div>
-          </div>
-        )
-      }
-
+      const isUserRoute = !location.pathname.startsWith('/admin')
       return (
-        <div className="admin-deal-detail-flat-fields" style={{ margin: '0 0 1rem', padding: '1rem', border: '1px solid var(--border-subtle)', background: 'var(--surface-card)' }}>
+        <div className={`admin-deal-detail-flat-fields ${isUserRoute ? 'admin-deal-detail-flat-fields--user' : ''}`} style={{ margin: '0 0 1rem', padding: '1rem', border: isUserRoute ? 'none' : '1px solid var(--border-subtle)', background: isUserRoute ? '#ffffff' : 'var(--surface-card)', borderRadius: '8px' }}>
           <label className={`admin-deal-detail-field admin-deal-detail-field--flat ${editingFieldKey === 'dealName' ? 'admin-deal-detail-field--single-editing' : ''}`} onDoubleClick={() => handleStartEditing('dealName', getEntityLabel(entity))}>
             <div className="admin-deal-detail-field-label">
               <span>Deal Name</span>

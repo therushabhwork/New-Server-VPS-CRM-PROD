@@ -859,22 +859,63 @@ const mergeRevisionAttachment = (revisions, revisionCode, metadata) => {
   })
 }
 
-const applyStrictIsolation = (actor) => {
+const isPrivilegedQuotationAdmin = (actor) => {
+  if (!actor) return false
   const email = String(actor?.email || '').toLowerCase().trim()
-  if (email === 'keval@swatiswitchgears.com') return { ...actor, role: 'admin' }
+  const name = String(actor?.name || '').toLowerCase().trim()
+  const username = String(actor?.username || '').toLowerCase().trim()
+  const actorId = String(actor?.id || actor?._id || actor?.legacyId || '').trim()
+
+  // Keval V Shah
+  if (
+    email === 'keval@swatiswitchgears.com' ||
+    name === 'keval v shah' ||
+    name === 'keval shah' ||
+    username === 'kevalvshah' ||
+    actorId === '16'
+  ) {
+    return true
+  }
+
+  // Samir Sheth
+  if (
+    email === 'samirsheth@swatiswitchgears.com' ||
+    email.startsWith('samir.sheth@') ||
+    email.startsWith('samirsheth@') ||
+    email.startsWith('samir.seth@') ||
+    email.startsWith('samirseth@') ||
+    name === 'samir sheth' ||
+    name === 'samir seth' ||
+    username === 'samir-sheth' ||
+    username === 'samirsheth' ||
+    actorId === '15'
+  ) {
+    return true
+  }
+
+  // Global admin / super_admin role
+  if (actor.role === 'admin' || actor.role === 'super_admin') {
+    return true
+  }
+
+  return false
+}
+
+const applyStrictIsolation = (actor) => {
+  if (isPrivilegedQuotationAdmin(actor)) return { ...actor, role: 'admin' }
   return { ...actor, role: 'user' }
 }
 
 const isSalesExecutiveEditAuthorized = (actor) => {
   if (!actor) return false
-  const actorId = actor.id || actor._id || actor.legacyId
-  if ([16, 17, 18, '16', '17', '18'].includes(actorId)) return true
+  const actorId = String(actor.id || actor._id || actor.legacyId || '').trim()
+  if (['15', '16', '17', '18'].includes(actorId)) return true
   const email = String(actor.email || '').trim().toLowerCase()
-  if (['keval@swatiswitchgears.com', 'parth@support.com', 'rushabh@support.com'].includes(email)) return true
+  if (['keval@swatiswitchgears.com', 'samirsheth@swatiswitchgears.com', 'parth@support.com', 'rushabh@support.com'].includes(email)) return true
   const username = String(actor.username || '').trim().toLowerCase()
-  if (['kevalvshah', 'parth-crm-support', 'rushabh-crm-support'].includes(username)) return true
+  if (['kevalvshah', 'samir-sheth', 'samirsheth', 'parth-crm-support', 'rushabh-crm-support'].includes(username)) return true
   const name = String(actor.name || '').trim().toLowerCase()
-  if (['keval v shah', 'keval shah', 'parth crm support', 'rushabh crm support'].includes(name)) return true
+  if (['keval v shah', 'keval shah', 'samir sheth', 'samir seth', 'parth crm support', 'rushabh crm support'].includes(name)) return true
   return false
 }
 

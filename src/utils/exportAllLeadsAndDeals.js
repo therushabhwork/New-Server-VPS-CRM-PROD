@@ -55,13 +55,48 @@ const getQuotationNumberFromRecord = (quotation = {}) => (
   ).trim()
 )
 
+const resolveLeadProjectName = (account = {}) => {
+  const raw = account.raw || account.data || account || {}
+  const formData = account.formData || raw.formData || {}
+  const candidates = [
+    account.projectName,
+    account.dealName,
+    formData.projectName,
+    formData['Project Name'],
+    formData.dealName,
+    formData['Deal Name'],
+    raw.projectName,
+    raw.dealName,
+    raw.formData?.projectName,
+    raw.formData?.['Project Name'],
+    raw.formData?.dealName,
+    raw.formData?.['Deal Name'],
+    raw.company,
+  ]
+  const match = candidates.find((val) => typeof val === 'string' && val.trim())
+  return normalizeMatchValue(match || '')
+}
+
+const resolveQuotationProjectName = (quotation = {}) => {
+  const data = quotation.data || {}
+  const candidates = [
+    quotation.projectName,
+    quotation.title,
+    quotation.dealName,
+    data.projectName,
+    data.quotationSubject,
+    data.dealName,
+  ]
+  const match = candidates.find((val) => typeof val === 'string' && val.trim())
+  return normalizeMatchValue(match || '')
+}
+
 /**
  * Computes a similarity score between a quotation and an account/lead,
  * exactly matching the algorithm in MyGroupAccountsPage.jsx.
  */
 const getQuotationScoreForAccount = (quotation = {}, account = {}) => {
   const raw = account.raw || account || {}
-  const formData = account.formData || raw.formData || {}
 
   const qDealId = String(quotation.dealId || quotation.data?.dealId || quotation.selectedDealId || '').trim()
   const aDealId = String(account.dealId || account.convertedDealId || raw.dealId || raw.convertedDealId || '').trim()
@@ -69,17 +104,13 @@ const getQuotationScoreForAccount = (quotation = {}, account = {}) => {
   const qCustId = String(quotation.customerId || quotation.accountId || quotation.selectedAccountId || quotation.data?.selectedAccountId || '').trim()
   const aCustId = String(account.id || account._id || raw.id || raw._id || '').trim()
 
-  const qProj = normalizeMatchValue(quotation.projectName || quotation.title || quotation.data?.projectName || quotation.data?.quotationSubject)
-  const aProj = normalizeMatchValue(account.projectName || account.dealName || raw.projectName || formData.projectName)
-
-  const qComp = normalizeMatchValue(quotation.companyName || quotation.clientName || quotation.customerName || quotation.data?.companyName || quotation.data?.clientName)
-  const aComp = normalizeMatchValue(account.name || account.accountName || account.customerName || raw.name || formData['Account Name'])
+  const qProj = resolveQuotationProjectName(quotation)
+  const aProj = resolveLeadProjectName(account)
 
   let score = 0
   if (qDealId && aDealId && qDealId === aDealId) score += 100
   if (qCustId && aCustId && qCustId === aCustId) score += 50
-  if (qProj && aProj && qProj === aProj) score += 30
-  if (qComp && aComp && qComp === aComp) score += 10
+  if (qProj && aProj && qProj === aProj) score += 40
 
   return score
 }
@@ -216,19 +247,27 @@ export const exportAllAccountsAndDealsWorkbook = async ({ primary = 'accounts' }
       ? getQuotationOwnerNameFromRecord(bestQuotation, availableUsers)
       : ''
 
+    const isNewlyGeneratedOrNoQuote = !bestQuotation && (
+      lead.stage === 'new' ||
+      lead.creationMode === 'existing-source-project' ||
+      lead.selectedSourceId ||
+      lead.linkedSourceId ||
+      !lead.quotationNumber
+    )
+
     const enrichedLead = {
       ...lead,
-      quotationNumber: resolvedQuotationNumber || lead.quotationNumber || lead.quoteNumber || lead.raw?.quotationNumber || '',
-      quotationOwnerName: resolvedQuotationOwner || lead.quotationOwnerName || lead.quotationOwner || lead.raw?.quotationOwnerName || '',
-      quotationOwner: resolvedQuotationOwner || lead.quotationOwner || lead.quotationOwnerName || lead.raw?.quotationOwner || '',
+      quotationNumber: isNewlyGeneratedOrNoQuote ? '' : (resolvedQuotationNumber || lead.quotationNumber || lead.quoteNumber || lead.raw?.quotationNumber || ''),
+      quotationOwnerName: isNewlyGeneratedOrNoQuote ? '' : (resolvedQuotationOwner || lead.quotationOwnerName || lead.quotationOwner || lead.raw?.quotationOwnerName || ''),
+      quotationOwner: isNewlyGeneratedOrNoQuote ? '' : (resolvedQuotationOwner || lead.quotationOwner || lead.quotationOwnerName || lead.raw?.quotationOwner || ''),
     }
 
     GROUP_ACCOUNTS_COLUMNS.forEach((col) => {
       let val = getColumnTextValue(col, enrichedLead)
       if (col.key === 'quotationOwnerName') {
-        val = resolvedQuotationOwner || val || '-'
+        val = isNewlyGeneratedOrNoQuote ? '-' : (resolvedQuotationOwner || val || '-')
       } else if (col.key === 'quotationNumber') {
-        val = resolvedQuotationNumber || val || '-'
+        val = isNewlyGeneratedOrNoQuote ? '-' : (resolvedQuotationNumber || val || '-')
       }
       rowObj[col.label] = (val && String(val).trim()) ? String(val).trim() : '-'
     })

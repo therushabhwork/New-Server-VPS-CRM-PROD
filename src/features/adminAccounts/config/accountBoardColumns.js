@@ -123,7 +123,9 @@ const formatQuotationOwnerDisplay = (value, row = {}) => (
 
 const formatLegacyBoardDate = (value, row = {}) => {
   const dateVal =
-    value
+    row.lastReassignedAt
+    || row.raw?.lastReassignedAt
+    || value
     || row.accountDate
     || row.accountDateDisplay
     || row.addedDate

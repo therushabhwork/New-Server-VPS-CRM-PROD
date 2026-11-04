@@ -26,6 +26,29 @@ export default function ActivityUpdatesCard({ account = {}, remarks = [], remind
     isReminder: true,
   }))
 
+  const ownershipUpdates = [
+    ...(Array.isArray(account.ownershipHistory) ? account.ownershipHistory : []),
+    ...(Array.isArray(account.raw?.ownershipHistory) ? account.raw.ownershipHistory : []),
+    ...(Array.isArray(account.systemUpdates) ? account.systemUpdates : []),
+    ...(Array.isArray(account.raw?.systemUpdates) ? account.raw.systemUpdates : []),
+  ].map((entry, idx) => ({
+    id: entry.id || `reassign-${idx}-${entry.changedAt || entry.createdAt}`,
+    title: entry.title || 'Account Reassigned',
+    content: entry.content || (entry.fromOwner && entry.toOwner ? `Re-assign Account from ${entry.fromOwner} to ${entry.toOwner}.` : 'Account reassigned.'),
+    createdAt: entry.changedAt || entry.createdAt || account.updatedAt,
+    author: entry.author || entry.changedBy || 'System',
+  }))
+
+  const systemRemarks = (Array.isArray(remarks) ? remarks : [])
+    .filter((r) => r.type === 'system' || r.category === 'system' || r.title === 'Account Reassigned' || (r.content && String(r.content).startsWith('Re-assign Account from')))
+    .map((r, idx) => ({
+      id: r.id || `sys-remark-${idx}`,
+      title: r.title || 'Account Reassigned',
+      content: r.content || r.remark || '',
+      createdAt: r.createdAt || r.date,
+      author: r.createdByName || r.author || 'System',
+    }))
+
   const systemUpdates = [
     ...(account.createdAt ? [{
       id: 'sys-created',
@@ -41,10 +64,18 @@ export default function ActivityUpdatesCard({ account = {}, remarks = [], remind
       createdAt: account.updatedAt,
       author: account.accountOwnerDisplay || account.accountOwner || 'System',
     }] : []),
+    ...ownershipUpdates,
+    ...systemRemarks,
     ...reminderUpdates,
-  ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+  ].filter((item, index, self) => (
+    index === self.findIndex((other) => other.content === item.content && String(other.createdAt).slice(0, 16) === String(item.createdAt).slice(0, 16))
+  )).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
 
-  const displayList = activeTab === 'recent' ? remarks : systemUpdates
+  const recentUpdatesList = (Array.isArray(remarks) ? remarks : []).filter(
+    (r) => r.type !== 'system' && r.category !== 'system' && !(r.content && String(r.content).startsWith('Re-assign Account from'))
+  )
+
+  const displayList = activeTab === 'recent' ? recentUpdatesList : systemUpdates
 
   return (
     <div className="ad-card">

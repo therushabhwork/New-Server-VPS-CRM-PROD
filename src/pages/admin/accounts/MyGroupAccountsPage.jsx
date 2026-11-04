@@ -250,9 +250,44 @@ const getQuotationOwnerName = (quotation = {}, availableUsers = []) => {
   return matchedUser?.name || matchedUser?.username || matchedUser?.email || ''
 }
 
+const resolveLeadProjectName = (account = {}) => {
+  const raw = account.raw || account.data || {}
+  const formData = account.formData || raw.formData || {}
+  const candidates = [
+    account.projectName,
+    account.dealName,
+    formData.projectName,
+    formData['Project Name'],
+    formData.dealName,
+    formData['Deal Name'],
+    raw.projectName,
+    raw.dealName,
+    raw.formData?.projectName,
+    raw.formData?.['Project Name'],
+    raw.formData?.dealName,
+    raw.formData?.['Deal Name'],
+    raw.company,
+  ]
+  const match = candidates.find((val) => typeof val === 'string' && val.trim())
+  return normalizeMatchValue(match || '')
+}
+
+const resolveQuotationProjectName = (quotation = {}) => {
+  const data = quotation.data || {}
+  const candidates = [
+    quotation.projectName,
+    quotation.title,
+    quotation.dealName,
+    data.projectName,
+    data.quotationSubject,
+    data.dealName,
+  ]
+  const match = candidates.find((val) => typeof val === 'string' && val.trim())
+  return normalizeMatchValue(match || '')
+}
+
 const getQuotationScoreForAccount = (quotation = {}, account = {}) => {
   const raw = account.raw || {}
-  const formData = account.formData || raw.formData || {}
 
   const qDealId = String(quotation.dealId || quotation.data?.dealId || quotation.selectedDealId || '').trim()
   const aDealId = String(account.dealId || account.convertedDealId || raw.dealId || raw.convertedDealId || '').trim()
@@ -260,17 +295,13 @@ const getQuotationScoreForAccount = (quotation = {}, account = {}) => {
   const qCustId = String(quotation.customerId || quotation.accountId || quotation.selectedAccountId || quotation.data?.selectedAccountId || '').trim()
   const aCustId = String(account.id || raw.id || raw._id || '').trim()
 
-  const qProj = normalizeMatchValue(quotation.projectName || quotation.title || quotation.data?.projectName || quotation.data?.quotationSubject)
-  const aProj = normalizeMatchValue(account.projectName || account.dealName || raw.projectName || formData.projectName)
-
-  const qComp = normalizeMatchValue(quotation.companyName || quotation.clientName || quotation.customerName || quotation.data?.companyName || quotation.data?.clientName)
-  const aComp = normalizeMatchValue(account.name || account.accountName || account.customerName || raw.name || formData['Account Name'])
+  const qProj = resolveQuotationProjectName(quotation)
+  const aProj = resolveLeadProjectName(account)
 
   let score = 0
   if (qDealId && aDealId && qDealId === aDealId) score += 100
   if (qCustId && aCustId && qCustId === aCustId) score += 50
-  if (qProj && aProj && qProj === aProj) score += 30
-  if (qComp && aComp && qComp === aComp) score += 10
+  if (qProj && aProj && qProj === aProj) score += 40
 
   return score
 }
@@ -286,15 +317,27 @@ const enrichBoardDataWithQuotationFields = (boardData, quotations = [], availabl
       })
 
     const latestQuotation = matchedQuotations[0]?.q
-    if (!latestQuotation) return row
+    if (!latestQuotation) {
+      const isNewlyGeneratedOrNoQuote =
+        row.stage === 'new' ||
+        row.creationMode === 'existing-source-project' ||
+        row.selectedSourceId ||
+        row.linkedSourceId ||
+        !row.quotationNumber
+      return {
+        ...row,
+        quotationNumber: isNewlyGeneratedOrNoQuote ? '' : (row.quotationNumber || ''),
+        quotationOwnerName: isNewlyGeneratedOrNoQuote ? '' : (row.quotationOwnerName || ''),
+      }
+    }
 
     const resolvedNumber = latestQuotation.quoteNumber || latestQuotation.quotationNumber || latestQuotation.data?.quoteNumber || latestQuotation.data?.quotationNumber || ''
     const resolvedOwner = getQuotationOwnerName(latestQuotation, availableUsers)
 
     return {
       ...row,
-      quotationNumber: resolvedNumber || row.quotationNumber || '',
-      quotationOwnerName: resolvedOwner || row.quotationOwnerName || '',
+      quotationNumber: resolvedNumber || '',
+      quotationOwnerName: resolvedOwner || '',
     }
   }
 
@@ -310,9 +353,23 @@ const enrichBoardDataWithQuotationFields = (boardData, quotations = [], availabl
   return { ...boardData, records, rowsByStage }
 }
 
+const getRowSortTime = (row = {}) => {
+  const candidate = (
+    row.lastReassignedAt
+    || row.raw?.lastReassignedAt
+    || row.accountDate
+    || row.raw?.accountDate
+    || row.createdAt
+    || row.raw?.createdAt
+    || 0
+  )
+  const time = new Date(candidate).getTime()
+  return Number.isNaN(time) ? 0 : time
+}
+
 const compareAccountRows = (left = {}, right = {}) => {
-  const timeA = new Date(left.createdAt || left.raw?.createdAt || left.accountDate || left.raw?.accountDate || 0).getTime()
-  const timeB = new Date(right.createdAt || right.raw?.createdAt || right.accountDate || right.raw?.accountDate || 0).getTime()
+  const timeA = getRowSortTime(left)
+  const timeB = getRowSortTime(right)
   if (timeA !== timeB) return timeB - timeA
 
   const leftId = Number(left.id || left.raw?.id || left.raw?._id) || 0
@@ -400,7 +457,7 @@ const getConvertedAccountsFieldText = (row = {}, fieldKey = '') => {
   switch (fieldKey) {
     case 'accountNumber': return row.accountNumber || ''
     case 'name': return row.name || ''
-    case 'accountDate': return row.accountDateDisplay || formatDisplayDate(row.accountDate) || formatDisplayDate(row.createdAt) || formatDisplayDate(row.created_at) || ''
+    case 'accountDate': return (row.lastReassignedAt ? formatDisplayDate(row.lastReassignedAt) : null) || row.accountDateDisplay || formatDisplayDate(row.accountDate) || formatDisplayDate(row.createdAt) || formatDisplayDate(row.created_at) || ''
     case 'accountCategory': return row.accountCategory || ''
     case 'accountOwner': return row.accountOwnerDisplay || row.accountOwnerName || row.accountOwner || ''
         case 'status':

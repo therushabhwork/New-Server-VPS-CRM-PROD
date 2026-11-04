@@ -47,6 +47,10 @@ export const remarkApi = {
     return normalizeRemark(response.data)
   },
 
+  async addRemark(payload) {
+    return this.createRemark(payload)
+  },
+
   async getAccountRemarks(accountId, params = {}) {
     const response = await apiClient.get(`/remarks/account/${encodeURIComponent(accountId)}`, { params })
     const payload = response?.data?.data ?? response?.data ?? {}

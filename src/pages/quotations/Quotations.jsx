@@ -94,7 +94,7 @@ const PROFILE_OPTIONS = [
     organizationName: 'Swati Switchgears India Pvt Ltd',
     organizationAddress: '36 Shubhlaxmi Industrial Estate, Sarkhej Bavla Road, Changodar, Ahmedabad - 382210',
     organizationEmail: 'mkt@swatiswitchgears.com',
-    organizationPhone: '9913536307',
+    organizationPhone: '',
     organizationGstin: '24AAACZ0615P1Z7',
     organizationStateCode: '24',
     website: 'www.swatiswitchgears.com',
@@ -109,7 +109,7 @@ const PROFILE_OPTIONS = [
     organizationName: 'Lumos Building Automation Pvt Ltd',
     organizationAddress: 'Vadodara, Gujarat, India',
     organizationEmail: 'sales@lumosbuildingautomation.com',
-    organizationPhone: '+91 265 4000 222',
+    organizationPhone: '',
     organizationGstin: '24AAECL9020K1ZY',
     organizationStateCode: '24',
     website: 'www.lumosbuildingautomation.com',
@@ -124,7 +124,7 @@ const PROFILE_OPTIONS = [
     organizationName: 'Swati Switchgears India Pvt Ltd',
     organizationAddress: '36 Shubhlaxmi Industrial Estate, Sarkhej Bavla Road, Changodar, Ahmedabad - 382210',
     organizationEmail: 'mkt@swatiswitchgears.com',
-    organizationPhone: '9913536307',
+    organizationPhone: '',
     organizationGstin: '24AAACZ0615P1Z7',
     organizationStateCode: '24',
     website: 'www.swatiswitchgears.com',
@@ -525,7 +525,7 @@ const buildQuotationFormFromExisting = (quotation = {}, nextQuotationNumber = ''
     organizationName: quotation.organizationName || quotation.data?.organizationName || resolvedProfile.organizationName,
     organizationAddress: quotation.organizationAddress || quotation.data?.organizationAddress || resolvedProfile.organizationAddress,
     organizationEmail: quotation.organizationEmail || quotation.data?.organizationEmail || (isSwati ? 'keval@swatiswitchgears.com' : resolvedProfile.organizationEmail),
-    organizationPhone: quotation.organizationPhone || quotation.data?.organizationPhone || resolvedProfile.organizationPhone,
+    organizationPhone: quotation.organizationPhone || quotation.data?.organizationPhone || '',
     organizationGstin: quotation.organizationGstin || quotation.data?.organizationGstin || resolvedProfile.organizationGstin,
     organizationStateCode: quotation.organizationStateCode || quotation.data?.organizationStateCode || resolvedProfile.organizationStateCode || '24',
     website: quotation.website || quotation.data?.website || resolvedProfile.website,
@@ -1878,7 +1878,7 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
       organizationName: profile?.organizationName || '',
       organizationAddress: profile?.organizationAddress || '',
       organizationEmail: user?.email || profile?.organizationEmail || '',
-      organizationPhone: user?.quotationOwnerMobileNumber || (user?.email ? localStorage.getItem(`orgPhone_${String(user.email).trim().toLowerCase()}`) : '') || user?.mobile || user?.phone || '',
+      organizationPhone: user?.mobile || user?.phone || user?.mobileNumber || user?.quotationOwnerMobileNumber || (user?.email ? localStorage.getItem(`orgPhone_${String(user.email).trim().toLowerCase()}`) : '') || '',
       organizationGstin: profile?.organizationGstin || '',
       organizationStateCode: profile?.organizationStateCode || '',
       website: profile?.website || '',
@@ -3618,10 +3618,6 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
                 <div className="quotation-builder-blue-title">Quotation Details</div>
                 <div className="quotation-builder-grid quotation-builder-grid-two">
                   <label className="quotation-builder-field">
-                    <span>Client/Account No.</span>
-                    <input value={quotationForm.clientAccountNumber || ''} readOnly />
-                  </label>
-                  <label className="quotation-builder-field">
                     <span>Quotation Date</span>
                     <input
                       type="date"
@@ -3832,7 +3828,7 @@ const Quotations = ({ autoOpen = false, preselectedDeal = null, onClose = null }
                     <label className="quotation-builder-field">
                       <span>Organization Phone</span>
                       <input
-                        value={quotationForm.organizationPhone || activeProfile?.organizationPhone || ''}
+                        value={quotationForm.organizationPhone || ''}
                         onChange={(event) => handleBuilderFieldChange('organizationPhone', event.target.value.replace(/\D/g, ''))}
                       />
                     </label>

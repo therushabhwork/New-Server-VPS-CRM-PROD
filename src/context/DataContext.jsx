@@ -223,9 +223,29 @@ export const DataProvider = ({ children }) => {
     || fallbackMessage
   ), [])
 
+  const isPrivilegedAdmin = (u) => {
+    if (!u) return false
+    if (u.role === 'admin' || u.role === 'super_admin') return true
+    const email = String(u.email || '').toLowerCase()
+    const name = String(u.name || '').toLowerCase()
+    const username = String(u.username || '').toLowerCase()
+    const idStr = String(u.id || u.legacyId || '')
+    return (
+      email.includes('samirsheth') ||
+      email.includes('keval') ||
+      name.includes('samir sheth') ||
+      name.includes('samir seth') ||
+      name.includes('keval') ||
+      username.includes('samir-sheth') ||
+      username.includes('keval') ||
+      idStr === '15' ||
+      idStr === '16'
+    )
+  }
+
   const getVisibleRecords = useCallback((records = []) => {
     if (!user) return []
-    if (user.role === 'admin') return records
+    if (user.role === 'admin' || user.role === 'super_admin' || isPrivilegedAdmin(user)) return records
     return records.filter((record) => matchesUserScope(record, user))
   }, [user])
 
