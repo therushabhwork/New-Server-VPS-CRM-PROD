@@ -829,10 +829,31 @@
   }
 }
 
+/* Side-by-Side Monitoring Responsive Proportions for Non-Admin */
 .ud-monitoring-side-by-side {
-  gap: 1rem !important;
-  margin-top: 1rem !important;
-  margin-bottom: 1rem !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr) !important;
+  gap: 1.25rem !important;
+  margin-top: 1.25rem !important;
+  margin-bottom: 1.25rem !important;
+  align-items: start !important;
+}
+
+.ud-communication-card {
+  min-width: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.ud-communication-list {
+  min-width: 0 !important;
+}
+
+@media (max-width: 1200px) {
+  .ud-monitoring-side-by-side {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 1rem !important;
+  }
 }
 
 @media (max-width: 1024px) {

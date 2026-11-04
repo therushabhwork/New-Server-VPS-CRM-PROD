@@ -1071,7 +1071,7 @@ const AdminPanel = () => {
         </div>
 
         {/* Side-by-Side Monitoring Grid: Left = To Do List & Reminders, Right = Communication Activity */}
-        <div className="ap-dashboard-main-grid ap-monitoring-side-by-side" style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', gap: '1.25rem', marginTop: '1.25rem', marginBottom: '1.25rem', alignItems: 'start' }}>
+        <div className="ap-dashboard-main-grid ap-monitoring-side-by-side" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 0.95fr) minmax(0, 1.05fr)', gap: '1.25rem', marginTop: '1.25rem', marginBottom: '1.25rem', alignItems: 'start' }}>
           {/* Left Column: Stacked To Do List & Dedicated Reminders */}
           <div className="ap-todo-full-container" style={{ margin: 0, width: '100%', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {/* Card 1: To Do List */}
