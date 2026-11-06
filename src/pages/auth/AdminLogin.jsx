@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext'
 import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
 import { setupApi } from '../../services/setupApi'
-import { APP_VERSION, getDashboardRoute } from '../../utils/constants'
+import { APP_VERSION, getDashboardRoute, isKevalVShahUser } from '../../utils/constants'
 import swatiLogo from '../../assets/swati-logo.png'
 import lumosLogo from '../../assets/lumos-logo.svg'
 import ResetPasswordModal from './ResetPasswordModal'
@@ -146,7 +146,7 @@ const AdminLogin = () => {
 
   React.useEffect(() => {
     if (!user) return
-    navigate(getDashboardRoute(user.role), { replace: true })
+    navigate(getDashboardRoute(user), { replace: true })
   }, [navigate, user])
 
   React.useEffect(() => {
@@ -198,22 +198,23 @@ const AdminLogin = () => {
   const navigateAfterLogin = (result) => {
     const loginUser = result?.user || {}
     const userRole = loginUser.role
-    const normalizedUserName = String(loginUser.name || loginUser.username || loginUser.email || '').trim().toLowerCase()
-    const isKevalVShah = normalizedUserName === 'keval v shah'
-      || normalizedUserName === 'keval@swatiswitchgears.com'
-    const fallbackRoute = getDashboardRoute(userRole)
+    const isKeval = isKevalVShahUser(loginUser)
+    const fallbackRoute = getDashboardRoute(loginUser)
     const fromLocation = location.state?.from
     const fromPath = [
       fromLocation?.pathname,
       fromLocation?.search,
       fromLocation?.hash,
     ].filter(Boolean).join('')
-    const isAdminUser = userRole === 'admin' || userRole === 'super_admin'
-    const canReturnToFromPath = fromLocation?.pathname
-      && fromLocation.pathname !== '/login'
-      && fromLocation.pathname !== '/admin/login'
+    const canReturnToFromPath = Boolean(fromPath)
+      && fromLocation?.pathname !== '/'
+      && fromLocation?.pathname !== '/login'
+      && fromLocation?.pathname !== '/admin/login'
+      && !(isKeval && fromLocation?.pathname === '/admin/launchpad')
 
-    navigate(canReturnToFromPath ? fromPath : (isAdminUser && isKevalVShah ? '/admin/launchpad' : fallbackRoute), { replace: true })
+    const targetRoute = isKeval ? '/admin/monitoring' : (canReturnToFromPath ? fromPath : fallbackRoute)
+
+    navigate(targetRoute, { replace: true })
   }
 
   const handleSubmit = async (event) => {

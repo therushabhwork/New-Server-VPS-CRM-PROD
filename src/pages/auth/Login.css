@@ -1670,3 +1670,31 @@
   .login-pill-input-wrap,
   .login-pill-submit-btn { height: 54px !important; border-radius: 18px !important; }
 }
+
+
+/* ============================================================
+   LAPTOP 80% = 100% VIEW LOGIN & LOGOUT PROPORTIONS
+   Ensures .login-page-container and .logout-shell stretch cleanly
+   and prevents any trailing bottom white space for users and admins.
+   ============================================================ */
+@media screen and (min-width: 1024px) {
+  .login-page-container {
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+    padding-bottom: 24px;
+    box-sizing: border-box;
+  }
+
+  .logout-shell {
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+    padding-bottom: 24px;
+    box-sizing: border-box;
+  }
+
+  .logout-shell--admin,
+  .logout-shell--user {
+    background-size: cover;
+    background-attachment: fixed;
+  }
+}

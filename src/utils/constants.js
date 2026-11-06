@@ -7,7 +7,23 @@ export const DASHBOARD_ROUTES = {
   user: '/dashboard',
 }
 
-export const getDashboardRoute = (role) => {
+export const isKevalVShahUser = (user) => {
+  if (!user) return false
+  const norm = String(user.name || user.username || user.email || '').trim().toLowerCase()
+  return (
+    norm === 'keval v shah' ||
+    norm.includes('keval v shah') ||
+    norm === 'kevalvshah' ||
+    norm === 'keval@swatiswitchgears.com' ||
+    norm.startsWith('keval.v.shah@') ||
+    norm.startsWith('kevalvshah@')
+  )
+}
+
+export const getDashboardRoute = (roleOrUser) => {
+  const role = typeof roleOrUser === 'string' ? roleOrUser : roleOrUser?.role
+  const user = typeof roleOrUser === 'object' ? roleOrUser : null
+
   if (role === 'admin' || role === 'super_admin') {
     return DASHBOARD_ROUTES.admin
   }
