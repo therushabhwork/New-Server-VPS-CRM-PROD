@@ -3,10 +3,11 @@
 .ud-page {
   position: relative;
   isolation: isolate;
-  min-height: 100vh;
+  min-height: 100%;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  padding: 0 0 2.5rem;
+  padding: 0 0 1rem;
   margin: 0;
   border: none !important;
   background: transparent !important;

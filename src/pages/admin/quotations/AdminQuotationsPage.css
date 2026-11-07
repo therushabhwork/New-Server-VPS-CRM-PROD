@@ -4,7 +4,8 @@
   width: 100%;
   max-width: 100%;
   min-height: 100%;
-  height: 100%;
+  height: auto;
+  flex: 1 1 auto;
   background: var(--surface-card);
   display: flex;
   flex-direction: column;
@@ -18,9 +19,9 @@
   background: var(--surface-muted);
   width: 100%;
   max-width: 100vw;
-  min-height: 100vh;
-  height: 100vh;
-  max-height: 100vh;
+  min-height: 100%;
+  height: 100%;
+  flex: 1 1 auto;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -422,7 +423,8 @@
 
 /* ── Table wrapper ──────────────────────────────────────── */
 .aqp-table-wrap {
-  flex: 1;
+  flex: 0 1 auto;
+  max-height: calc(100vh - 220px);
   min-height: 0;
   width: 100%;
   max-width: 100%;
@@ -434,7 +436,7 @@
 /* ── Content wrapper with sidebar ───────────────────────── */
 .aqp-content-wrapper {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
   width: 100%;
@@ -445,7 +447,7 @@
 }
 
 .aqp-main-content {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   width: 100%;
   max-width: 100%;
@@ -1192,6 +1194,164 @@
 }
 
 /* ── Pagination ─────────────────────────────────────────── */
+.aqp-pagination-dock {
+  width: 100%;
+  max-width: 100%;
+  flex-shrink: 0;
+  margin-top: 0;
+  background: var(--surface-card, #ffffff);
+  border-top: 1px solid var(--border-subtle, #e2e8f0);
+  box-sizing: border-box;
+}
+
+.aqp-pagination-dock .admin-accounts-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 1rem;
+  background: var(--surface-card, #ffffff);
+  border: none;
+  margin: 0;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.aqp-pagination-dock .admin-accounts-pagination-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.aqp-pagination-dock .admin-accounts-pagination-rows-indicator {
+  min-width: 2.8rem;
+  height: 1.85rem;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 6px;
+  background: #fff1f2;
+  color: #c60016;
+  font-size: 0.78rem;
+  font-weight: 750;
+  box-shadow: 0 2px 8px rgba(198, 0, 22, 0.06);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.aqp-pagination-dock .admin-accounts-pagination-total {
+  color: #14213d;
+  font-size: 0.78rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.aqp-pagination-dock .admin-accounts-pagination-pages {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Explicit high-specificity button overrides to prevent index.css global pollution */
+html body #root :is(.layout--admin, .layout--user) .aqp-pagination-dock .admin-accounts-pag-btn:not(.admin-accounts-pag-btn--active) {
+  min-width: 1.85rem;
+  height: 1.85rem;
+  padding: 0 0.5rem;
+  border: 1px solid #d9e0ec !important;
+  border-color: #d9e0ec !important;
+  border-radius: 6px;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  color: #66728a !important;
+  -webkit-text-fill-color: #66728a !important;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+html body #root :is(.layout--admin, .layout--user) .aqp-pagination-dock .admin-accounts-pag-btn:not(.admin-accounts-pag-btn--active) :is(span, strong, svg, path) {
+  color: #66728a !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+  -webkit-text-fill-color: #66728a !important;
+}
+
+html body #root :is(.layout--admin, .layout--user) .aqp-pagination-dock .admin-accounts-pag-btn:not(.admin-accounts-pag-btn--active):hover:not(:disabled) {
+  background: #fff1f2 !important;
+  background-color: #fff1f2 !important;
+  border-color: #c60016 !important;
+  color: #c60016 !important;
+  -webkit-text-fill-color: #c60016 !important;
+}
+
+html body #root :is(.layout--admin, .layout--user) .aqp-pagination-dock .admin-accounts-pag-btn:not(.admin-accounts-pag-btn--active):hover:not(:disabled) :is(span, strong, svg, path) {
+  color: #c60016 !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+  -webkit-text-fill-color: #c60016 !important;
+}
+
+html body #root :is(.layout--admin, .layout--user) .aqp-pagination-dock .admin-accounts-pag-btn--active {
+  min-width: 1.85rem;
+  height: 1.85rem;
+  padding: 0 0.5rem;
+  border-radius: 6px;
+  border-color: #c60016 !important;
+  background: #c60016 !important;
+  background-color: #c60016 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  box-shadow: 0 4px 10px rgba(198, 0, 22, 0.2) !important;
+}
+
+html body #root :is(.layout--admin, .layout--user) .aqp-pagination-dock .admin-accounts-pag-btn--active :is(span, strong, svg, path) {
+  color: #ffffff !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html body #root :is(.layout--admin, .layout--user) .aqp-pagination-dock .admin-accounts-pag-btn:disabled {
+  min-width: 1.85rem;
+  height: 1.85rem;
+  padding: 0 0.5rem;
+  border-radius: 6px;
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  background: #f8fafc !important;
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+  box-shadow: none !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+html body #root :is(.layout--admin, .layout--user) .aqp-pagination-dock .admin-accounts-pag-btn:disabled :is(span, strong, svg, path) {
+  color: #94a3b8 !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
 .aqp-pagination {
   display: flex;
   align-items: center;
@@ -3209,8 +3369,15 @@
 [data-theme="dark"] .aqp-upload-file-note,
 [data-theme="dark"] .aqp-account__section p,
 [data-theme="dark"] .aqp-total-label,
+[data-theme="dark"] .aqp-pagination-dock .admin-accounts-pagination-total,
 [data-theme="dark"] .aqp-page-btn:disabled {
   color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .aqp-pagination-dock,
+[data-theme="dark"] .aqp-pagination-dock .admin-accounts-pagination {
+  background: var(--surface-card) !important;
+  border-color: var(--border-subtle) !important;
 }
 
 [data-theme="dark"] .aqp-table,
@@ -3275,7 +3442,8 @@
 [data-theme="dark"] .aqp-pdf-close-btn,
 [data-theme="dark"] .aqp-view-action-btn,
 [data-theme="dark"] .aqp-upload-account-button,
-[data-theme="dark"] .aqp-account-list-page-button {
+[data-theme="dark"] .aqp-account-list-page-button,
+[data-theme="dark"] .aqp-pagination-dock .admin-accounts-pag-btn {
   background: var(--surface-raised) !important;
   border-color: var(--glass-border) !important;
   color: var(--text-primary) !important;
@@ -3885,7 +4053,8 @@ html body #root .aqp-search-input:focus {
 
 .aqp-quotation-full-page {
   width: 100%;
-  min-height: 100vh;
+  min-height: 100%;
+  flex: 1 1 auto;
   background: var(--surface-muted, #f8fafc);
   display: flex;
   flex-direction: column;
@@ -3942,7 +4111,7 @@ html body #root .aqp-search-input:focus {
 
 .aqp-quotation-full-page__body {
   flex: 1 1 auto;
-  padding: 1.25rem 1rem 3rem;
+  padding: 1.25rem 1rem 1rem;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -3997,7 +4166,8 @@ html body #root .aqp-search-input:focus {
 /* ── Simplified Centered Quotation Viewer ─────────────────── */
 .aqp-simple-view {
   width: 100%;
-  min-height: 100vh;
+  min-height: 100%;
+  flex: 1 1 auto;
   background: var(--surface-muted, #f8fafc);
   display: flex;
   flex-direction: column;
@@ -4151,7 +4321,7 @@ html body #root .aqp-search-input:focus {
 .aqp-simple-view__content {
   width: 100%;
   max-width: 1040px;
-  margin: 0.75rem auto 2.5rem;
+  margin: 0.75rem auto 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.65rem;

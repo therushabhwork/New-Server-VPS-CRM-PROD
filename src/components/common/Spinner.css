@@ -9,16 +9,26 @@
 
 .spinner-fullscreen {
   position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  min-width: 100vw;
+  min-height: 100vh;
+  min-height: calc(100vh / var(--crm-laptop-scale, 0.8));
+  min-width: calc(100vw / var(--crm-laptop-scale, 0.8));
   inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  background-color: rgba(246, 248, 251, 0.85);
+  background-color: rgba(246, 248, 251, 0.98);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  z-index: 9999;
+  z-index: 999999;
 }
 
 .spinner {

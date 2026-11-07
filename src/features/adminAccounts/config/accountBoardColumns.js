@@ -177,8 +177,13 @@ const formatCustomerTypeDisplay = (value, row = {}) => {
 }
 
 const formatAccountStatusDisplay = (value, row = {}) => {
-  const raw = String(value || row.accountStatus || row.status || row.stage || row.accountState || row.raw?.accountStatus || row.raw?.stage || row.raw?.status || row.formData?.accountStatus || row.formData?.stage || '').trim()
+  const dbStatus = row.accountStatus ?? row.raw?.accountStatus ?? row.formData?.accountStatus ?? value ?? row.status ?? row.raw?.status ?? null
+  if (dbStatus === null || dbStatus === undefined || String(dbStatus).trim() === '' || String(dbStatus).trim() === '-' || String(dbStatus).trim().toLowerCase() === 'null') {
+    return emptyValue
+  }
+  const raw = String(dbStatus).trim()
   const lower = raw.toLowerCase().replace(/[\s-]+/g, '_')
+  if (lower === 'pending') return 'Pending'
   if (lower === 'not_quoted') return 'Not Quoted'
   if (lower === 'rejected') return 'Rejected'
   if (lower === 'quotation_sent' || lower === 'quote_sent' || lower === 'quotation_shared') return 'Quotation Sent'
@@ -190,7 +195,7 @@ const formatAccountStatusDisplay = (value, row = {}) => {
   if (lower === 'quote_revision' || lower === 'quotation_revision') return 'Quotation Revision'
   if (lower === 'order_received') return 'Order Received'
   if (lower === 'convert_to_po' || lower === 'po_converted') return 'Convert To PO'
-  if (lower === 'new' || lower === 'pending') return 'New'
+  if (lower === 'new') return 'New'
   return raw || emptyValue
 }
 

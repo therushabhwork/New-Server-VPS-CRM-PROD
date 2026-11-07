@@ -24,6 +24,10 @@ const COLLECTION_INDEXES = {
     { fields: { stage: 1 } },
     { fields: { frontendDeleted: 1, stage: 1 } },
     { fields: { frontendDeleted: 1, stage: 1, createdAt: -1 } },
+    { fields: { frontendDeleted: 1, status: 1, createdAt: -1, legacyId: -1 } },
+    { fields: { frontendDeleted: 1, ownerUserId: 1, createdAt: -1 } },
+    { fields: { frontendDeleted: 1, createdBy: 1, createdAt: -1 } },
+    { fields: { frontendDeleted: 1, accountOwnerCode: 1, createdAt: -1 } },
     { fields: { updatedAt: -1 } },
   ],
   accounts: [
@@ -53,6 +57,8 @@ const COLLECTION_INDEXES = {
     { fields: { stage: 1 } },
     { fields: { frontendDeleted: 1, stage: 1 } },
     { fields: { frontendDeleted: 1, stage: 1, createdAt: -1 } },
+    { fields: { frontendDeleted: 1, stage: 1, createdAt: -1, legacyId: -1 } },
+    { fields: { accountId: 1, frontendDeleted: 1 } },
     { fields: { updatedAt: -1 } },
   ],
   converted_deals: [

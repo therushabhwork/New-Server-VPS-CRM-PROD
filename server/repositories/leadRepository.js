@@ -44,6 +44,8 @@ const buildStageFilter = (stage) => {
       $or: [
         { status: 'quotation_sent' },
         { stage: 'quotation_sent' },
+        { accountStatus: { $in: ['Quotation Sent', 'quotation_sent'] } },
+        { accountState: { $in: ['Quotation Sent', 'quotation_sent'] } },
         { 'formData.accountStatus': { $in: ['Quotation Sent', 'quotation_sent'] } },
         { 'formData.status': 'quotation_sent' },
         { 'formData.stage': 'quotation_sent' },
@@ -51,18 +53,37 @@ const buildStageFilter = (stage) => {
       ],
     }
   }
-  return {
-    $or: [
-      { stage: new RegExp('^' + escapeRegExp(targetStage) + '$', 'i') },
-      { status: new RegExp('^' + escapeRegExp(targetStage) + '$', 'i') },
-      { 'formData.stage': new RegExp('^' + escapeRegExp(targetStage) + '$', 'i') },
-      { 'formData.status': new RegExp('^' + escapeRegExp(targetStage) + '$', 'i') },
-      { 'formData.accountStatus': new RegExp('^' + escapeRegExp(targetStage) + '$', 'i') },
-      ...(targetStage === 'new' ? [
+
+  if (targetStage === 'new') {
+    const newOrPendingRegex = /^(new|pending)$/i
+    return {
+      $or: [
+        { stage: newOrPendingRegex },
+        { status: newOrPendingRegex },
+        { accountStatus: newOrPendingRegex },
+        { accountState: newOrPendingRegex },
+        { 'formData.stage': newOrPendingRegex },
+        { 'formData.status': newOrPendingRegex },
+        { 'formData.accountStatus': newOrPendingRegex },
+        { 'formData.accountState': newOrPendingRegex },
         { stage: null },
         { stage: '' },
         { stage: { $exists: false } },
-      ] : []),
+      ],
+    }
+  }
+
+  const stageRegex = new RegExp('^' + escapeRegExp(targetStage) + '$', 'i')
+  return {
+    $or: [
+      { stage: stageRegex },
+      { status: stageRegex },
+      { accountStatus: stageRegex },
+      { accountState: stageRegex },
+      { 'formData.stage': stageRegex },
+      { 'formData.status': stageRegex },
+      { 'formData.accountStatus': stageRegex },
+      { 'formData.accountState': stageRegex },
     ],
   }
 }
@@ -240,7 +261,7 @@ const buildLeadScopeFilter = (actor, { companyWide = false, scopeUserIds = null,
   buildScopedMongoFilter({
     actor,
     ownerFields: ['ownerUserId', 'assignedTo', 'createdBy', 'owner_user_id', 'assigned_to', 'created_by'],
-    companyField: 'companyId',
+    companyField: null,
     companyWide,
     ...getLeadScopeOptions({ scopeUserIds, scopeOwnerCodes }),
   })
@@ -320,12 +341,13 @@ const listLeadsForActor = async (actor, options = {}) => {
     visibleFilter
   )
 
-  let query = Lead.find(filter).sort({ createdAt: -1, legacyId: -1 })
+  let query = Lead.find(filter).sort({ updatedAt: -1, createdAt: -1, legacyId: -1 })
 
   if (limit > 0) {
-    const total = await Lead.countDocuments(filter)
-    query = query.skip((page - 1) * limit).limit(limit)
-    const records = await query.lean()
+    const [total, records] = await Promise.all([
+      Lead.countDocuments(filter),
+      query.skip((page - 1) * limit).limit(limit).lean(),
+    ])
     const mapped = records.map(mapLeadRow).filter(Boolean)
     const enriched = await enrichLeadsWithDealsPoValue(mapped)
     return {
@@ -357,28 +379,39 @@ const listCreatedLeadsForActor = async (actor, filters = {}) => {
   const page = Math.max(1, Number.parseInt(String(filters.page || '1'), 10) || 1)
   const limit = shouldReturnAll ? 0 : Math.min(5000, Math.max(1, Number.parseInt(rawLimit, 10) || 5000))
 
-  const ownerCodeStr = String(actor.ownerCode || actor.employeeId || '').trim()
+  const toDualValues = (val) => {
+    if (val === undefined || val === null || val === '') return []
+    const str = String(val).trim()
+    if (!str) return []
+    const num = Number(str)
+    return Number.isNaN(num) ? [str] : [str, num]
+  }
+
+  const actorIdVals = toDualValues(actor.id)
+  const ownerCodeVals = toDualValues(actor.ownerCode || actor.employeeId)
   const actorName = String(actor.name || actor.username || '').trim()
 
   const filter = mergeFilters(
     {
-      companyId: actor.companyId,
       $or: [
-        { createdBy: actor.id },
-        { createdByUserId: actor.id },
-        { assignedTo: actor.id },
-        { ownerUserId: actor.id },
-        { 'formData.userId': actor.id },
-        { 'formData.createdByUserId': actor.id },
-        { 'formData.assignedTo': actor.id },
-        { 'formData.ownerId': actor.id },
-        ...(ownerCodeStr ? [
-          { ownerCode: ownerCodeStr },
-          { accountOwnerCode: ownerCodeStr },
-          { accountNumber: ownerCodeStr },
-          { accountNo: ownerCodeStr },
-          { 'formData.ownerCode': ownerCodeStr },
-          { 'formData.accountOwnerCode': ownerCodeStr },
+        ...(actorIdVals.length ? [
+          { createdBy: { $in: actorIdVals } },
+          { createdByUserId: { $in: actorIdVals } },
+          { assignedTo: { $in: actorIdVals } },
+          { ownerUserId: { $in: actorIdVals } },
+          { userId: { $in: actorIdVals } },
+          { 'formData.userId': { $in: actorIdVals } },
+          { 'formData.createdByUserId': { $in: actorIdVals } },
+          { 'formData.assignedTo': { $in: actorIdVals } },
+          { 'formData.ownerId': { $in: actorIdVals } },
+        ] : []),
+        ...(ownerCodeVals.length ? [
+          { ownerCode: { $in: ownerCodeVals } },
+          { accountOwnerCode: { $in: ownerCodeVals } },
+          { accountNumber: { $in: ownerCodeVals } },
+          { accountNo: { $in: ownerCodeVals } },
+          { 'formData.ownerCode': { $in: ownerCodeVals } },
+          { 'formData.accountOwnerCode': { $in: ownerCodeVals } },
         ] : []),
         ...(actorName ? [
           { accountOwner: actorName },
@@ -396,15 +429,17 @@ const listCreatedLeadsForActor = async (actor, filters = {}) => {
     visibleFilter
   )
 
-  let query = Lead.find(filter).sort({ createdAt: -1, legacyId: -1 })
+  let query = Lead.find(filter).sort({ updatedAt: -1, createdAt: -1, legacyId: -1 })
 
   if (limit > 0) {
-    const total = await Lead.countDocuments(filter)
-    query = query.skip((page - 1) * limit).limit(limit)
-    const records = await query.lean()
+    const [total, records] = await Promise.all([
+      Lead.countDocuments(filter),
+      query.skip((page - 1) * limit).limit(limit).lean(),
+    ])
     const mapped = records.map(mapLeadRow).filter(Boolean)
+    const enriched = await enrichLeadsWithDealsPoValue(mapped)
     return {
-      records: mapped,
+      records: enriched,
       total,
       page,
       limit,

@@ -20,9 +20,15 @@
   font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* Background Soft Circular Shapes */
-.login-bg-shape {
-  display: none;
+/* Background Soft Circular Shapes - Permanently Removed for Pure White Theme */
+.login-bg-shape,
+.login-bg-shape--top-right,
+.login-bg-shape--mid-left,
+.login-bg-shape--bottom {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 /* Form Container */
@@ -389,47 +395,17 @@
   align-items: center;
   justify-content: center;
   padding: clamp(10px, 1.6vw, 20px);
-  background:
-    radial-gradient(circle at 10% 12%, rgba(34, 197, 193, 0.2), transparent 30%),
-    radial-gradient(circle at 88% 16%, rgba(249, 115, 22, 0.18), transparent 26%),
-    radial-gradient(circle at 82% 84%, rgba(13, 148, 136, 0.16), transparent 30%),
-    radial-gradient(circle at 22% 78%, rgba(59, 130, 246, 0.12), transparent 24%),
-    linear-gradient(145deg, #fff8f1 0%, #f9f2ea 24%, #eef9f6 58%, #fff4e8 100%);
-  background-size: 160% 160%, 168% 168%, 170% 170%, 176% 176%, 135% 135%;
-  animation: auroraShift 28s ease-in-out infinite;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
 }
 
 .login-shell::before,
 .login-shell::after,
 .login-page::before,
 .login-page::after {
-  content: '';
-  position: absolute;
-  border-radius: 9999px;
-  pointer-events: none;
-  filter: blur(10px);
-}
-
-.login-shell::before,
-.login-page::before {
-  top: -6rem;
-  left: -5rem;
-  width: 18rem;
-  height: 18rem;
-  background: radial-gradient(circle, rgba(34, 197, 193, 0.28), rgba(34, 197, 193, 0) 70%);
-  animation: prismFloat 18s ease-in-out infinite;
-}
-
-.login-shell::after,
-.login-page::after {
-  right: -4rem;
-  bottom: -5rem;
-  width: 20rem;
-  height: 20rem;
-  background:
-    radial-gradient(circle at 30% 28%, rgba(249, 115, 22, 0.18), rgba(249, 115, 22, 0) 38%),
-    radial-gradient(circle, rgba(190, 238, 255, 0.32), rgba(190, 238, 255, 0) 70%);
-  animation: prismFloat 20s ease-in-out infinite reverse;
+  display: none !important;
+  content: none !important;
 }
 
 .login-layout,
@@ -1679,22 +1655,23 @@
    ============================================================ */
 @media screen and (min-width: 1024px) {
   .login-page-container {
-    min-height: 100vh !important;
-    min-height: 100dvh !important;
+    min-height: calc(100vh / 0.8) !important;
+    min-height: calc(100dvh / 0.8) !important;
     padding-bottom: 24px;
     box-sizing: border-box;
   }
 
   .logout-shell {
-    min-height: 100vh !important;
-    min-height: 100dvh !important;
+    min-height: calc(100vh / 0.8) !important;
+    min-height: calc(100dvh / 0.8) !important;
     padding-bottom: 24px;
     box-sizing: border-box;
   }
 
+  .logout-shell,
   .logout-shell--admin,
   .logout-shell--user {
-    background-size: cover;
-    background-attachment: fixed;
+    background-color: #ffffff !important;
+    background-image: none !important;
   }
 }

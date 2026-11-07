@@ -316,17 +316,33 @@ const listWithFilters = async (actor, filters = {}, { companyWide = false, scope
       )
     }
     if (linkedAccountIds.length > 0) {
+      const dualLinkedIds = Array.from(new Set([
+        ...linkedAccountIds,
+        ...linkedAccountIds.map(String),
+        ...linkedAccountIds.map(Number).filter((n) => !Number.isNaN(n)),
+      ]))
       mineClauses.push(
-        { accountId: { $in: linkedAccountIds } },
-        { 'data.accountId': { $in: linkedAccountIds } }
+        { accountId: { $in: dualLinkedIds } },
+        { 'data.accountId': { $in: dualLinkedIds } }
       )
     }
     if (actor?.ownerCode) {
+      const ownerCodeVals = [String(actor.ownerCode).trim(), Number(actor.ownerCode)].filter((v) => v !== '' && !Number.isNaN(v))
       mineClauses.push(
-        { ownerCode: actor.ownerCode },
-        { dealOwnerCode: actor.ownerCode },
-        { 'data.ownerCode': actor.ownerCode },
-        { 'data.dealOwnerCode': actor.ownerCode }
+        { ownerCode: { $in: ownerCodeVals } },
+        { dealOwnerCode: { $in: ownerCodeVals } },
+        { 'data.ownerCode': { $in: ownerCodeVals } },
+        { 'data.dealOwnerCode': { $in: ownerCodeVals } }
+      )
+    }
+    if (actor?.id) {
+      const actorIdVals = [String(actor.id).trim(), Number(actor.id)].filter((v) => v !== '' && !Number.isNaN(v))
+      mineClauses.push(
+        { ownerUserId: { $in: actorIdVals } },
+        { assignedTo: { $in: actorIdVals } },
+        { createdBy: { $in: actorIdVals } },
+        { 'data.ownerUserId': { $in: actorIdVals } },
+        { 'data.assignedTo': { $in: actorIdVals } }
       )
     }
 
@@ -339,6 +355,7 @@ const listWithFilters = async (actor, filters = {}, { companyWide = false, scope
     isMineOnly ? mineFilter : (effectiveCompanyWide ? {} : buildScopedMongoFilter({
       actor,
       ownerFields: ['ownerUserId', 'assignedTo', 'createdBy', 'owner_user_id', 'assigned_to', 'created_by', 'reassignedTo', 'reassignOwnerId', 'reassignUserId'],
+      companyField: null,
       companyWide: effectiveCompanyWide,
       scopeUserIds,
     })),
@@ -362,9 +379,10 @@ const listWithFilters = async (actor, filters = {}, { companyWide = false, scope
     .sort(sortFromFilters(filters))
 
   if (limit > 0) {
-    const total = await Deal.countDocuments(filter)
-    query = query.skip((page - 1) * limit).limit(limit)
-    const records = await query.lean()
+    const [total, records] = await Promise.all([
+      Deal.countDocuments(filter),
+      query.skip((page - 1) * limit).limit(limit).lean(),
+    ])
     const mapped = await mapDeals(records)
     return {
       records: mapped,

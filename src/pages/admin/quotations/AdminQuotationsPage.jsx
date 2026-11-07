@@ -36,6 +36,7 @@ import { ExcelExportActionButton, ExcelExportMenuButton } from '../../../compone
 import * as XLSX from 'xlsx';
 import { canExportQuotationsExcel } from '../../../utils/userPermissions';
 import ImportQuotationsModal from './ImportQuotationsModal';
+import AccountsBoardPagination from '../../../components/admin/accounts/AccountsBoardPagination';
 import './AdminQuotationsPage.css';
 import {
   PAGE_SIZE,
@@ -725,6 +726,14 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
     const start = (page - 1) * PAGE_SIZE
     return filteredRows.slice(start, start + PAGE_SIZE)
   }, [filteredRows, page])
+
+  const pageStart = useMemo(() => (
+    filteredRows.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  ), [filteredRows.length, page])
+
+  const pageEnd = useMemo(() => (
+    Math.min(page * PAGE_SIZE, filteredRows.length)
+  ), [filteredRows.length, page])
 
   useEffect(() => {
     setPage((currentPage) => Math.min(currentPage, totalPages))
@@ -1738,27 +1747,15 @@ const AdminQuotationsPage = ({ allowUsers = false, generatorPath = '/admin/quota
         </table>
       </div>
 
-      <div className="aqp-pagination">
-        <span className="aqp-page-icon">{filteredRows.length}</span>
-        <span className="aqp-total-label">Total records: {filteredRows.length}</span>
-        <div className="aqp-page-btns">
-          <button type="button" className="aqp-page-btn" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1}>
-            <FaChevronLeft />
-          </button>
-          {visiblePages.map((pageNumber) => (
-            <button
-              key={pageNumber}
-              type="button"
-              className={`aqp-page-btn${page === pageNumber ? ' aqp-page-btn--active' : ''}`}
-              onClick={() => setPage(pageNumber)}
-            >
-              {pageNumber}
-            </button>
-          ))}
-          <button type="button" className="aqp-page-btn" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page === totalPages}>
-            <FaChevronRight />
-          </button>
-        </div>
+      <div className="aqp-pagination-dock">
+        <AccountsBoardPagination
+          currentPage={page}
+          totalPages={totalPages}
+          pageStart={pageStart}
+          pageEnd={pageEnd}
+          totalItems={filteredRows.length}
+          onPageChange={(newPage) => setPage(newPage)}
+        />
       </div>
         </div>
       </div>

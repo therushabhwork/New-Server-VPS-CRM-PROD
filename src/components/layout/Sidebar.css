@@ -2,8 +2,8 @@
   position: sticky;
   top: 0;
   width: var(--sidebar-width);
-  height: calc(100vh - 12px);
-  max-height: calc(100vh - 12px);
+  height: calc(var(--crm-viewport-h, 100vh) - 12px);
+  max-height: calc(var(--crm-viewport-h, 100vh) - 12px);
   flex-shrink: 0;
   overflow: hidden auto;
   border: none !important;

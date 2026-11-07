@@ -67,7 +67,7 @@ export const ADMIN_ACCOUNTS_BOARD_VIEWS = {
       showHelp: false,
       showBulk: true,
       showExportIcon: true,
-      showFilterIcon: true,
+      showFilterIcon: false,
     },
   },
   searchAccount: {
@@ -95,7 +95,7 @@ export const ADMIN_ACCOUNTS_BOARD_VIEWS = {
     showAddAccountButton: false,
     titlebarActions: {
       showBulk: true,
-      showFilterIcon: true,
+      showFilterIcon: false,
     },
   },
   weeklyReportsAll: {

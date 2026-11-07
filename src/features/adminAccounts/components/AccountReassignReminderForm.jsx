@@ -141,10 +141,15 @@ const AccountReassignReminderForm = ({
       }
 
       const updates = {
+        accountOwner: newOwnerName,
+        ownerName: newOwnerName,
+        accountOwnerName: newOwnerName,
         owner: selectedOwner?.name || newOwnerName,
-        ownerId: selectedOwner?.id || null,
+        assignedTo: selectedOwner?.id || null,
         ownerUserId: selectedOwner?.id || null,
         assignedUserId: selectedOwner?.id || account.raw?.assignedUserId || null,
+        ownerId: selectedOwner?.id || null,
+        ownerCode: selectedOwner?.ownerCode || '',
         accountOwnerCode: selectedOwner?.ownerCode || '',
         company: selectedOwner?.company || selectedOwner?.companyName || account.accountCategory || '',
         accountDate: reassignTimestamp,

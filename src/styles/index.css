@@ -2,7 +2,30 @@
 
 /* Shared visual language for the user and admin CRM shells.
    Presentation-only overrides: no data, routing, or service behavior. */
+:root {
+  --crm-laptop-scale: 1;
+  --crm-viewport-h: 100vh;
+  --crm-viewport-dvh: 100dvh;
+}
+
+html {
+  height: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #ffffff;
+}
+
 body {
+  height: auto;
+  min-height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
   background: #ffffff !important;
   background-color: #ffffff !important;
   background-image: none !important;
@@ -11,14 +34,28 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+#root {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: transparent !important;
+}
+
 /* ============================================================
    LAPTOP 80% = 100% VIEW OPTIMIZATION
    Applies true 80% browser-zoom appearance at 100% display zoom.
-   Eliminates bottom white containers by scaling min-height proportionally.
+   Eliminates bottom white space and gaps by scaling min-height proportionally:
+   100vh / 0.8 = 125vh guarantees 100% physical display coverage.
    ============================================================ */
 @media screen and (min-width: 1024px) {
   :root {
     --crm-laptop-scale: 0.8;
+    --crm-viewport-h: calc(100vh / 0.8);
+    --crm-viewport-dvh: calc(100dvh / 0.8);
+    font-size: 17.5px;
   }
 
   /* Root document element is zoomed to 0.8, spanning 100% of the screen */
@@ -26,31 +63,98 @@ body {
     zoom: 0.8;
     height: 100%;
     min-height: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   body {
-    min-height: 100%;
-    min-height: 100vh;
-    min-height: 100dvh;
+    min-height: var(--crm-viewport-h) !important;
+    min-height: var(--crm-viewport-dvh) !important;
     overflow-x: hidden;
     background-color: #ffffff !important;
+    font-size: 1rem;
+    color: #0f172a;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   #root {
-    min-height: 100%;
-    min-height: 100vh;
-    min-height: 100dvh;
+    min-height: var(--crm-viewport-h) !important;
+    min-height: var(--crm-viewport-dvh) !important;
     display: flex;
     flex-direction: column;
     background-color: transparent !important;
   }
 
+  /* Universal typography baseline for comfortable readability at 80% screen zoom */
+  table th {
+    font-size: 0.92rem;
+    font-weight: 750;
+    letter-spacing: 0.01em;
+  }
+
+  table td {
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: #0f172a;
+    line-height: 1.4;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 0.92rem;
+    color: #0f172a;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    font-size: 0.88rem;
+    color: #64748b;
+  }
+
+  h1 {
+    font-size: 1.75rem;
+    font-weight: 750;
+    color: #0f172a;
+  }
+
+  h2 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  h3 {
+    font-size: 1.15rem;
+    font-weight: 650;
+    color: #0f172a;
+  }
+
+  label {
+    font-size: 0.90rem;
+    font-weight: 600;
+    color: #334155;
+  }
+
+  /* Ensure shared layout containers span the true viewport */
+  .layout,
+  .layout-stage,
+  .layout-main,
+  .layout-body {
+    min-height: calc(var(--crm-viewport-h) - var(--header-height, 56px)) !important;
+  }
+
   /* Ensure standalone authentication and launchpad shells fill full viewport */
   .login-page-container,
   .logout-shell,
-  .lp-page {
-    min-height: 100vh !important;
-    min-height: 100dvh !important;
+  .lp-page,
+  .app-loading-screen,
+  .auth-shell {
+    min-height: var(--crm-viewport-h) !important;
+    min-height: var(--crm-viewport-dvh) !important;
   }
 }
 
@@ -267,11 +371,24 @@ html.is-admin .sidebar--admin .sb-today-section {
   border-color: #88000e !important;
 }
 
-.login-bg-shape { display: none !important; }
+.login-bg-shape,
+.login-bg-shape--top-right,
+.login-bg-shape--mid-left,
+.login-bg-shape--bottom {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
 
-@media (max-width: 720px) {
-  .layout::before, .login-page-container::before { width: 190px; height: 190px; right: -70px; }
-  .layout::after, .login-page-container::after { width: 170px; height: 170px; left: -75px; }
+.layout::before,
+.login-page-container::before,
+.layout::after,
+.login-page-container::after {
+  display: none !important;
+  content: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
 /* CSS Reset */
@@ -1257,7 +1374,7 @@ body :is(
 
 .legacy-form-label {
   margin-top: 0;
-  font-size: 0.8125rem;
+  font-size: 0.90rem;
   font-weight: 700;
   color: var(--text-secondary);
   justify-self: end;
@@ -4265,7 +4382,7 @@ html.is-user:not([data-theme="dark"]) .layout--user .admin-accounts-page .admin-
 }
 
 html.is-user:not([data-theme="dark"]) .layout--user :is(
-  .admin-accounts-pag-btn,
+  .admin-accounts-pag-btn--active,
   .admin-customers-grid-pagination-button,
   .admin-customers-grid-page-number,
   .support-request-legacy-footer-pagination button,
@@ -4289,7 +4406,7 @@ html.is-user:not([data-theme="dark"]) .layout--user :is(
 }
 
 html.is-user:not([data-theme="dark"]) .layout--user :is(
-  .admin-accounts-pag-btn,
+  .admin-accounts-pag-btn--active,
   .admin-customers-grid-pagination-button,
   .admin-customers-grid-page-number,
   .support-request-legacy-footer-pagination button,
@@ -4625,16 +4742,16 @@ html:not([data-theme="dark"]) body #root .layout .support-request-view-page .sr-
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  min-width: 1.45rem !important;
-  height: 1.45rem !important;
-  padding: 0 0.4rem !important;
+  min-width: 1.55rem !important;
+  height: 1.55rem !important;
+  padding: 0 0.45rem !important;
   border-radius: 999px !important;
   background: #f1f5f9 !important;
   background-color: #f1f5f9 !important;
   border: 1px solid #cbd5e1 !important;
   color: #0f172a !important;
   -webkit-text-fill-color: #0f172a !important;
-  font-size: 0.74rem !important;
+  font-size: 0.86rem !important;
   font-weight: 800 !important;
 }
 
@@ -5393,34 +5510,23 @@ html:not([data-theme="dark"]) body #root :is(.layout--admin, .layout--user) :is(
 }
 
 html:not([data-theme="dark"]) body #root :is(.layout--admin, .layout--user) :is(
-  .admin-accounts-pag-btn,
   .admin-accounts-pag-btn:hover,
   .admin-accounts-pag-btn:focus-visible,
   .admin-accounts-pag-btn--active,
   .admin-customers-grid-pagination-button,
   .admin-customers-grid-pagination-button:hover,
   .admin-customers-grid-pagination-button:focus-visible,
-  .admin-customers-grid-page-number,
-  .admin-customers-grid-page-number:hover,
-  .admin-customers-grid-page-number:focus-visible,
   .admin-customers-grid-page-number-active,
   .deals-crm-pagination-button,
   .deals-crm-pagination-button:hover,
   .deals-crm-pagination-button:focus-visible,
-  .deals-crm-page-number,
-  .deals-crm-page-number:hover,
-  .deals-crm-page-number:focus-visible,
   .deals-crm-page-number-active,
   .support-request-legacy-footer-pagination button,
   .support-request-legacy-footer-pagination button:hover,
   .support-request-legacy-footer-pagination button:focus-visible,
   .support-request-legacy-footer-pagination span,
-  .aqp-support-paging-btn,
   .aqp-support-paging-btn:hover,
   .aqp-support-paging-btn:focus-visible,
-  .aqp-support-paging-num,
-  .aqp-support-paging-num:hover,
-  .aqp-support-paging-num:focus-visible,
   .aqp-support-paging-num--active
 ):not(:disabled) {
   border-color: #c60016 !important;
@@ -5432,20 +5538,46 @@ html:not([data-theme="dark"]) body #root :is(.layout--admin, .layout--user) :is(
 }
 
 html:not([data-theme="dark"]) body #root :is(.layout--admin, .layout--user) :is(
-  .admin-accounts-pag-btn,
+  .admin-accounts-pag-btn--active,
   .admin-customers-grid-pagination-button,
-  .admin-customers-grid-page-number,
+  .admin-customers-grid-page-number-active,
   .deals-crm-pagination-button,
-  .deals-crm-page-number,
+  .deals-crm-page-number-active,
   .support-request-legacy-footer-pagination button,
   .support-request-legacy-footer-pagination span,
-  .aqp-support-paging-btn,
-  .aqp-support-paging-num
+  .aqp-support-paging-num--active
 ) :is(span, strong, svg, path, circle, rect, line, polyline, polygon) {
   color: #ffffff !important;
   fill: currentColor !important;
   stroke: currentColor !important;
   -webkit-text-fill-color: #ffffff !important;
+}
+
+html:not([data-theme="dark"]) body #root :is(.layout--admin, .layout--user) .admin-accounts-pag-btn:not(.admin-accounts-pag-btn--active):not(:disabled) {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  border: 1px solid #d9e0ec !important;
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+html:not([data-theme="dark"]) body #root :is(.layout--admin, .layout--user) .admin-accounts-pag-btn:not(.admin-accounts-pag-btn--active):not(:disabled):hover {
+  background: #fff1f2 !important;
+  background-color: #fff1f2 !important;
+  border-color: #c60016 !important;
+  color: #c60016 !important;
+  -webkit-text-fill-color: #c60016 !important;
+}
+
+html:not([data-theme="dark"]) body #root :is(.layout--admin, .layout--user) .admin-accounts-pag-btn:disabled {
+  background: #f8fafc !important;
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
 }
 
 html:not([data-theme="dark"]) body #root :is(.layout--admin, .layout--user) :is(
@@ -5545,7 +5677,7 @@ html body #root :is(.layout--admin, .layout--user) :is(
   input[type="search"].table-filter-input,
   input[type="text"].table-filter-input
 ) {
-  min-height: 1.85rem;
+  min-height: 2rem;
   border: 1px solid #f3b6b6 !important;
   background: #ffffff !important;
   background-color: #ffffff !important;
@@ -5556,7 +5688,7 @@ html body #root :is(.layout--admin, .layout--user) :is(
   visibility: visible !important;
   box-shadow: none !important;
   font-weight: 600 !important;
-  font-size: 0.84rem !important;
+  font-size: 0.90rem !important;
 }
 
 html:not([data-theme="dark"]) body #root :is(.layout--admin, .layout--user) :is(
@@ -6152,9 +6284,9 @@ html:not([data-theme="dark"]) body #root :is(.layout--admin, .layout--user) .adm
   display: block !important;
   width: 100% !important;
   min-width: 120px !important;
-  height: 30px !important;
-  min-height: 30px !important;
-  padding: 0 0.5rem !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 0.55rem !important;
   border: 1px solid #c60016 !important;
   border-radius: 4px !important;
   background: #ffffff !important;
@@ -6162,7 +6294,7 @@ html:not([data-theme="dark"]) body #root :is(.layout--admin, .layout--user) .adm
   color: #111827 !important;
   -webkit-text-fill-color: #111827 !important;
   caret-color: #c60016 !important;
-  font-size: 0.78rem !important;
+  font-size: 0.90rem !important;
   font-weight: 600 !important;
   opacity: 1 !important;
   visibility: visible !important;
@@ -6416,7 +6548,7 @@ html:not([data-theme="dark"]) body #root :is(.layout--admin, .layout--user) .hea
   display: inline-flex !important;
   color: #c60016 !important;
   -webkit-text-fill-color: #c60016 !important;
-  font-size: 0.82rem !important;
+  font-size: 0.88rem !important;
   font-weight: 700 !important;
   line-height: 1 !important;
   opacity: 1 !important;
@@ -6439,7 +6571,7 @@ html:not([data-theme="dark"]) body #root :is(.layout--admin, .layout--user) .adm
   background-color: #ffffff !important;
   color: #c60016 !important;
   -webkit-text-fill-color: #c60016 !important;
-  font-size: 0.82rem !important;
+  font-size: 0.88rem !important;
   font-weight: 700 !important;
   line-height: 1 !important;
   box-shadow: none !important;
@@ -6789,12 +6921,12 @@ html body #root :is(.layout--admin, .layout--user) :is(
   .deals-ownerwise-table,
   .support-request-legacy-table
 ) thead th {
-  height: 2.35rem !important;
-  min-height: 2.35rem !important;
-  padding: 0.45rem 0.65rem !important;
-  font-size: 0.8rem !important;
-  font-weight: 700 !important;
-  line-height: 1.2 !important;
+  height: 2.5rem !important;
+  min-height: 2.5rem !important;
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.92rem !important;
+  font-weight: 750 !important;
+  line-height: 1.25 !important;
 }
 
 html body #root :is(.layout--admin, .layout--user) :is(
@@ -6805,7 +6937,7 @@ html body #root :is(.layout--admin, .layout--user) :is(
   .deals-ownerwise-table,
   .support-request-legacy-table
 ) thead th :is(span, strong, svg, button) {
-  font-size: 0.8rem !important;
+  font-size: 0.92rem !important;
 }
 
 html body #root :is(.layout--admin, .layout--user) :is(
@@ -6816,8 +6948,8 @@ html body #root :is(.layout--admin, .layout--user) :is(
   .deals-ownerwise-table,
   .support-request-legacy-table
 ) thead th svg {
-  width: 0.85rem !important;
-  height: 0.85rem !important;
+  width: 0.95rem !important;
+  height: 0.95rem !important;
 }
 
 /* 2. Filter Rows & Filter Inputs */
@@ -6830,7 +6962,7 @@ html body #root :is(.layout--admin, .layout--user) :is(
   .support-request-legacy-filter-row th,
   .support-request-legacy-filter-row td
 ) {
-  padding: 0.3rem 0.45rem !important;
+  padding: 0.35rem 0.5rem !important;
 }
 
 html body #root :is(.layout--admin, .layout--user) :is(
@@ -6842,13 +6974,13 @@ html body #root :is(.layout--admin, .layout--user) :is(
 ) {
   display: block !important;
   width: 100% !important;
-  height: 1.85rem !important;
-  min-height: 1.85rem !important;
+  height: 1.95rem !important;
+  min-height: 1.95rem !important;
   padding: 0 0.55rem !important;
-  font-size: 0.76rem !important;
-  font-weight: 500 !important;
+  font-size: 0.90rem !important;
+  font-weight: 550 !important;
   border-radius: 6px !important;
-  line-height: 1.85rem !important;
+  line-height: 1.95rem !important;
   box-sizing: border-box !important;
 }
 
@@ -6861,11 +6993,11 @@ html body #root :is(.layout--admin, .layout--user) :is(
   .deals-ownerwise-table,
   .support-request-legacy-table
 ) tbody td {
-  height: 2.35rem !important;
-  padding: 0.35rem 0.65rem !important;
-  font-size: 0.8rem !important;
-  font-weight: 550 !important;
-  line-height: 1.3 !important;
+  height: 2.45rem !important;
+  padding: 0.45rem 0.75rem !important;
+  font-size: 0.92rem !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
   vertical-align: middle !important;
 }
 
@@ -6880,11 +7012,11 @@ html body #root :is(.layout--admin, .layout--user) :is(
   .support-request-related-number-button,
   .sr-list-sr-number
 ) {
-  min-width: 3.8rem !important;
-  height: 1.65rem !important;
-  min-height: 1.65rem !important;
-  padding: 0 0.55rem !important;
-  font-size: 0.78rem !important;
+  min-width: 4rem !important;
+  height: 1.75rem !important;
+  min-height: 1.75rem !important;
+  padding: 0 0.6rem !important;
+  font-size: 0.88rem !important;
   font-weight: 750 !important;
   border-radius: 6px !important;
   display: inline-flex !important;
@@ -6903,10 +7035,10 @@ html body #root :is(.layout--admin, .layout--user) :is(
   .deals-crm-owner-filter select,
   .mga-view-all-filter-select
 ) {
-  height: 2rem !important;
-  min-height: 2rem !important;
-  padding: 0 0.65rem !important;
-  font-size: 0.78rem !important;
+  height: 2.15rem !important;
+  min-height: 2.15rem !important;
+  padding: 0 0.7rem !important;
+  font-size: 0.92rem !important;
   border-radius: 6px !important;
 }
 
@@ -6920,11 +7052,11 @@ html body #root :is(.layout--admin, .layout--user) :is(
   .support-request-legacy-footer-pagination button,
   .support-request-legacy-footer-pagination span
 ) {
-  min-width: 1.85rem !important;
-  height: 1.85rem !important;
-  padding: 0 0.45rem !important;
-  font-size: 0.78rem !important;
-  font-weight: 600 !important;
+  min-width: 2rem !important;
+  height: 2rem !important;
+  padding: 0 0.5rem !important;
+  font-size: 0.88rem !important;
+  font-weight: 650 !important;
   border-radius: 6px !important;
   display: inline-flex !important;
   align-items: center !important;
@@ -6935,8 +7067,8 @@ html body #root :is(.layout--admin, .layout--user) :is(
   .admin-accounts-pagination-rows-indicator,
   .support-request-legacy-footer-total
 ) {
-  font-size: 0.78rem !important;
-  font-weight: 700 !important;
+  font-size: 0.88rem !important;
+  font-weight: 750 !important;
 }
 
 /* ==========================================================================
@@ -7008,7 +7140,7 @@ html body #root :is(.layout--admin, .layout--user) :is(
   .cr-list-tabs button,
   .aqp-tab
 ) {
-  font-size: 0.82rem !important;
+  font-size: 0.90rem !important;
   font-weight: 700 !important;
   letter-spacing: -0.01em !important;
   transition: all 0.15s ease !important;
@@ -7101,8 +7233,8 @@ html body #root :is(.layout--admin, .layout--user) :is(
   .aqp-table,
   .qsr-results-table
 ) th {
-  padding: 0.6rem 0.8rem !important;
-  font-size: 0.78rem !important;
+  padding: 0.62rem 0.85rem !important;
+  font-size: 0.92rem !important;
   font-weight: 800 !important;
   letter-spacing: 0.02em !important;
   white-space: nowrap !important;
@@ -7117,8 +7249,11 @@ html body #root :is(.layout--admin, .layout--user) :is(
   .aqp-table,
   .qsr-results-table
 ) td {
-  padding: 0.52rem 0.8rem !important;
-  font-size: 0.8rem !important;
+  padding: 0.55rem 0.85rem !important;
+  font-size: 0.92rem !important;
+  font-weight: 500 !important;
+  color: #0f172a !important;
+  line-height: 1.4 !important;
 }
 
 
@@ -7207,8 +7342,8 @@ html body #root :is(.layout--admin, .layout--user) :is(
 html body #root :is(.layout--admin, .layout--user) .analytics-card td {
   color: #0f172a !important;
   -webkit-text-fill-color: #0f172a !important;
-  font-size: 0.85rem !important;
-  font-weight: 600 !important;
+  font-size: 0.92rem !important;
+  font-weight: 550 !important;
   opacity: 1 !important;
   visibility: visible !important;
   background: #ffffff !important;
@@ -7240,6 +7375,7 @@ html:not([data-theme="dark"]) body #root :is(
   color: #000000 !important;
   -webkit-text-fill-color: #000000 !important;
   border: 1px solid #cbd5e1 !important;
+  font-size: 0.90rem !important;
   font-weight: 600 !important;
   opacity: 1 !important;
 }
@@ -7266,7 +7402,8 @@ html:not([data-theme="dark"]) body #root :is(
 )::placeholder {
   color: #64748b !important;
   -webkit-text-fill-color: #64748b !important;
-  font-weight: 400 !important;
+  font-size: 0.88rem !important;
+  font-weight: 450 !important;
 }
 
 /* Final light-mode cascade for all table column filters. */
@@ -7345,7 +7482,8 @@ html:not([data-theme="dark"]) body #root .crm-column-filter-input {
   -webkit-appearance: none !important;
   color-scheme: light !important;
   forced-color-adjust: none !important;
-  font-weight: 400 !important;
+  font-size: 0.90rem !important;
+  font-weight: 500 !important;
   font-family: Arial, sans-serif !important;
   mix-blend-mode: normal !important;
   font-variant: normal !important;
@@ -7356,6 +7494,7 @@ html:not([data-theme="dark"]) body #root .crm-column-filter-input {
 html:not([data-theme="dark"]) body #root .crm-column-filter-input::placeholder {
   color: #64748b !important;
   -webkit-text-fill-color: #64748b !important;
+  font-size: 0.88rem !important;
   opacity: 1 !important;
 }
 
@@ -7370,7 +7509,8 @@ html:not([data-theme="dark"]) body #root table thead input[type="search"] {
   -webkit-appearance: none !important;
   color-scheme: light !important;
   forced-color-adjust: none !important;
-  font-weight: 400 !important;
+  font-size: 0.90rem !important;
+  font-weight: 500 !important;
   font-family: Arial, sans-serif !important;
   opacity: 1 !important;
   visibility: visible !important;
@@ -7380,6 +7520,7 @@ html:not([data-theme="dark"]) body #root table thead input[type="text"]::placeho
 html:not([data-theme="dark"]) body #root table thead input[type="search"]::placeholder {
   color: #64748b !important;
   -webkit-text-fill-color: #64748b !important;
+  font-size: 0.88rem !important;
   opacity: 1 !important;
 }
 
@@ -7389,7 +7530,8 @@ html:not([data-theme="dark"]) body #root :is(.aqp-search-input, .quotation-accou
   -webkit-text-fill-color: #000000 !important;
   caret-color: #000000 !important;
   text-shadow: none !important;
-  font-weight: 400 !important;
+  font-size: 0.90rem !important;
+  font-weight: 500 !important;
   background: #ffffff !important;
   background-color: #ffffff !important;
   opacity: 1 !important;
@@ -7403,5 +7545,6 @@ html:not([data-theme="dark"]) body #root :is(.aqp-search-input, .quotation-accou
 html:not([data-theme="dark"]) body #root :is(.aqp-search-input, .quotation-account-list-search-input)::placeholder {
   color: #64748b !important;
   -webkit-text-fill-color: #64748b !important;
+  font-size: 0.88rem !important;
   opacity: 1 !important;
 }

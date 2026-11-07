@@ -1,7 +1,8 @@
 .product-catalogue-container {
   padding: 20px;
   background-color: #f4f6f9;
-  min-height: 100vh;
+  min-height: 100%;
+  flex: 1 1 auto;
 }
 
 .product-catalogue-header {

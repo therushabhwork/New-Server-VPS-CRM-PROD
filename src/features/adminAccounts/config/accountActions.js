@@ -108,15 +108,6 @@ const actionConfig = [
     behavior: 'viewDeal',
   },
   {
-    key: 'manage-account',
-    order: 9,
-    label: 'Manage Account',
-    route: `${actionBaseRoute}/manage-account`,
-    placeholderTitle: 'Manage Account',
-    heading: 'Manage Account',
-    description: 'Open the account management workspace for the selected account.',
-  },
-  {
     key: 'delete-account',
     order: 10,
     label: 'Delete Account',
@@ -144,7 +135,6 @@ const userAccountActionKeys = [
   'view-account',
   'converted-deal',
   'view-linked-deal',
-  'manage-account',
   'delete-account',
 ]
 

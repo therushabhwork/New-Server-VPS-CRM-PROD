@@ -13,6 +13,7 @@
   color: var(--user-ink);
 }
 
+html.is-user,
 html.is-user body,
 html.is-user #root {
   background: #ffffff !important;

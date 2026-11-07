@@ -58,11 +58,23 @@ export const isOwnedByCurrentUser = (record, user) => {
     const matchingIds = [
       raw.userId,
       raw.createdByUserId,
-      record.convertedBy,
-      raw.assignedTo,
+      raw.createdBy,
+      raw.created_by,
       raw.ownerUserId,
+      raw.owner_user_id,
+      raw.assignedTo,
+      raw.assigned_to,
+      raw.formData?.createdByUserId,
+      raw.formData?.assignedTo,
+      raw.formData?.ownerId,
+      raw.formData?.userId,
+      record.convertedBy,
       record.assignedUserId,
       record.ownerId,
+      record.userId,
+      record.createdBy,
+      record.createdByUserId,
+      record.ownerUserId,
     ].map(normalizeCompareValue)
 
     if (matchingIds.includes(userId)) {
@@ -99,6 +111,12 @@ export const isOwnedByCurrentUser = (record, user) => {
     raw.addedByName,
     record.accountOwner,
     record.accountOwnerName,
+    raw.accountOwner,
+    raw.accountOwnerName,
+    record.ownerName,
+    raw.ownerName,
+    record.assignedUserName,
+    raw.assignedUserName,
   ]
 
   const userNames = [

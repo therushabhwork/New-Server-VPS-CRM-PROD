@@ -1,5 +1,6 @@
 .bulk-account-tables-page {
-  min-height: 100vh;
+  min-height: 100%;
+  flex: 1 1 auto;
   background: var(--surface-card);
 }
 

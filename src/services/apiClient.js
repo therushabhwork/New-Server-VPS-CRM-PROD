@@ -1,4 +1,4 @@
-﻿import axios from 'axios'
+import axios from 'axios'
 import { getApiBaseUrl } from './runtimeUrls'
 import { normalizeRequestPayload } from '../utils/requestPayload'
 
@@ -97,7 +97,11 @@ apiClient.interceptors.response.use(
       const isRefreshRequest = requestUrl.includes('/auth/refresh')
       const isLogoutRequest = requestUrl.includes('/auth/logout')
       if (isInitialSessionProbe || isLoginRequest || isPasswordResetRequest || isRefreshRequest || isLogoutRequest) {
-        if (!error.response && (error.code === 'ECONNABORTED' || error.message?.includes('timeout') || error.message?.includes('Network Error'))) {
+        if (axios.isCancel?.(error) || error?.name === 'CanceledError') {
+      return Promise.reject(error)
+    }
+
+    if (!error.response && (error.code === 'ECONNABORTED' || error.message?.includes('timeout') || error.message?.includes('Network Error'))) {
       const config = error.config
       if (config && String(config.method || 'get').toLowerCase() === 'get' && !config.__isNetworkRetry) {
         config.__isNetworkRetry = true
@@ -129,6 +133,10 @@ apiClient.interceptors.response.use(
       if ((hadToken || requestHadToken || !isInitialSessionProbe) && typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT))
       }
+    }
+
+    if (axios.isCancel?.(error) || error?.name === 'CanceledError') {
+      return Promise.reject(error)
     }
 
     if (!error.response && (error.code === 'ECONNABORTED' || error.message?.includes('timeout') || error.message?.includes('Network Error'))) {

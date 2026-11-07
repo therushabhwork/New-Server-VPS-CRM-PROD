@@ -1,5 +1,5 @@
 .admin-calendar-page {
-  min-height: calc(100vh - 3.25rem);
+  min-height: calc(var(--crm-viewport-h, 100vh) - 3.25rem);
   padding: 24px;
   background: var(--surface-app);
   color: var(--text-primary);

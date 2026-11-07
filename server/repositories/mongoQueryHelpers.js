@@ -3,6 +3,21 @@ const { camelToSnake, snakeToCamel } = require('../utils/mongoRecordMapper')
 
 const toArray = (value) => (Array.isArray(value) ? value : [value])
 
+const uniqueDualValues = (values = []) => {
+  const set = new Set()
+  values.forEach((value) => {
+    if (value === undefined || value === null || value === '') return
+    const str = String(value).trim()
+    if (!str) return
+    set.add(str)
+    const num = toNumberOrNull(value)
+    if (num !== null) {
+      set.add(num)
+    }
+  })
+  return Array.from(set)
+}
+
 const uniqueNumbers = (values = []) => Array.from(new Set(
   values.map((value) => toNumberOrNull(value)).filter((value) => value !== null)
 ))
@@ -15,7 +30,7 @@ const fieldAliases = (field) => {
 }
 
 const buildFieldInFilter = (fields = [], values = []) => {
-  const normalizedValues = uniqueNumbers(values)
+  const normalizedValues = uniqueDualValues(values)
   if (normalizedValues.length === 0) return null
 
   const clauses = fields.flatMap((field) => fieldAliases(field).map((alias) => ({ [alias]: { $in: normalizedValues } })))
@@ -38,7 +53,7 @@ const buildScopedMongoFilter = ({
   }
 
   if (!companyWide && !isPrivilegedRole(actor?.role)) {
-    const scopedValues = uniqueNumbers(scopeUserIds && scopeUserIds.length ? scopeUserIds : [actor?.id])
+    const scopedValues = uniqueDualValues(scopeUserIds && scopeUserIds.length ? scopeUserIds : [actor?.id])
     const ownerFilter = buildFieldInFilter(ownerFields, scopedValues)
     const additionalFilters = additionalScopeGroups
       .map((group) => buildFieldInFilter(group.fields || group.columns || [], group.values || []))

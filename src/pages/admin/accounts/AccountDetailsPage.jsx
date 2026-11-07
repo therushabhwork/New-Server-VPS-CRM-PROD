@@ -63,12 +63,10 @@ const DETAIL_ACTION_ITEMS = [
   { key: 'view-linked-deal', label: 'View Deal' },
   { key: 'converted-deal', label: 'Converted Deal' },
   { key: 'send-mail', label: 'Send Mail' },
-  { key: 'manage-account', label: 'Manage Account' },
   { key: 'delete', label: 'Delete' },
 ]
 
 const QUICK_ACTIONS = [
-  { key: 'manage-account', icon: FaHome, title: 'Manage Account' },
   { key: 'change-status', icon: FaClock, title: 'Change Status' },
   { key: 'add-reminder', icon: FaBell, title: 'Add Reminder' },
   { key: 'send-mail', icon: FaEnvelope, title: 'Send Mail' },

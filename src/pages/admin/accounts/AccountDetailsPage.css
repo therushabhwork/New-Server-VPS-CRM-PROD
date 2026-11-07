@@ -1,5 +1,5 @@
 .account-details-page {
-  --account-details-available-height: calc(100vh - var(--header-height) - (var(--app-gutter) * 3));
+  --account-details-available-height: calc(var(--crm-viewport-h, 100vh) - var(--header-height) - (var(--app-gutter) * 3));
   display: flex;
   flex: 1 1 auto;
   width: 100%;

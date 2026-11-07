@@ -160,12 +160,16 @@ export const normalizeAccountRecord = (account = {}, index = 0, options = {}) =>
   const isPoConvertedStage = stage === 'convert_to_po' || normalizeStageKey(account.status || account.accountStatus) === 'convert_to_po' || normalizeStageKey(account.status || account.accountStatus) === 'po_converted'
   const isQuotationSentStage = stage === 'quotation_sent' || normalizeStageKey(account.status || account.accountStatus || account.accountState) === 'quotation_sent' || normalizeStageKey(account.stage) === 'quotation_sent'
 
+  const explicitAccountStatus = account.accountStatus || account.raw?.accountStatus || account.formData?.accountStatus || null
+  const isPendingStatus = String(account.status || account.accountStatus || '').trim().toLowerCase() === 'pending'
+  const isNewStatus = String(account.status || account.accountStatus || '').trim().toLowerCase() === 'new'
+
   const status = isNotQuotedStage
     ? 'Not Quoted'
-    : (isPoConvertedStage ? 'PO Converted' : (isQuotationSentStage ? 'Quotation Sent' : ((String(account.status || account.accountStatus || '').trim().toLowerCase() === 'pending' || String(account.status || account.accountStatus || '').trim().toLowerCase() === 'new') ? 'New' : titleize(account.status || account.accountStatus || account.accountState || stageMeta.label))))
+    : (isPoConvertedStage ? 'PO Converted' : (isQuotationSentStage ? 'Quotation Sent' : (isPendingStatus ? 'Pending' : (isNewStatus ? 'New' : titleize(account.status || account.accountStatus || account.accountState || stageMeta.label)))))
   const accountStatus = isNotQuotedStage
     ? 'Not Quoted'
-    : (isPoConvertedStage ? 'convert_to_po' : (isQuotationSentStage ? 'Quotation Sent' : status))
+    : (isPoConvertedStage ? 'convert_to_po' : (isQuotationSentStage ? 'Quotation Sent' : (explicitAccountStatus || status)))
   const accountState = isNotQuotedStage
     ? 'Not Quoted'
     : (isPoConvertedStage ? 'convert_to_po' : (isQuotationSentStage ? 'Quotation Sent' : titleize(account.accountState || account.status || account.accountStatus || stageMeta.label)))

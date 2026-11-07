@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
   FaCalendarAlt,
@@ -18,6 +19,12 @@ import {
   FaTable,
   FaTrash,
   FaEnvelope,
+  FaPrint,
+  FaTimes,
+  FaInfoCircle,
+  FaSearch,
+  FaCheck,
+  FaSyncAlt,
 } from 'react-icons/fa'
 import { useAuth } from '../../../context/AuthContext'
 import { useData } from '../../../context/DataContext'
@@ -120,6 +127,31 @@ export const parseToStandardDateTimestamp = (value) => {
   }
 
   return null
+}
+
+export const formatToDMY = (dateInput) => {
+  if (!dateInput) return ''
+  const t = parseToStandardDateTimestamp(dateInput)
+  if (!t) return ''
+  const d = new Date(t)
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const year = d.getFullYear()
+  return `${day}-${month}-${year}`
+}
+
+export const parseDMYToTimestamp = (dmyStr) => {
+  if (!dmyStr) return null
+  const str = String(dmyStr).trim()
+  const match = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/)
+  if (match) {
+    const d = parseInt(match[1], 10)
+    const m = parseInt(match[2], 10) - 1
+    const y = parseInt(match[3], 10)
+    const dateObj = new Date(y, m, d, 0, 0, 0, 0)
+    return isNaN(dateObj.getTime()) ? null : dateObj.getTime()
+  }
+  return parseToStandardDateTimestamp(str)
 }
 
 export const isDateInRange = (dateVal, fromStr, toStr) => {
@@ -238,8 +270,50 @@ const applyReportFilters = (data, filters) => {
   })
 }
 
+export const CUSTOM_REPORT_STATUS_OPTIONS = [
+  'All',
+  'New',
+  'Follow-up',
+  'Technical offer',
+  'Quotation sent',
+  'Quote Revision',
+  'Convert to PO',
+  'Oder Lost',
+  'Converted',
+  'Rejected',
+  'contracted',
+  'Closed',
+  'priority 1',
+  'priority 2',
+]
+
+export const CUSTOM_REPORT_NAME_OPTIONS = [
+  'Monthly Status',
+  'Daily Status',
+  'Yearly Status',
+]
+
+export const CUSTOM_REPORT_PERIOD_OPTIONS = [
+  'All Dates',
+  'Custom Date Range',
+  'Today',
+  'Yesterday',
+  'This Week',
+  'This Month',
+  'This Year',
+  'Last 7 Days',
+  'Last 30 Days',
+]
+
+export const CUSTOM_REPORT_VISIBILITY_OPTIONS = [
+  'All',
+  'Public',
+  'Private',
+]
+
 const TEMPLATE_FILTERS = [
   { key: 'all', label: 'All' },
+  { key: 'status', label: 'Status Reports' },
   { key: 'account', label: 'Accounts' },
   { key: 'customer', label: 'Customers' },
   { key: 'deal', label: 'Deals' },
@@ -264,9 +338,163 @@ const ADD_TEMPLATE_LABELS = {
   geo_tracking: 'Geo Tracking',
   remark: 'Remark',
   daily_status: 'Daily Status',
+  status: 'Status Reports',
 }
 
 const SYSTEM_REPORTS = [
+  {
+    id: 'fixed-daily-status',
+    categoryKey: 'status',
+    entityType: 'account',
+    group: 'Status Reports',
+    title: 'Daily Status',
+    type: 'Status Report',
+    period: 'Daily Status',
+    fields: 'Account No., Account Name, Contact Person, Phone, Email, Status, Owner, Account Date, City',
+    description: 'Fixed Core Template: Daily accounts status overview fetched directly from database collection',
+    createdBy: 'System',
+    createdOn: 'Dynamic',
+    visibility: 'All',
+    systemReport: true,
+    isFixedStatusTemplate: true,
+    fixedPeriodType: 'daily',
+  },
+  {
+    id: 'fixed-monthly-status',
+    categoryKey: 'status',
+    entityType: 'account',
+    group: 'Status Reports',
+    title: 'Monthly Status',
+    type: 'Status Report',
+    period: 'Monthly Status',
+    fields: 'Account No., Account Name, Contact Person, Phone, Email, Status, Owner, Account Date, City',
+    description: 'Fixed Core Template: Monthly accounts status report fetched directly from database collection',
+    createdBy: 'System',
+    createdOn: 'Dynamic',
+    visibility: 'All',
+    systemReport: true,
+    isFixedStatusTemplate: true,
+    fixedPeriodType: 'monthly',
+  },
+  {
+    id: 'fixed-yearly-status',
+    categoryKey: 'status',
+    entityType: 'account',
+    group: 'Status Reports',
+    title: 'Yearly Status',
+    type: 'Status Report',
+    period: 'Yearly Status',
+    fields: 'Account No., Account Name, Contact Person, Phone, Email, Status, Owner, Account Date, City',
+    description: 'Fixed Core Template: Annual cumulative accounts status report fetched from database',
+    createdBy: 'System',
+    createdOn: 'Dynamic',
+    visibility: 'All',
+    systemReport: true,
+    isFixedStatusTemplate: true,
+    fixedPeriodType: 'yearly',
+  },
+  {
+    id: 'fixed-deal-daily-status',
+    categoryKey: 'deal',
+    entityType: 'deal',
+    group: 'Deals',
+    title: 'Daily Status',
+    type: 'Deal Status Report',
+    period: 'Daily Status',
+    fields: 'Deal No., Deal Name, Account Name, Contact Person, Phone, Email, Stage, Owner, Deal Date, Value',
+    description: 'Fixed Core Template: Daily deals status overview fetched directly from database collection',
+    createdBy: 'System',
+    createdOn: 'Dynamic',
+    visibility: 'All',
+    systemReport: true,
+    isFixedStatusTemplate: true,
+    fixedPeriodType: 'daily',
+  },
+  {
+    id: 'fixed-deal-monthly-status',
+    categoryKey: 'deal',
+    entityType: 'deal',
+    group: 'Deals',
+    title: 'Monthly Status',
+    type: 'Deal Status Report',
+    period: 'Monthly Status',
+    fields: 'Deal No., Deal Name, Account Name, Contact Person, Phone, Email, Stage, Owner, Deal Date, Value',
+    description: 'Fixed Core Template: Monthly deals status report fetched directly from database collection',
+    createdBy: 'System',
+    createdOn: 'Dynamic',
+    visibility: 'All',
+    systemReport: true,
+    isFixedStatusTemplate: true,
+    fixedPeriodType: 'monthly',
+  },
+  {
+    id: 'fixed-deal-yearly-status',
+    categoryKey: 'deal',
+    entityType: 'deal',
+    group: 'Deals',
+    title: 'Yearly Status',
+    type: 'Deal Status Report',
+    period: 'Yearly Status',
+    fields: 'Deal No., Deal Name, Account Name, Contact Person, Phone, Email, Stage, Owner, Deal Date, Value',
+    description: 'Fixed Core Template: Annual cumulative deals status report fetched from database',
+    createdBy: 'System',
+    createdOn: 'Dynamic',
+    visibility: 'All',
+    systemReport: true,
+    isFixedStatusTemplate: true,
+    fixedPeriodType: 'yearly',
+  },
+  {
+    id: 'fixed-quotation-daily-status',
+    categoryKey: 'quotation',
+    entityType: 'quotation',
+    group: 'Quotations',
+    title: 'Daily Status',
+    type: 'Quotation Status Report',
+    period: 'Daily Status',
+    fields: 'Quotation No., Subject, Customer Name, Contact Person, Phone, Email, Status, Owner, Quotation Date, Total Amount',
+    description: 'Fixed Core Template: Daily quotations status overview fetched directly from database collection',
+    createdBy: 'System',
+    createdOn: 'Dynamic',
+    visibility: 'All',
+    systemReport: true,
+    isFixedStatusTemplate: true,
+    fixedPeriodType: 'daily',
+  },
+  {
+    id: 'fixed-quotation-monthly-status',
+    categoryKey: 'quotation',
+    entityType: 'quotation',
+    group: 'Quotations',
+    title: 'Monthly Status',
+    type: 'Quotation Status Report',
+    period: 'Monthly Status',
+    fields: 'Quotation No., Subject, Customer Name, Contact Person, Phone, Email, Status, Owner, Quotation Date, Total Amount',
+    description: 'Fixed Core Template: Monthly quotations status report fetched directly from database collection',
+    createdBy: 'System',
+    createdOn: 'Dynamic',
+    visibility: 'All',
+    systemReport: true,
+    isFixedStatusTemplate: true,
+    fixedPeriodType: 'monthly',
+  },
+  {
+    id: 'fixed-quotation-yearly-status',
+    categoryKey: 'quotation',
+    entityType: 'quotation',
+    group: 'Quotations',
+    title: 'Yearly Status',
+    type: 'Quotation Status Report',
+    period: 'Yearly Status',
+    fields: 'Quotation No., Subject, Customer Name, Contact Person, Phone, Email, Status, Owner, Quotation Date, Total Amount',
+    description: 'Fixed Core Template: Annual cumulative quotations status report fetched from database',
+    createdBy: 'System',
+    createdOn: 'Dynamic',
+    visibility: 'All',
+    systemReport: true,
+    isFixedStatusTemplate: true,
+    fixedPeriodType: 'yearly',
+  },
   {
     id: 'system-sales-performance-yesterday',
     categoryKey: 'deal',
@@ -472,7 +700,7 @@ const getReportGroupBy = (report) => (
     : ''
 )
 
-const ReportCard = ({ report, onViewWeb, onExport, onDelete, isKevalOrAdmin, canDeleteReport }) => {
+const ReportCard = ({ report, onViewWeb, onExport, onDelete, isKevalOrAdmin, canDeleteReport, onViewStructured, onExportExcel }) => {
   const navigate = useNavigate()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const menuRef = useRef(null)
@@ -489,13 +717,38 @@ const ReportCard = ({ report, onViewWeb, onExport, onDelete, isKevalOrAdmin, can
     <article className="cr-list-card">
       <header className="cr-list-card-header">
         <div className="cr-list-card-title-row">
-          <button type="button" className="cr-list-card-title" onClick={() => onViewWeb(report)}>
+          <button type="button" className="cr-list-card-title" onClick={() => (onViewStructured ? onViewStructured(report) : onViewWeb(report))}>
             {report.name || report.title || report.reportName}
           </button>
         </div>
         <div className="cr-list-actions" ref={menuRef} style={{ position: 'relative' }}>
           {getReportType(report) && <span className="cr-list-card-type">{getReportType(report)}</span>}
           <span className="cr-list-card-divider" style={{ color: '#d0d8e4', margin: '0 0.25rem' }}>|</span>
+
+          {/* Dual Action Icons on Every Template Card */}
+          <button
+            type="button"
+            title="View Structured Report"
+            className="cr-settings-btn cr-eye-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              onViewStructured ? onViewStructured(report) : onViewWeb(report)
+            }}
+          >
+            <FaEye />
+          </button>
+          <button
+            type="button"
+            title="Export to Excel (.xlsx)"
+            className="cr-settings-btn cr-excel-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              onExportExcel ? onExportExcel(report) : onExport(report, 'excel')
+            }}
+          >
+            <FaFileExcel />
+          </button>
+
           {canDeleteReport && report.isCustom && (
             <button
               type="button"
@@ -509,7 +762,8 @@ const ReportCard = ({ report, onViewWeb, onExport, onDelete, isKevalOrAdmin, can
               <FaTrash />
             </button>
           )}
-          {isKevalOrAdmin ? (
+
+          {isKevalOrAdmin && (
             <>
               <button
                 type="button"
@@ -544,15 +798,6 @@ const ReportCard = ({ report, onViewWeb, onExport, onDelete, isKevalOrAdmin, can
                 </div>
               )}
             </>
-          ) : (
-            <button
-              type="button"
-              title="View Report"
-              className="cr-settings-btn cr-eye-btn"
-              onClick={() => onViewWeb(report)}
-            >
-              <FaEye />
-            </button>
           )}
         </div>
       </header>
@@ -596,6 +841,593 @@ const ReportCard = ({ report, onViewWeb, onExport, onDelete, isKevalOrAdmin, can
         </div>
       </div>
     </article>
+  )
+}
+
+const StatusPillBadge = ({ status }) => {
+  const norm = String(status || '').trim().toLowerCase()
+  let bg = '#f1f5f9'
+  let color = '#475569'
+  let border = '#cbd5e1'
+
+  if (norm.includes('convert') || norm.includes('po') || norm.includes('contract')) {
+    bg = '#ecfdf5'
+    color = '#047857'
+    border = '#a7f3d0'
+  } else if (norm.includes('lost') || norm.includes('reject')) {
+    bg = '#fff1f2'
+    color = '#b91c1c'
+    border = '#fecdd3'
+  } else if (norm.includes('quote') || norm.includes('revision') || norm.includes('sent')) {
+    bg = '#eff6ff'
+    color = '#1d4ed8'
+    border = '#bfdbfe'
+  } else if (norm.includes('priority')) {
+    bg = '#fffbeb'
+    color = '#b45309'
+    border = '#fde68a'
+  } else if (norm.includes('follow') || norm.includes('technical')) {
+    bg = '#f5f3ff'
+    color = '#6d28d9'
+    border = '#ddd6fe'
+  } else if (norm.includes('new')) {
+    bg = '#f0fdf4'
+    color = '#15803d'
+    border = '#bbf7d0'
+  }
+
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      padding: '0.15rem 0.55rem',
+      borderRadius: '999px',
+      fontSize: '0.72rem',
+      fontWeight: 700,
+      background: bg,
+      color: color,
+      border: `1px solid ${border}`,
+      whiteSpace: 'nowrap',
+    }}>
+      {status || 'New'}
+    </span>
+  )
+}
+
+const CustomReportFilterModal = ({
+  isOpen,
+  onClose,
+  filterState,
+  setFilterState,
+  ownerOptions = [],
+  onApplyView,
+  onApplyExport,
+  onApplyPdf,
+  loading = false,
+}) => {
+  if (!isOpen) return null
+
+  const handleReportNameChange = (name) => {
+    const now = new Date()
+    const yyyy = now.getFullYear()
+    const mm = String(now.getMonth() + 1).padStart(2, '0')
+    const dd = String(now.getDate()).padStart(2, '0')
+    const todayDMY = `${dd}-${mm}-${yyyy}`
+    if (name === 'Daily Status') {
+      setFilterState((prev) => ({
+        ...prev,
+        reportName: name,
+        period: 'Today',
+        startDate: todayDMY,
+        endDate: todayDMY,
+      }))
+    } else if (name === 'Monthly Status') {
+      setFilterState((prev) => ({
+        ...prev,
+        reportName: name,
+        period: 'This Month',
+        startDate: `01-${mm}-${yyyy}`,
+        endDate: todayDMY,
+      }))
+    } else if (name === 'Yearly Status') {
+      setFilterState((prev) => ({
+        ...prev,
+        reportName: name,
+        period: 'This Year',
+        startDate: `01-01-${yyyy}`,
+        endDate: todayDMY,
+      }))
+    } else {
+      setFilterState((prev) => ({ ...prev, reportName: name }))
+    }
+  }
+
+  const handlePeriodChange = (period) => {
+    const now = new Date()
+    const yyyy = now.getFullYear()
+    const mm = String(now.getMonth() + 1).padStart(2, '0')
+    const dd = String(now.getDate()).padStart(2, '0')
+    const todayDMY = `${dd}-${mm}-${yyyy}`
+
+    if (period === 'Today') {
+      setFilterState((prev) => ({ ...prev, period, startDate: todayDMY, endDate: todayDMY }))
+    } else if (period === 'Yesterday') {
+      const yest = new Date()
+      yest.setDate(yest.getDate() - 1)
+      const yestY = yest.getFullYear()
+      const yestM = String(yest.getMonth() + 1).padStart(2, '0')
+      const yestD = String(yest.getDate()).padStart(2, '0')
+      const yestDMY = `${yestD}-${yestM}-${yestY}`
+      setFilterState((prev) => ({ ...prev, period, startDate: yestDMY, endDate: yestDMY }))
+    } else if (period === 'This Month') {
+      setFilterState((prev) => ({ ...prev, period, startDate: `01-${mm}-${yyyy}`, endDate: todayDMY }))
+    } else if (period === 'This Year') {
+      setFilterState((prev) => ({ ...prev, period, startDate: `01-01-${yyyy}`, endDate: todayDMY }))
+    } else if (period === 'Last 7 Days') {
+      const past = new Date()
+      past.setDate(past.getDate() - 7)
+      const pastY = past.getFullYear()
+      const pastM = String(past.getMonth() + 1).padStart(2, '0')
+      const pastD = String(past.getDate()).padStart(2, '0')
+      setFilterState((prev) => ({ ...prev, period, startDate: `${pastD}-${pastM}-${pastY}`, endDate: todayDMY }))
+    } else if (period === 'Last 30 Days') {
+      const past = new Date()
+      past.setDate(past.getDate() - 30)
+      const pastY = past.getFullYear()
+      const pastM = String(past.getMonth() + 1).padStart(2, '0')
+      const pastD = String(past.getDate()).padStart(2, '0')
+      setFilterState((prev) => ({ ...prev, period, startDate: `${pastD}-${pastM}-${pastY}`, endDate: todayDMY }))
+    } else if (period === 'All Dates') {
+      setFilterState((prev) => ({ ...prev, period, startDate: '', endDate: '' }))
+    } else {
+      setFilterState((prev) => ({ ...prev, period }))
+    }
+  }
+
+  const handleReset = () => {
+    const now = new Date()
+    const yyyy = now.getFullYear()
+    const mm = String(now.getMonth() + 1).padStart(2, '0')
+    const dd = String(now.getDate()).padStart(2, '0')
+    const todayDMY = `${dd}-${mm}-${yyyy}`
+    setFilterState({
+      reportName: 'Monthly Status',
+      visibility: 'All',
+      period: 'This Month',
+      startDate: `01-${mm}-${yyyy}`,
+      endDate: todayDMY,
+      owner: 'All',
+      status: 'All',
+    })
+  }
+
+  return createPortal(
+    <div className="cr-filter-modal-overlay" onClick={onClose}>
+      <div className="cr-filter-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="cr-filter-modal-header">
+          <div className="cr-filter-modal-title">
+            <FaFilter className="cr-filter-modal-icon" />
+            <h2>Custom Report Filter</h2>
+          </div>
+          <button type="button" className="cr-filter-modal-close" onClick={onClose} aria-label="Close">
+            <FaTimes />
+          </button>
+        </div>
+
+        {/* Top Action Bar: Reset on Left; View Report, PDF and Excel Export on Right */}
+        <div className="cr-filter-modal-top-bar">
+          <div className="cr-filter-top-left">
+            <button type="button" className="cr-btn-ghost" onClick={handleReset} title="Reset filters">
+              <FaSyncAlt /> Reset
+            </button>
+          </div>
+          <div className="cr-filter-top-right">
+            {onApplyView && (
+              <button
+                type="button"
+                className="cr-btn-primary cr-btn-view"
+                onClick={onApplyView}
+                disabled={loading}
+                title="View dynamic live records in structured table"
+              >
+                <FaEye /> {loading ? 'Loading...' : 'View Report'}
+              </button>
+            )}
+            <button
+              type="button"
+              className="cr-btn-pdf"
+              onClick={onApplyPdf}
+              disabled={loading}
+              title="Export dynamic live records directly to PDF"
+            >
+              <FaFilePdf /> {loading ? 'Processing...' : 'Export PDF'}
+            </button>
+            <button
+              type="button"
+              className="cr-btn-excel"
+              onClick={onApplyExport}
+              disabled={loading}
+              title="Export dynamic live records directly to Excel .xlsx"
+            >
+              <FaFileExcel /> {loading ? 'Processing...' : 'Export Excel (.xlsx)'}
+            </button>
+          </div>
+        </div>
+
+        <div className="cr-filter-modal-body">
+          <div className="cr-filter-grid">
+            {/* Row 1: Report Name & Visibility */}
+            <div className="cr-filter-field">
+              <label>Report Name</label>
+              <select
+                value={filterState.reportName}
+                onChange={(e) => handleReportNameChange(e.target.value)}
+              >
+                {CUSTOM_REPORT_NAME_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="cr-filter-field">
+              <label>Visibility</label>
+              <select
+                value={filterState.visibility}
+                onChange={(e) => setFilterState((prev) => ({ ...prev, visibility: e.target.value }))}
+              >
+                {CUSTOM_REPORT_VISIBILITY_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Row 2: Period & Owner */}
+            <div className="cr-filter-field">
+              <label>Period</label>
+              <select
+                value={filterState.period}
+                onChange={(e) => handlePeriodChange(e.target.value)}
+              >
+                {CUSTOM_REPORT_PERIOD_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="cr-filter-field">
+              <label>Owner</label>
+              <select
+                value={filterState.owner}
+                onChange={(e) => setFilterState((prev) => ({ ...prev, owner: e.target.value }))}
+              >
+                <option value="All">All Owners</option>
+                {ownerOptions.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Row 3: Start Date & End Date (DD-MM-YYYY format with direct text typing & interactive calendar icon) */}
+            <div className="cr-filter-field">
+              <label>Start Date (DD-MM-YYYY)</label>
+              <div className="cr-date-input-wrapper">
+                <input
+                  type="text"
+                  placeholder="DD-MM-YYYY"
+                  value={filterState.startDate || ''}
+                  onChange={(e) => setFilterState((prev) => ({ ...prev, startDate: e.target.value }))}
+                />
+                <span className="cr-date-picker-icon-btn" title="Choose date from calendar">
+                  <FaCalendarAlt />
+                  <input
+                    type="date"
+                    className="cr-date-picker-native-hidden"
+                    value={(() => {
+                      const t = parseDMYToTimestamp(filterState.startDate)
+                      return t ? new Date(t).toISOString().slice(0, 10) : ''
+                    })()}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setFilterState((prev) => ({ ...prev, startDate: formatToDMY(e.target.value) }))
+                      }
+                    }}
+                  />
+                </span>
+              </div>
+            </div>
+
+            <div className="cr-filter-field">
+              <label>End Date (DD-MM-YYYY)</label>
+              <div className="cr-date-input-wrapper">
+                <input
+                  type="text"
+                  placeholder="DD-MM-YYYY"
+                  value={filterState.endDate || ''}
+                  onChange={(e) => setFilterState((prev) => ({ ...prev, endDate: e.target.value }))}
+                />
+                <span className="cr-date-picker-icon-btn" title="Choose date from calendar">
+                  <FaCalendarAlt />
+                  <input
+                    type="date"
+                    className="cr-date-picker-native-hidden"
+                    value={(() => {
+                      const t = parseDMYToTimestamp(filterState.endDate)
+                      return t ? new Date(t).toISOString().slice(0, 10) : ''
+                    })()}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setFilterState((prev) => ({ ...prev, endDate: formatToDMY(e.target.value) }))
+                      }
+                    }}
+                  />
+                </span>
+              </div>
+            </div>
+
+            {/* Row 4: Select Status Button Grid (Full Width across both columns) */}
+            <div className="cr-filter-field cr-filter-field--full">
+              <label>Select Status</label>
+              <div className="cr-status-btn-grid">
+                {CUSTOM_REPORT_STATUS_OPTIONS.map((statusOpt) => {
+                  const isSelected = filterState.status === statusOpt
+                  return (
+                    <button
+                      key={statusOpt}
+                      type="button"
+                      className={`cr-status-pill-btn ${isSelected ? 'cr-status-pill-btn--active' : ''}`}
+                      onClick={() => setFilterState((prev) => ({ ...prev, status: statusOpt }))}
+                    >
+                      {statusOpt}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+const StructuredReportModal = ({
+  isOpen,
+  onClose,
+  reportTitle,
+  filterInfo,
+  records = [],
+  entityType = 'account',
+  onExportExcel,
+  onExportPdf,
+}) => {
+  const [searchTerm, setSearchTerm] = useState('')
+
+  if (!isOpen) return null
+
+  const handlePrint = () => {
+    window.print()
+  }
+
+  const normEntity = normalizeEntityKey(entityType)
+
+  const filtered = records.filter((r) => {
+    if (!searchTerm) return true
+    const term = searchTerm.toLowerCase()
+    return (
+      String(r.accountNumber || r.dealNumber || r.quotationNumber || '').toLowerCase().includes(term) ||
+      String(r.accountName || r.dealName || r.subject || r.customerName || '').toLowerCase().includes(term) ||
+      String(r.contactPerson || '').toLowerCase().includes(term) ||
+      String(r.phone || '').toLowerCase().includes(term) ||
+      String(r.email || '').toLowerCase().includes(term) ||
+      String(r.status || r.stage || '').toLowerCase().includes(term) ||
+      String(r.owner || '').toLowerCase().includes(term) ||
+      String(r.city || '').toLowerCase().includes(term)
+    )
+  })
+
+  return createPortal(
+    <div className="cr-struct-modal-overlay" onClick={onClose}>
+      <div className="cr-struct-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="cr-struct-modal-header">
+          <div className="cr-struct-header-main">
+            <h2>{reportTitle || 'Custom Report View'}</h2>
+            <span className="cr-struct-badge">Total Records: {filtered.length}</span>
+            {filterInfo && (
+              <div className="cr-struct-filter-chips">
+                {filterInfo.period && <span className="cr-struct-chip">Period: {filterInfo.period}</span>}
+                {filterInfo.startDate && filterInfo.endDate && (
+                  <span className="cr-struct-chip">Range: {filterInfo.startDate} to {filterInfo.endDate}</span>
+                )}
+                {filterInfo.owner && <span className="cr-struct-chip">Owner: {filterInfo.owner}</span>}
+                {filterInfo.status && <span className="cr-struct-chip">Status: {filterInfo.status}</span>}
+              </div>
+            )}
+          </div>
+          <div className="cr-struct-header-actions">
+            <div className="cr-struct-search-box">
+              <FaSearch className="cr-struct-search-icon" />
+              <input
+                type="text"
+                placeholder="Search report table..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              className="cr-struct-action-btn cr-struct-btn--excel"
+              onClick={onExportExcel}
+              title="Download Excel Workbook"
+            >
+              <FaFileExcel /> Export Excel (.xlsx)
+            </button>
+            <button
+              type="button"
+              className="cr-struct-action-btn cr-struct-btn--pdf"
+              onClick={onExportPdf}
+              title="Download PDF"
+            >
+              <FaFilePdf /> Export PDF
+            </button>
+            <button
+              type="button"
+              className="cr-struct-action-btn cr-struct-btn--print"
+              onClick={handlePrint}
+              title="Print Report"
+            >
+              <FaPrint /> Print
+            </button>
+            <button
+              type="button"
+              className="cr-struct-close-btn"
+              onClick={onClose}
+              aria-label="Close"
+            >
+              <FaTimes />
+            </button>
+          </div>
+        </div>
+
+        <div className="cr-struct-table-wrapper">
+          <table className="cr-struct-table">
+            {normEntity === 'deal' ? (
+              <>
+                <thead>
+                  <tr>
+                    <th style={{ width: '45px', textAlign: 'center' }}>#</th>
+                    <th style={{ width: '130px' }}>Deal No</th>
+                    <th style={{ width: '200px' }}>Deal Name</th>
+                    <th style={{ width: '200px' }}>Account Name</th>
+                    <th style={{ width: '150px' }}>Contact Person</th>
+                    <th style={{ width: '130px' }}>Phone</th>
+                    <th style={{ width: '180px' }}>Email</th>
+                    <th style={{ width: '130px' }}>Stage</th>
+                    <th style={{ width: '140px' }}>Owner</th>
+                    <th style={{ width: '110px' }}>Deal Date</th>
+                    <th style={{ width: '120px', textAlign: 'right' }}>Deal Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
+                        No matching deal records found for this filter criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered.map((row, idx) => (
+                      <tr key={idx}>
+                        <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{row.srNo || idx + 1}</td>
+                        <td style={{ fontWeight: 700, color: '#1e293b' }}>{row.dealNumber}</td>
+                        <td style={{ fontWeight: 600, color: '#0f172a' }}>{row.dealName}</td>
+                        <td>{row.accountName}</td>
+                        <td>{row.contactPerson}</td>
+                        <td>{row.phone}</td>
+                        <td>{row.email}</td>
+                        <td><StatusPillBadge status={row.stage || row.status} /></td>
+                        <td>{row.owner}</td>
+                        <td>{row.dealDate}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600, color: '#0f172a' }}>
+                          ₹{Number(row.value || 0).toLocaleString('en-IN')}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </>
+            ) : normEntity === 'quotation' ? (
+              <>
+                <thead>
+                  <tr>
+                    <th style={{ width: '45px', textAlign: 'center' }}>#</th>
+                    <th style={{ width: '130px' }}>Quotation No</th>
+                    <th style={{ width: '200px' }}>Subject</th>
+                    <th style={{ width: '200px' }}>Customer Name</th>
+                    <th style={{ width: '150px' }}>Contact Person</th>
+                    <th style={{ width: '130px' }}>Phone</th>
+                    <th style={{ width: '180px' }}>Email</th>
+                    <th style={{ width: '130px' }}>Status</th>
+                    <th style={{ width: '140px' }}>Owner</th>
+                    <th style={{ width: '110px' }}>Quotation Date</th>
+                    <th style={{ width: '120px', textAlign: 'right' }}>Total Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
+                        No matching quotation records found for this filter criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered.map((row, idx) => (
+                      <tr key={idx}>
+                        <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{row.srNo || idx + 1}</td>
+                        <td style={{ fontWeight: 700, color: '#1e293b' }}>{row.quotationNumber}</td>
+                        <td style={{ fontWeight: 600, color: '#0f172a' }}>{row.subject}</td>
+                        <td>{row.customerName}</td>
+                        <td>{row.contactPerson}</td>
+                        <td>{row.phone}</td>
+                        <td>{row.email}</td>
+                        <td><StatusPillBadge status={row.status} /></td>
+                        <td>{row.owner}</td>
+                        <td>{row.quotationDate}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600, color: '#0f172a' }}>
+                          ₹{Number(row.totalAmount || 0).toLocaleString('en-IN')}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </>
+            ) : (
+              <>
+                <thead>
+                  <tr>
+                    <th style={{ width: '45px', textAlign: 'center' }}>#</th>
+                    <th style={{ width: '130px' }}>Account No</th>
+                    <th style={{ width: '220px' }}>Account Name</th>
+                    <th style={{ width: '160px' }}>Contact Person</th>
+                    <th style={{ width: '130px' }}>Phone</th>
+                    <th style={{ width: '190px' }}>Email</th>
+                    <th style={{ width: '130px' }}>Status</th>
+                    <th style={{ width: '140px' }}>Owner</th>
+                    <th style={{ width: '110px' }}>Account Date</th>
+                    <th style={{ width: '120px' }}>City</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
+                        No matching records found for this filter criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered.map((row, idx) => (
+                      <tr key={idx}>
+                        <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{row.srNo || idx + 1}</td>
+                        <td style={{ fontWeight: 700, color: '#1e293b' }}>{row.accountNumber}</td>
+                        <td style={{ fontWeight: 600, color: '#0f172a' }}>{row.accountName}</td>
+                        <td>{row.contactPerson}</td>
+                        <td>{row.phone}</td>
+                        <td>{row.email}</td>
+                        <td><StatusPillBadge status={row.status} /></td>
+                        <td>{row.owner}</td>
+                        <td>{row.accountDate}</td>
+                        <td>{row.city}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </>
+            )}
+          </table>
+        </div>
+      </div>
+    </div>,
+    document.body
   )
 }
 
@@ -671,17 +1503,475 @@ const SplitDropdown = ({ label, options, isOpen, buttonRef, onToggle, onSelect }
   </div>
 )
 
+const filterCollectionRecords = (records, filterState = {}, entityType = 'account') => {
+  if (!Array.isArray(records)) return []
+  const {
+    period,
+    startDate,
+    endDate,
+    owner,
+    status,
+  } = (filterState || {})
+
+  let fromTime = null
+  let toTime = null
+
+  if (period === 'All Dates') {
+    fromTime = null
+    toTime = null
+  } else if (period === 'Today') {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    fromTime = today.getTime()
+    toTime = fromTime + 86399999
+  } else if (period === 'Yesterday') {
+    const yest = new Date()
+    yest.setDate(yest.getDate() - 1)
+    yest.setHours(0, 0, 0, 0)
+    fromTime = yest.getTime()
+    toTime = fromTime + 86399999
+  } else if (period === 'This Week' || period === 'Last 7 Days') {
+    const now = new Date()
+    const past = new Date()
+    past.setDate(past.getDate() - 7)
+    past.setHours(0, 0, 0, 0)
+    fromTime = past.getTime()
+    toTime = now.getTime()
+  } else if (period === 'This Month') {
+    const now = new Date()
+    const startMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
+    fromTime = startMonth.getTime()
+    toTime = now.getTime()
+  } else if (period === 'Last 30 Days') {
+    const now = new Date()
+    const past = new Date()
+    past.setDate(past.getDate() - 30)
+    past.setHours(0, 0, 0, 0)
+    fromTime = past.getTime()
+    toTime = now.getTime()
+  } else if (period === 'This Year') {
+    const startYear = new Date(new Date().getFullYear(), 0, 1, 0, 0, 0, 0)
+    fromTime = startYear.getTime()
+    toTime = new Date().getTime()
+  } else {
+    // Custom Date Range: optional startDate and endDate in DD-MM-YYYY or standard formats
+    if (startDate) {
+      const parsedStart = parseDMYToTimestamp(startDate)
+      if (parsedStart) fromTime = parsedStart
+    }
+    if (endDate) {
+      const parsedEnd = parseDMYToTimestamp(endDate)
+      if (parsedEnd) toTime = parsedEnd + 86399999
+    }
+  }
+
+  const normEntity = normalizeEntityKey(entityType || filterState?.entityType || 'account')
+  const selectedOwnerNorm = String(owner || '').trim().toLowerCase()
+  const selectedStatusNorm = String(status || '').trim().toLowerCase()
+
+  const filtered = records.filter((rec) => {
+    if (fromTime !== null || toTime !== null) {
+      const rawDate =
+        (normEntity === 'deal'
+          ? (rec.dealDate || rec.formData?.dealDate)
+          : normEntity === 'quotation'
+          ? (rec.quotationDate || rec.formData?.quotationDate || rec.data?.quotationDate)
+          : (rec.accountDate || rec.formData?.accountDate || rec.leadDate || rec.raw?.accountDate)) ||
+        rec.date ||
+        rec.createdAt ||
+        rec.formData?.createdAt ||
+        rec.createdOn
+
+      const recTime = parseToStandardDateTimestamp(rawDate)
+      if (recTime !== null) {
+        if (fromTime !== null && recTime < fromTime) return false
+        if (toTime !== null && recTime > toTime) return false
+      }
+    }
+
+    if (selectedOwnerNorm && selectedOwnerNorm !== 'all' && selectedOwnerNorm !== 'all owners') {
+      const recOwner = String(
+        rec.accountOwner ||
+        rec.dealOwner ||
+        rec.quotationOwner ||
+        rec.ownerName ||
+        rec.owner ||
+        rec.assignedTo ||
+        rec.formData?.accountOwner ||
+        rec.formData?.dealOwner ||
+        rec.formData?.ownerName ||
+        rec.assignedToName ||
+        rec.raw?.accountOwner ||
+        ''
+      ).trim().toLowerCase()
+      if (!recOwner.includes(selectedOwnerNorm) && !selectedOwnerNorm.includes(recOwner)) {
+        return false
+      }
+    }
+
+    if (selectedStatusNorm && selectedStatusNorm !== 'all') {
+      const recStatus = String(
+        rec.status ||
+        rec.stage ||
+        rec.leadStage ||
+        rec.dealStage ||
+        rec.quotationStatus ||
+        rec.accountStatus ||
+        rec.formData?.status ||
+        rec.formData?.stage ||
+        rec.formData?.accountStatus ||
+        rec.raw?.status ||
+        ''
+      ).trim().toLowerCase()
+      if (selectedStatusNorm === 'oder lost' || selectedStatusNorm === 'order lost') {
+        if (!recStatus.includes('lost') && !recStatus.includes('oder') && !recStatus.includes('order')) {
+          return false
+        }
+      } else {
+        if (!recStatus.includes(selectedStatusNorm) && !selectedStatusNorm.includes(recStatus)) {
+          return false
+        }
+      }
+    }
+
+    return true
+  })
+
+  // Strict LIFO Sorting: Last In First Out (newest date first)
+  return filtered.sort((a, b) => {
+    const rawDateA =
+      (normEntity === 'deal'
+        ? (a.dealDate || a.formData?.dealDate)
+        : normEntity === 'quotation'
+        ? (a.quotationDate || a.formData?.quotationDate || a.data?.quotationDate)
+        : (a.accountDate || a.formData?.accountDate || a.leadDate || a.raw?.accountDate)) ||
+      a.date ||
+      a.createdAt ||
+      a.formData?.createdAt ||
+      a.createdOn
+
+    const rawDateB =
+      (normEntity === 'deal'
+        ? (b.dealDate || b.formData?.dealDate)
+        : normEntity === 'quotation'
+        ? (b.quotationDate || b.formData?.quotationDate || b.data?.quotationDate)
+        : (b.accountDate || b.formData?.accountDate || b.leadDate || b.raw?.accountDate)) ||
+      b.date ||
+      b.createdAt ||
+      b.formData?.createdAt ||
+      b.createdOn
+
+    const timeA = parseToStandardDateTimestamp(rawDateA) || 0
+    const timeB = parseToStandardDateTimestamp(rawDateB) || 0
+    return timeB - timeA
+  })
+}
+
+export const exportPdfCustomReport = async ({
+  title,
+  owner,
+  status,
+  period,
+  startDate,
+  endDate,
+  rows = [],
+  entityType = 'account',
+  filename,
+}) => {
+  const doc = new jsPDF({ orientation: 'landscape' })
+  let currentY = 14
+
+  let logoRendered = false
+  let logoBottomY = 14
+  try {
+    const logoImg = await loadLogoImage(swatiLogo)
+    if (logoImg) {
+      const naturalWidth = logoImg.naturalWidth || logoImg.width || 412
+      const naturalHeight = logoImg.naturalHeight || logoImg.height || 413
+      const aspectRatio = naturalHeight > 0 ? (naturalWidth / naturalHeight) : 1
+      const logoHeight = 18
+      const logoWidth = Number((logoHeight * aspectRatio).toFixed(2))
+      const logoX = 14
+      const logoY = 8
+      doc.addImage(logoImg, 'PNG', logoX, logoY, logoWidth, logoHeight)
+      logoRendered = true
+      logoBottomY = logoY + logoHeight
+    }
+  } catch (imgErr) {
+    console.warn('[PDF Export] Could not render logo:', imgErr)
+  }
+
+  currentY = logoRendered ? Math.max(logoBottomY + 4, 28) : 16
+
+  doc.setFontSize(14)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(198, 0, 22) // Swati Brand Red
+  doc.text(title || 'Swati CRM - Status Report', 14, currentY)
+  currentY += 6
+
+  doc.setFontSize(8.5)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(51, 65, 85)
+  const dateStr = (startDate && endDate)
+    ? `${startDate} to ${endDate}`
+    : (startDate ? `From ${startDate}` : (endDate ? `Up to ${endDate}` : (period || 'All Dates')))
+  doc.text(`Owner: ${owner || 'All Owners'}   |   Status: ${status || 'All Status'}   |   Period: ${dateStr}   |   Total Records: ${rows.length}`, 14, currentY)
+  currentY += 5
+
+  const normEntity = normalizeEntityKey(entityType)
+  let tableHead = []
+  let tableBody = []
+
+  if (normEntity === 'deal') {
+    tableHead = [['#', 'Deal No', 'Deal Name', 'Account Name', 'Contact Person', 'Phone', 'Email', 'Stage', 'Owner', 'Date', 'Value']]
+    tableBody = rows.map((r, i) => [
+      r.srNo || (i + 1),
+      r.dealNumber || '-',
+      r.dealName || '-',
+      r.accountName || '-',
+      r.contactPerson || '-',
+      r.phone || '-',
+      r.email || '-',
+      r.stage || r.status || '-',
+      r.owner || '-',
+      r.dealDate || '-',
+      `₹${Number(r.value || 0).toLocaleString('en-IN')}`,
+    ])
+  } else if (normEntity === 'quotation') {
+    tableHead = [['#', 'Quotation No', 'Subject', 'Customer Name', 'Contact Person', 'Phone', 'Email', 'Status', 'Owner', 'Date', 'Total Amount']]
+    tableBody = rows.map((r, i) => [
+      r.srNo || (i + 1),
+      r.quotationNumber || '-',
+      r.subject || '-',
+      r.customerName || '-',
+      r.contactPerson || '-',
+      r.phone || '-',
+      r.email || '-',
+      r.status || '-',
+      r.owner || '-',
+      r.quotationDate || '-',
+      `₹${Number(r.totalAmount || 0).toLocaleString('en-IN')}`,
+    ])
+  } else {
+    tableHead = [['#', 'Account No', 'Account Name', 'Contact Person', 'Phone', 'Email', 'Status', 'Owner', 'Date', 'City']]
+    tableBody = rows.map((r, i) => [
+      r.srNo || (i + 1),
+      r.accountNumber || '-',
+      r.accountName || '-',
+      r.contactPerson || '-',
+      r.phone || '-',
+      r.email || '-',
+      r.status || '-',
+      r.owner || '-',
+      r.accountDate || '-',
+      r.city || '-',
+    ])
+  }
+
+  autoTable(doc, {
+    head: tableHead,
+    body: tableBody,
+    startY: currentY,
+    theme: 'grid',
+    styles: { fontSize: 7.5, cellPadding: 2, overflow: 'linebreak' },
+    headStyles: { fillColor: [198, 0, 22], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    margin: { left: 14, right: 14 },
+    didDrawPage: (data) => {
+      const pageCount = doc.internal.getNumberOfPages()
+      doc.setFontSize(7.5)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(148, 163, 184)
+      doc.text(
+        `Generated on ${new Date().toLocaleString('en-IN')} | Page ${data.pageNumber} of ${pageCount}`,
+        14,
+        doc.internal.pageSize.height - 6
+      )
+    },
+  })
+
+  doc.save(filename || 'Custom-Report.pdf')
+}
+
+export const mapRecordsToRows = (records) => {
+  return records.map((rec, index) => {
+    const rawDate =
+      rec.accountDate ||
+      rec.formData?.accountDate ||
+      rec.leadDate ||
+      rec.createdAt ||
+      rec.formData?.createdAt ||
+      rec.date ||
+      rec.createdOn ||
+      rec.raw?.accountDate
+
+    const displayDate = formatToDMY(rawDate) || (rawDate ? String(rawDate).slice(0, 10) : '-')
+
+    const accNo =
+      rec.accountNo ||
+      rec.accountNumber ||
+      rec.formData?.accountNo ||
+      rec.formData?.accountNumber ||
+      rec.clientAccountNumber ||
+      rec.num ||
+      rec.raw?.accountNumber ||
+      `ACC-${index + 1}`
+
+    const accName =
+      rec.accountName ||
+      rec.customerName ||
+      rec.formData?.accountName ||
+      rec.formData?.customerName ||
+      rec.formData?.name ||
+      rec.name ||
+      rec.company ||
+      rec.raw?.accountName ||
+      '-'
+
+    const contact =
+      rec.contactPerson ||
+      rec.contact ||
+      rec.formData?.contactPerson ||
+      rec.raw?.contactPerson ||
+      '-'
+
+    const phone =
+      rec.phone ||
+      rec.mobile ||
+      rec.telephone ||
+      rec.formData?.phone ||
+      rec.formData?.mobile ||
+      rec.raw?.phone ||
+      '-'
+
+    const email =
+      rec.email ||
+      rec.formData?.email ||
+      rec.raw?.email ||
+      '-'
+
+    const status =
+      rec.status ||
+      rec.stage ||
+      rec.leadStage ||
+      rec.accountStatus ||
+      rec.formData?.status ||
+      rec.formData?.accountStatus ||
+      'New'
+
+    const owner =
+      rec.accountOwner ||
+      rec.ownerName ||
+      rec.owner ||
+      rec.formData?.accountOwner ||
+      rec.formData?.ownerName ||
+      rec.assignedToName ||
+      rec.raw?.accountOwner ||
+      '-'
+
+    const city =
+      rec.city ||
+      rec.formData?.city ||
+      rec.location ||
+      rec.formData?.location ||
+      rec.address?.city ||
+      rec.formData?.address?.city ||
+      rec.raw?.city ||
+      '-'
+
+    return {
+      srNo: index + 1,
+      accountNumber: accNo,
+      accountName: accName,
+      contactPerson: contact,
+      phone: phone,
+      email: email,
+      status: status,
+      owner: owner,
+      accountDate: displayDate,
+      city: city,
+      _rawDate: rawDate,
+    }
+  })
+}
+
+export const mapDealRecordsToRows = (records) => {
+  return records.map((rec, index) => {
+    const rawDate = rec.dealDate || rec.formData?.dealDate || rec.date || rec.createdAt || rec.formData?.createdAt || rec.createdOn
+    const displayDate = formatToDMY(rawDate) || (rawDate ? String(rawDate).slice(0, 10) : '-')
+
+    const dealNo = rec.dealNumber || rec.dealNo || rec.formData?.dealNumber || rec.formData?.dealNo || rec.num || `DL-${index + 1}`
+    const dealName = rec.title || rec.dealName || rec.name || rec.formData?.dealName || rec.formData?.title || '-'
+    const accName = rec.customerName || rec.accountName || rec.clientName || rec.company || rec.formData?.customerName || rec.formData?.accountName || '-'
+    const contact = rec.contactPerson || rec.contact || rec.formData?.contactPerson || '-'
+    const phone = rec.contactMobile || rec.phone || rec.mobile || rec.telephone || rec.formData?.contactMobile || rec.formData?.phone || '-'
+    const email = rec.contactEmail || rec.email || rec.formData?.contactEmail || rec.formData?.email || '-'
+    const stage = rec.stage || rec.dealStage || rec.status || rec.formData?.stage || rec.formData?.status || 'New'
+    const owner = rec.dealOwner || rec.ownerName || rec.owner || rec.assignedTo || rec.formData?.dealOwner || rec.formData?.ownerName || rec.assignedToName || '-'
+    const value = rec.dealValue || rec.value || rec.amount || rec.formData?.dealValue || rec.formData?.value || 0
+
+    return {
+      srNo: index + 1,
+      dealNumber: dealNo,
+      dealName: dealName,
+      accountName: accName,
+      contactPerson: contact,
+      phone: phone,
+      email: email,
+      stage: stage,
+      status: stage,
+      owner: owner,
+      dealDate: displayDate,
+      value: value,
+      _rawDate: rawDate,
+    }
+  })
+}
+
+export const mapQuotationRecordsToRows = (records) => {
+  return records.map((rec, index) => {
+    const rawDate = rec.quotationDate || rec.formData?.quotationDate || rec.date || rec.createdAt || rec.formData?.createdAt || rec.createdOn || rec.data?.quotationDate
+    const displayDate = formatToDMY(rawDate) || (rawDate ? String(rawDate).slice(0, 10) : '-')
+
+    const quoteNo = rec.quotationNumber || rec.quotationNo || rec.quoteNo || rec.formData?.quotationNumber || rec.num || `QT-${index + 1}`
+    const subject = rec.title || rec.subject || rec.formData?.subject || rec.formData?.title || '-'
+    const customerName = rec.customerName || rec.clientName || rec.accountName || rec.company || rec.formData?.customerName || rec.formData?.clientName || '-'
+    const contact = rec.contactPerson || rec.contact || rec.formData?.contactPerson || '-'
+    const phone = rec.telephone || rec.phone || rec.mobile || rec.formData?.phone || '-'
+    const email = rec.email || rec.formData?.email || '-'
+    const status = rec.status || rec.quotationStatus || rec.formData?.status || 'Draft'
+    const owner = rec.quotationOwner || rec.ownerName || rec.owner || rec.assignedTo || rec.preparedBy || rec.formData?.quotationOwner || rec.formData?.ownerName || '-'
+    const totalAmount = rec.totalAmount || rec.total || rec.grandTotal || rec.amount || rec.formData?.totalAmount || 0
+
+    return {
+      srNo: index + 1,
+      quotationNumber: quoteNo,
+      subject: subject,
+      customerName: customerName,
+      contactPerson: contact,
+      phone: phone,
+      email: email,
+      status: status,
+      owner: owner,
+      quotationDate: displayDate,
+      totalAmount: totalAmount,
+      _rawDate: rawDate,
+    }
+  })
+}
+
 const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { accounts = [], deals = [], convertedDeals = [], quotations = [] } = useData()
   const customers = useMemo(() => customerService.getCustomers() || [], [])
-  const isAdmin = user?.role === 'admin'
   const normalizedIdentity = [
     user?.name,
     user?.username,
     user?.email,
   ].map((value) => String(value || '').trim().toLowerCase())
+  const isNitaBhavsar = normalizedIdentity.some((value) => value.includes('nita bhavsar') || value.startsWith('nita.bhavsar@'))
+  const isAdmin = (user?.role === 'admin' || user?.role === 'super_admin') && !isNitaBhavsar
   const isKeval = normalizedIdentity.some((value) => (
     value === 'keval v shah'
     || value === 'keval v. shah'
@@ -696,8 +1986,14 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     || value.startsWith('samir.seth@')
     || value.startsWith('samirseth@')
   ))
-  const canCreateReportTemplate = isAdmin && (isKeval || isSamirSheth)
-  const isKevalOrAdmin = isAdmin || isKeval
+  const isSamirJha = normalizedIdentity.some((value) => (
+    value === 'samir jha'
+    || value.startsWith('samir.jha@')
+    || value.startsWith('samirjha@')
+  ))
+  const isAuthorizedReportUser = (isAdmin || isKeval || isSamirSheth || isSamirJha) && !isNitaBhavsar
+  const canCreateReportTemplate = isAuthorizedReportUser
+  const isKevalOrAdmin = isAuthorizedReportUser
   const addRef = useRef(null)
   const [activeFilter, setActiveFilter] = useState('all')
   const [activeCustomSubFilter, setActiveCustomSubFilter] = useState('account')
@@ -707,6 +2003,33 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
   const [backendTemplates, setBackendTemplates] = useState([])
   const [generatedReports, setGeneratedReports] = useState([])
   const [webReport, setWebReport] = useState(null)
+
+  // Filter Modal & Structured Report View state
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
+  const [filterState, setFilterState] = useState(() => {
+    const now = new Date()
+    const yyyy = now.getFullYear()
+    const mm = String(now.getMonth() + 1).padStart(2, '0')
+    const dd = String(now.getDate()).padStart(2, '0')
+    const todayDMY = `${dd}-${mm}-${yyyy}`
+    return {
+      reportName: 'Monthly Status',
+      visibility: 'All',
+      period: 'This Month',
+      startDate: `01-${mm}-${yyyy}`,
+      endDate: todayDMY,
+      owner: 'All',
+      status: 'All',
+    }
+  })
+  const [isStructuredModalOpen, setIsStructuredModalOpen] = useState(false)
+  const [structuredModalData, setStructuredModalData] = useState({
+    title: 'Monthly Status',
+    entityType: 'account',
+    filterInfo: null,
+    records: [],
+  })
+  const [filterActionLoading, setFilterActionLoading] = useState(false)
 
   useEffect(() => subscribeAdminReportTemplates(() => setTemplates(getAdminReportTemplates())), [])
 
@@ -856,15 +2179,480 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     })
   }, [backendTemplates, generatedReports])
 
+  const allOwnerNames = useMemo(() => {
+    const set = new Set()
+    set.add('Atish Shah')
+    set.add('Keval V Shah')
+    set.add('Samir Sheth')
+    set.add('Samir Jha')
+    ;(accounts || []).forEach((acc) => {
+      const o = acc.accountOwner || acc.ownerName || acc.owner || acc.assignedTo || acc.raw?.accountOwner
+      if (o && typeof o === 'string' && o.trim()) {
+        const trimmed = o.trim()
+        if (trimmed.toLowerCase() !== 'nita bhavsar') {
+          set.add(trimmed)
+        }
+      }
+    })
+    return Array.from(set).sort()
+  }, [accounts])
+
+  const fetchLiveLeads = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/leads', { params: { limit: 'all' } })
+      const payload = res?.data
+      const list = Array.isArray(payload?.records)
+        ? payload.records
+        : Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload?.leads)
+        ? payload.leads
+        : Array.isArray(payload)
+        ? payload
+        : (accounts || [])
+      return list
+    } catch (err) {
+      console.warn('Live leads API error, fallback to context accounts:', err)
+      return accounts || []
+    }
+  }, [accounts])
+
+  const fetchLiveDeals = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/deals', { params: { limit: 'all' } })
+      const payload = res?.data
+      const list = Array.isArray(payload?.records)
+        ? payload.records
+        : Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload?.deals)
+        ? payload.deals
+        : Array.isArray(payload)
+        ? payload
+        : (deals || [])
+      return list
+    } catch (err) {
+      console.warn('Live deals API error, fallback to context deals:', err)
+      return deals || []
+    }
+  }, [deals])
+
+  const fetchLiveQuotations = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/quotations', { params: { limit: 'all' } })
+      const payload = res?.data
+      const list = Array.isArray(payload?.records)
+        ? payload.records
+        : Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload?.quotations)
+        ? payload.quotations
+        : Array.isArray(payload)
+        ? payload
+        : (quotations || [])
+      return list
+    } catch (err) {
+      console.warn('Live quotations API error, fallback to context quotations:', err)
+      return quotations || []
+    }
+  }, [quotations])
+
+  const runFilterQuery = useCallback(async (currentFilters, entityType = 'account') => {
+    const normEntity = normalizeEntityKey(entityType)
+    if (normEntity === 'deal') {
+      const rawDeals = await fetchLiveDeals()
+      const filtered = filterCollectionRecords(rawDeals, currentFilters, 'deal')
+      return mapDealRecordsToRows(filtered)
+    }
+    if (normEntity === 'quotation') {
+      const rawQuotations = await fetchLiveQuotations()
+      const filtered = filterCollectionRecords(rawQuotations, currentFilters, 'quotation')
+      return mapQuotationRecordsToRows(filtered)
+    }
+    const rawLeads = await fetchLiveLeads()
+    const filtered = filterCollectionRecords(rawLeads, currentFilters, 'account')
+    return mapRecordsToRows(filtered)
+  }, [fetchLiveDeals, fetchLiveQuotations, fetchLiveLeads])
+
+  const getFilterModalEntityType = useCallback(() => {
+    if (activeFilter === 'deal' || String(filterState.reportName || '').toLowerCase().includes('deal')) return 'deal'
+    if (activeFilter === 'quotation' || String(filterState.reportName || '').toLowerCase().includes('quotation')) return 'quotation'
+    return 'account'
+  }, [activeFilter, filterState.reportName])
+
+  const handleApplyFilterView = async () => {
+    setFilterActionLoading(true)
+    try {
+      const entityType = getFilterModalEntityType()
+      const rows = await runFilterQuery(filterState, entityType)
+      setStructuredModalData({
+        title: filterState.reportName || 'Custom Report',
+        entityType: entityType,
+        filterInfo: {
+          period: filterState.period,
+          startDate: filterState.startDate,
+          endDate: filterState.endDate,
+          owner: filterState.owner,
+          status: filterState.status,
+        },
+        records: rows,
+      })
+      setIsFilterModalOpen(false)
+      setIsStructuredModalOpen(true)
+    } catch (err) {
+      console.error('Filter view error:', err)
+    } finally {
+      setFilterActionLoading(false)
+    }
+  }
+
+  const handleApplyFilterExport = async () => {
+    setFilterActionLoading(true)
+    try {
+      const entityType = getFilterModalEntityType()
+      const rows = await runFilterQuery(filterState, entityType)
+      const dateRangeStr = (filterState.startDate && filterState.endDate)
+        ? `${filterState.startDate}_to_${filterState.endDate}`
+        : filterState.period
+      const ownerStr = filterState.owner && filterState.owner !== 'All' ? `-${slugify(filterState.owner)}` : ''
+      const statusStr = filterState.status && filterState.status !== 'All' ? `-${slugify(filterState.status)}` : ''
+
+      let columns = []
+      let sheetName = 'Status Report'
+      if (entityType === 'deal') {
+        sheetName = 'Deal Status Report'
+        columns = [
+          { header: '#', key: 'srNo', width: 8 },
+          { header: 'Deal No', key: 'dealNumber', width: 16 },
+          { header: 'Deal Name', key: 'dealName', width: 28 },
+          { header: 'Account Name', key: 'accountName', width: 28 },
+          { header: 'Contact Person', key: 'contactPerson', width: 22 },
+          { header: 'Phone', key: 'phone', width: 18 },
+          { header: 'Email', key: 'email', width: 26 },
+          { header: 'Stage', key: 'stage', width: 18 },
+          { header: 'Owner', key: 'owner', width: 20 },
+          { header: 'Deal Date', key: 'dealDate', width: 16 },
+          { header: 'Deal Value', key: 'value', width: 18 },
+        ]
+      } else if (entityType === 'quotation') {
+        sheetName = 'Quotation Status Report'
+        columns = [
+          { header: '#', key: 'srNo', width: 8 },
+          { header: 'Quotation No', key: 'quotationNumber', width: 16 },
+          { header: 'Subject', key: 'subject', width: 28 },
+          { header: 'Customer Name', key: 'customerName', width: 28 },
+          { header: 'Contact Person', key: 'contactPerson', width: 22 },
+          { header: 'Phone', key: 'phone', width: 18 },
+          { header: 'Email', key: 'email', width: 26 },
+          { header: 'Status', key: 'status', width: 18 },
+          { header: 'Owner', key: 'owner', width: 20 },
+          { header: 'Quotation Date', key: 'quotationDate', width: 16 },
+          { header: 'Total Amount', key: 'totalAmount', width: 18 },
+        ]
+      } else {
+        columns = [
+          { header: '#', key: 'srNo', width: 8 },
+          { header: 'Account No', key: 'accountNumber', width: 16 },
+          { header: 'Account Name', key: 'accountName', width: 30 },
+          { header: 'Contact Person', key: 'contactPerson', width: 22 },
+          { header: 'Phone', key: 'phone', width: 18 },
+          { header: 'Email', key: 'email', width: 26 },
+          { header: 'Status', key: 'status', width: 18 },
+          { header: 'Owner', key: 'owner', width: 20 },
+          { header: 'Account Date', key: 'accountDate', width: 16 },
+          { header: 'City', key: 'city', width: 18 },
+        ]
+      }
+
+      exportExcelWorkbook({
+        filename: `${slugify(filterState.reportName || 'report')}${ownerStr}${statusStr}-${slugify(dateRangeStr)}.xlsx`,
+        title: `${filterState.reportName || 'Custom Report'} (${filterState.owner || 'All Owners'} - ${filterState.status || 'All Status'})`,
+        sheetName: sheetName,
+        columns: columns,
+        rows: rows,
+      })
+    } catch (err) {
+      console.error('Filter export error:', err)
+    } finally {
+      setFilterActionLoading(false)
+    }
+  }
+
+  const handleApplyFilterPdf = async () => {
+    setFilterActionLoading(true)
+    try {
+      const entityType = getFilterModalEntityType()
+      const rows = await runFilterQuery(filterState, entityType)
+      const dateRangeStr = (filterState.startDate && filterState.endDate)
+        ? `${filterState.startDate}_to_${filterState.endDate}`
+        : filterState.period
+      const ownerStr = filterState.owner && filterState.owner !== 'All' ? `-${slugify(filterState.owner)}` : ''
+      const statusStr = filterState.status && filterState.status !== 'All' ? `-${slugify(filterState.status)}` : ''
+      const filename = `${slugify(filterState.reportName || 'report')}${ownerStr}${statusStr}-${slugify(dateRangeStr)}.pdf`
+
+      await exportPdfCustomReport({
+        title: `${filterState.reportName || 'Custom Report'}`,
+        owner: filterState.owner,
+        status: filterState.status,
+        period: filterState.period,
+        startDate: filterState.startDate,
+        endDate: filterState.endDate,
+        rows: rows,
+        entityType: entityType,
+        filename: filename,
+      })
+    } catch (err) {
+      console.error('Filter PDF export error:', err)
+    } finally {
+      setFilterActionLoading(false)
+    }
+  }
+
+  const handleOpenStructuredReport = async (report) => {
+    const entityType = normalizeEntityKey(report.entityType || report.categoryKey || 'account')
+    const now = new Date()
+    const yyyy = now.getFullYear()
+    const mm = String(now.getMonth() + 1).padStart(2, '0')
+    const dd = String(now.getDate()).padStart(2, '0')
+    const todayDMY = `${dd}-${mm}-${yyyy}`
+
+    let reportFilters = {
+      reportName: report.title || report.name || 'Status Report',
+      period: 'Custom Date Range',
+      startDate: '',
+      endDate: '',
+      owner: 'All',
+      status: 'All',
+    }
+
+    if (report.isFixedStatusTemplate) {
+      if (report.fixedPeriodType === 'daily') {
+        reportFilters.period = 'Today'
+        reportFilters.reportName = 'Daily Status'
+        reportFilters.startDate = todayDMY
+        reportFilters.endDate = todayDMY
+      } else if (report.fixedPeriodType === 'monthly') {
+        reportFilters.period = 'This Month'
+        reportFilters.reportName = 'Monthly Status'
+        reportFilters.startDate = `01-${mm}-${yyyy}`
+        reportFilters.endDate = todayDMY
+      } else if (report.fixedPeriodType === 'yearly') {
+        reportFilters.period = 'This Year'
+        reportFilters.reportName = 'Yearly Status'
+        reportFilters.startDate = `01-01-${yyyy}`
+        reportFilters.endDate = todayDMY
+      }
+    } else if (report.period === 'yesterday') {
+      const yest = new Date()
+      yest.setDate(yest.getDate() - 1)
+      const yestDMY = `${String(yest.getDate()).padStart(2, '0')}-${String(yest.getMonth() + 1).padStart(2, '0')}-${yest.getFullYear()}`
+      reportFilters.period = 'Yesterday'
+      reportFilters.startDate = yestDMY
+      reportFilters.endDate = yestDMY
+    } else if (report.period === 'last_7_days') {
+      const past7 = new Date()
+      past7.setDate(past7.getDate() - 7)
+      const past7DMY = `${String(past7.getDate()).padStart(2, '0')}-${String(past7.getMonth() + 1).padStart(2, '0')}-${past7.getFullYear()}`
+      reportFilters.period = 'Last 7 Days'
+      reportFilters.startDate = past7DMY
+      reportFilters.endDate = todayDMY
+    }
+
+    const rows = await runFilterQuery(reportFilters, entityType)
+    setStructuredModalData({
+      title: report.title || report.name || 'Structured Report',
+      entityType: entityType,
+      filterInfo: {
+        period: reportFilters.period,
+        startDate: reportFilters.startDate,
+        endDate: reportFilters.endDate,
+        owner: reportFilters.owner,
+        status: reportFilters.status,
+      },
+      records: rows,
+    })
+    setIsStructuredModalOpen(true)
+  }
+
+  const handleExportCardExcel = async (report) => {
+    const entityType = normalizeEntityKey(report.entityType || report.categoryKey || 'account')
+    const now = new Date()
+    const yyyy = now.getFullYear()
+    const mm = String(now.getMonth() + 1).padStart(2, '0')
+    const dd = String(now.getDate()).padStart(2, '0')
+    const todayDMY = `${dd}-${mm}-${yyyy}`
+
+    let reportFilters = {
+      reportName: report.title || report.name || 'Status Report',
+      period: 'Custom Date Range',
+      startDate: '',
+      endDate: '',
+      owner: 'All',
+      status: 'All',
+    }
+
+    if (report.isFixedStatusTemplate) {
+      if (report.fixedPeriodType === 'daily') {
+        reportFilters.period = 'Today'
+        reportFilters.reportName = 'Daily Status'
+        reportFilters.startDate = todayDMY
+        reportFilters.endDate = todayDMY
+      } else if (report.fixedPeriodType === 'monthly') {
+        reportFilters.period = 'This Month'
+        reportFilters.reportName = 'Monthly Status'
+        reportFilters.startDate = `01-${mm}-${yyyy}`
+        reportFilters.endDate = todayDMY
+      } else if (report.fixedPeriodType === 'yearly') {
+        reportFilters.period = 'This Year'
+        reportFilters.reportName = 'Yearly Status'
+        reportFilters.startDate = `01-01-${yyyy}`
+        reportFilters.endDate = todayDMY
+      }
+    }
+
+    const rows = await runFilterQuery(reportFilters, entityType)
+    let columns = []
+    let sheetName = 'Report'
+
+    if (entityType === 'deal') {
+      sheetName = 'Deal Status Report'
+      columns = [
+        { header: '#', key: 'srNo', width: 8 },
+        { header: 'Deal No', key: 'dealNumber', width: 16 },
+        { header: 'Deal Name', key: 'dealName', width: 28 },
+        { header: 'Account Name', key: 'accountName', width: 28 },
+        { header: 'Contact Person', key: 'contactPerson', width: 22 },
+        { header: 'Phone', key: 'phone', width: 18 },
+        { header: 'Email', key: 'email', width: 26 },
+        { header: 'Stage', key: 'stage', width: 18 },
+        { header: 'Owner', key: 'owner', width: 20 },
+        { header: 'Deal Date', key: 'dealDate', width: 16 },
+        { header: 'Deal Value', key: 'value', width: 18 },
+      ]
+    } else if (entityType === 'quotation') {
+      sheetName = 'Quotation Status Report'
+      columns = [
+        { header: '#', key: 'srNo', width: 8 },
+        { header: 'Quotation No', key: 'quotationNumber', width: 16 },
+        { header: 'Subject', key: 'subject', width: 28 },
+        { header: 'Customer Name', key: 'customerName', width: 28 },
+        { header: 'Contact Person', key: 'contactPerson', width: 22 },
+        { header: 'Phone', key: 'phone', width: 18 },
+        { header: 'Email', key: 'email', width: 26 },
+        { header: 'Status', key: 'status', width: 18 },
+        { header: 'Owner', key: 'owner', width: 20 },
+        { header: 'Quotation Date', key: 'quotationDate', width: 16 },
+        { header: 'Total Amount', key: 'totalAmount', width: 18 },
+      ]
+    } else {
+      sheetName = 'Account Status Report'
+      columns = [
+        { header: '#', key: 'srNo', width: 8 },
+        { header: 'Account No', key: 'accountNumber', width: 16 },
+        { header: 'Account Name', key: 'accountName', width: 30 },
+        { header: 'Contact Person', key: 'contactPerson', width: 22 },
+        { header: 'Phone', key: 'phone', width: 18 },
+        { header: 'Email', key: 'email', width: 26 },
+        { header: 'Status', key: 'status', width: 18 },
+        { header: 'Owner', key: 'owner', width: 20 },
+        { header: 'Account Date', key: 'accountDate', width: 16 },
+        { header: 'City', key: 'city', width: 18 },
+      ]
+    }
+
+    exportExcelWorkbook({
+      filename: `${slugify(report.title || report.name || 'report')}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      title: `${report.title || report.name} - Swati CRM`,
+      sheetName: sheetName,
+      columns: columns,
+      rows: rows,
+    })
+  }
+
+  const handleModalExportExcel = () => {
+    const entityType = normalizeEntityKey(structuredModalData.entityType || 'account')
+    let columns = []
+    let sheetName = 'Status Report'
+
+    if (entityType === 'deal') {
+      sheetName = 'Deal Status Report'
+      columns = [
+        { header: '#', key: 'srNo', width: 8 },
+        { header: 'Deal No', key: 'dealNumber', width: 16 },
+        { header: 'Deal Name', key: 'dealName', width: 28 },
+        { header: 'Account Name', key: 'accountName', width: 28 },
+        { header: 'Contact Person', key: 'contactPerson', width: 22 },
+        { header: 'Phone', key: 'phone', width: 18 },
+        { header: 'Email', key: 'email', width: 26 },
+        { header: 'Stage', key: 'stage', width: 18 },
+        { header: 'Owner', key: 'owner', width: 20 },
+        { header: 'Deal Date', key: 'dealDate', width: 16 },
+        { header: 'Deal Value', key: 'value', width: 18 },
+      ]
+    } else if (entityType === 'quotation') {
+      sheetName = 'Quotation Status Report'
+      columns = [
+        { header: '#', key: 'srNo', width: 8 },
+        { header: 'Quotation No', key: 'quotationNumber', width: 16 },
+        { header: 'Subject', key: 'subject', width: 28 },
+        { header: 'Customer Name', key: 'customerName', width: 28 },
+        { header: 'Contact Person', key: 'contactPerson', width: 22 },
+        { header: 'Phone', key: 'phone', width: 18 },
+        { header: 'Email', key: 'email', width: 26 },
+        { header: 'Status', key: 'status', width: 18 },
+        { header: 'Owner', key: 'owner', width: 20 },
+        { header: 'Quotation Date', key: 'quotationDate', width: 16 },
+        { header: 'Total Amount', key: 'totalAmount', width: 18 },
+      ]
+    } else {
+      columns = [
+        { header: '#', key: 'srNo', width: 8 },
+        { header: 'Account No', key: 'accountNumber', width: 16 },
+        { header: 'Account Name', key: 'accountName', width: 30 },
+        { header: 'Contact Person', key: 'contactPerson', width: 22 },
+        { header: 'Phone', key: 'phone', width: 18 },
+        { header: 'Email', key: 'email', width: 26 },
+        { header: 'Status', key: 'status', width: 18 },
+        { header: 'Owner', key: 'owner', width: 20 },
+        { header: 'Account Date', key: 'accountDate', width: 16 },
+        { header: 'City', key: 'city', width: 18 },
+      ]
+    }
+
+    exportExcelWorkbook({
+      filename: `${slugify(structuredModalData.title || 'custom-report')}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      title: `${structuredModalData.title || 'Custom Report'} - Swati CRM`,
+      sheetName: sheetName,
+      columns: columns,
+      rows: structuredModalData.records,
+    })
+  }
+
+  const handleModalExportPdf = async () => {
+    if (!structuredModalData) return
+    const filename = `${slugify(structuredModalData.title || 'custom-report')}-${new Date().toISOString().slice(0, 10)}.pdf`
+    await exportPdfCustomReport({
+      title: structuredModalData.title || 'Custom Report',
+      owner: structuredModalData.filterInfo?.owner,
+      status: structuredModalData.filterInfo?.status,
+      period: structuredModalData.filterInfo?.period,
+      startDate: structuredModalData.filterInfo?.startDate,
+      endDate: structuredModalData.filterInfo?.endDate,
+      rows: structuredModalData.records || [],
+      entityType: structuredModalData.entityType || 'account',
+      filename: filename,
+    })
+  }
+
   const visibleReports = useMemo(() => {
     const baseReports = activeFilter === 'custom'
       ? customMongoReports
       : [
-        ...SYSTEM_REPORTS.filter((report) => isAdmin || report.visibility === 'All'),
+        ...SYSTEM_REPORTS.filter((report) => isAuthorizedReportUser || report.visibility === 'All'),
         ...customReports,
       ]
 
-    return baseReports.filter((report) => {
+    const filtered = baseReports.filter((report) => {
       const catKey = normalizeEntityKey(report.categoryKey || report.entityType || '')
 
       if (activeFilter === 'custom') {
@@ -872,23 +2660,83 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         return normalizeEntityKey(catKey) === activeCustomSubFilter
       }
 
-      if (activeFilter !== 'all' && catKey !== activeFilter) return false
-      if (activeManagementTab === 'all') return isAdmin
-      if (report.systemReport) return activeManagementTab === 'shared'
+      if (activeFilter !== 'all') {
+        if (activeFilter === 'account') {
+          const isFixedAccountCore = report.isFixedStatusTemplate && (!report.entityType || report.entityType === 'account' || report.categoryKey === 'status')
+          if (!isFixedAccountCore && catKey !== 'account') return false
+        } else if (activeFilter === 'status') {
+          if (catKey !== 'status' && !report.isFixedStatusTemplate) return false
+        } else if (catKey !== activeFilter) {
+          return false
+        }
+      }
+
+      if (activeManagementTab === 'all') return isAuthorizedReportUser
+      if (report.systemReport) return true
 
       const isOwn = canUserEditReportTemplate(report, user)
       if (activeManagementTab === 'my') return isOwn
       if (activeManagementTab === 'shared') return !isOwn
       return true
     })
-  }, [activeFilter, activeCustomSubFilter, activeManagementTab, customReports, customMongoReports, isAdmin, user])
+
+    if (activeFilter === 'account') {
+      const coreIds = ['fixed-daily-status', 'fixed-monthly-status', 'fixed-yearly-status']
+      const coreTemplates = []
+      const otherTemplates = []
+      filtered.forEach((r) => {
+        if (coreIds.includes(r.id)) {
+          coreTemplates.push(r)
+        } else {
+          otherTemplates.push(r)
+        }
+      })
+      coreTemplates.sort((a, b) => coreIds.indexOf(a.id) - coreIds.indexOf(b.id))
+      return [...coreTemplates, ...otherTemplates]
+    }
+
+    if (activeFilter === 'deal') {
+      const coreIds = ['fixed-deal-daily-status', 'fixed-deal-monthly-status', 'fixed-deal-yearly-status']
+      const coreTemplates = []
+      const otherTemplates = []
+      filtered.forEach((r) => {
+        if (coreIds.includes(r.id)) {
+          coreTemplates.push(r)
+        } else {
+          otherTemplates.push(r)
+        }
+      })
+      coreTemplates.sort((a, b) => coreIds.indexOf(a.id) - coreIds.indexOf(b.id))
+      return [...coreTemplates, ...otherTemplates]
+    }
+
+    if (activeFilter === 'quotation') {
+      const coreIds = ['fixed-quotation-daily-status', 'fixed-quotation-monthly-status', 'fixed-quotation-yearly-status']
+      const coreTemplates = []
+      const otherTemplates = []
+      filtered.forEach((r) => {
+        if (coreIds.includes(r.id)) {
+          coreTemplates.push(r)
+        } else {
+          otherTemplates.push(r)
+        }
+      })
+      coreTemplates.sort((a, b) => coreIds.indexOf(a.id) - coreIds.indexOf(b.id))
+      return [...coreTemplates, ...otherTemplates]
+    }
+
+    return filtered
+  }, [activeFilter, activeCustomSubFilter, activeManagementTab, customReports, customMongoReports, isAuthorizedReportUser, user])
 
   const groupedReports = useMemo(() => visibleReports.reduce((groups, report) => {
-    const groupName = getReportGroupName(report)
+    let groupName = getReportGroupName(report)
+    if (activeFilter === 'account' && report.isFixedStatusTemplate) {
+      groupName = 'Accounts'
+    }
     if (!groups[groupName]) groups[groupName] = []
     groups[groupName].push(report)
     return groups
-  }, {}), [visibleReports])
+  }, {}), [visibleReports, activeFilter])
 
   const openBuilder = (contextKey, extra = '') => {
     setAddOpen(false)
@@ -2793,6 +4641,14 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
       <header className="cr-list-topbar">
         <h1>Custom Reports</h1>
         <div className="cr-list-topbar-actions">
+          <button
+            type="button"
+            className="cr-list-filter-btn"
+            onClick={() => setIsFilterModalOpen(true)}
+            title="Open Report Filter Modal"
+          >
+            <FaFilter /> Filter
+          </button>
           {canCreateReportTemplate && (
             <SplitDropdown
               label="Add Report Template"
@@ -2880,7 +4736,9 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
                     key={report.id}
                     report={report}
                     onViewWeb={handleViewWeb}
+                    onViewStructured={handleOpenStructuredReport}
                     onExport={handleExport}
+                    onExportExcel={handleExportCardExcel}
                     onDelete={handleDelete}
                     isKevalOrAdmin={isKevalOrAdmin}
                     canDeleteReport={canCreateReportTemplate}
@@ -2892,6 +4750,27 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         </main>
       </div>
       <WebReportModal report={webReport} onClose={() => setWebReport(null)} />
+      <CustomReportFilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        filterState={filterState}
+        setFilterState={setFilterState}
+        ownerOptions={allOwnerNames}
+        onApplyView={handleApplyFilterView}
+        onApplyExport={handleApplyFilterExport}
+        onApplyPdf={handleApplyFilterPdf}
+        loading={filterActionLoading}
+      />
+      <StructuredReportModal
+        isOpen={isStructuredModalOpen}
+        onClose={() => setIsStructuredModalOpen(false)}
+        reportTitle={structuredModalData.title}
+        filterInfo={structuredModalData.filterInfo}
+        records={structuredModalData.records}
+        entityType={structuredModalData.entityType || 'account'}
+        onExportExcel={handleModalExportExcel}
+        onExportPdf={handleModalExportPdf}
+      />
     </div>
   )
 }

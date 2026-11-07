@@ -3284,12 +3284,16 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
   }
 
   const handleToggleDealMenu = (event, dealId) => {
+    if (event) {
+      if (typeof event.preventDefault === 'function') event.preventDefault()
+      if (typeof event.stopPropagation === 'function') event.stopPropagation()
+    }
     const nextDealId = String(dealId || '')
     if (!nextDealId) return
 
     const triggerRect = event.currentTarget.getBoundingClientRect()
     const popupWidth = 188
-    const popupHeight = 205
+    const popupHeight = 220
     const viewportPadding = 8
 
     const spaceBelow = window.innerHeight - triggerRect.bottom
@@ -4532,7 +4536,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
           <button
             type="button"
             className="deals-crm-number-button deals-crm-number-button-label deals-deal-number-link admin-accounts-cell-link"
-            onClick={(event) => handleToggleDealMenu(event, row?.rawDeal?.id || row?.id)}
+            onClick={(event) => handleToggleDealMenu(event, row?.rawDeal?.id || row?.rawDeal?._id || row?.id || row?._id)}
             onDoubleClick={() => handleViewDeal(row)}
           >
             <span className="deals-crm-number-button-content">
@@ -4608,7 +4612,8 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
 
   const renderInlineDealActionMenu = (deal) => {
     const activeDeal = deal?.rawDeal || deal
-    const isMenuOpen = openBoardActionMenuDealId === String(activeDeal?.id || '')
+    const dealId = String(activeDeal?.id || activeDeal?._id || activeDeal?.dealId || '')
+    const isMenuOpen = Boolean(openBoardActionMenuDealId) && (openBoardActionMenuDealId === dealId || openBoardActionMenuDealId === String(deal?.id || deal?._id || ''))
     const isConvertedDeal = isConvertedDealRecord(activeDeal)
 
     return (
@@ -4783,7 +4788,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
             <button
               type="button"
               className="deals-crm-number-button deals-crm-number-button-label deals-deal-number-link admin-accounts-cell-link"
-              onClick={(event) => handleToggleDealMenu(event, row?.rawDeal?.id || row?.id)}
+              onClick={(event) => handleToggleDealMenu(event, row?.rawDeal?.id || row?.rawDeal?._id || row?.id || row?._id)}
               onDoubleClick={() => handleViewDeal(row)}
             >
               <span className="deals-crm-number-button-content">
@@ -5886,7 +5891,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
 
                   <div className="deals-board-column-body">
                     {visibleDeals.map((deal) => {
-                      const isActionMenuOpen = openBoardActionMenuDealId === deal.id
+                      const isActionMenuOpen = Boolean(openBoardActionMenuDealId) && (openBoardActionMenuDealId === String(deal.id) || openBoardActionMenuDealId === String(deal._id))
                       const isCoOwned = deal.userId && deal.userId !== user?.id
                       const isDragging = boardDragDealId === String(deal.id)
                       const isExpanded = expandedBoardCardId === String(deal.id)
@@ -5923,7 +5928,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
                                 <button
                                   type="button"
                                   className="deals-board-card-action-trigger deals-board-card-action-trigger-kebab"
-                                  onClick={(event) => handleToggleDealMenu(event, deal.id)}
+                                  onClick={(event) => handleToggleDealMenu(event, deal.id || deal._id)}
                                   aria-label={`Open actions for ${deal.dealNumber}`}
                                 >
                                   <FaEllipsisV />
@@ -6460,7 +6465,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
                                   <button
                                     type="button"
                                     className="deals-crm-number-button deals-crm-number-button-label deals-deal-number-link admin-accounts-cell-link"
-                                    onClick={(event) => handleToggleDealMenu(event, row?.rawDeal?.id || row?.id)}
+                                    onClick={(event) => handleToggleDealMenu(event, row?.rawDeal?.id || row?.rawDeal?._id || row?.id || row?._id)}
                                     onDoubleClick={() => handleViewDeal(row)}
                                   >
                                     <span className="deals-crm-number-button-content">

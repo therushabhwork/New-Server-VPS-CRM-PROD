@@ -162,22 +162,24 @@ const buildLeadPayload = async (payload = {}, actor, existingLead = null) => {
   const requestedOwnerCode = normalizeOwnerCodeInput(
     payload.accountOwnerCode
     || payload.ownerCode
-    || existingLead?.accountOwnerCode
-    || existingLead?.ownerCode
+    || (payload.accountOwner || payload.ownerName || payload.owner ? null : existingLead?.accountOwnerCode)
+    || (payload.accountOwner || payload.ownerName || payload.owner ? null : existingLead?.ownerCode)
   )
   const ownerRecord = await getCrmOwnerRecord(
     requestedOwnerCode
     || sanitizedPayload.accountOwner
     || sanitizedPayload.ownerName
+    || sanitizedPayload.owner
     || assignedUser?.ownerCode
     || assignedUser?.name
-    || existingLead?.accountNo
-    || existingLead?.accountOwner
+    || (sanitizedPayload.accountOwner || sanitizedPayload.ownerName || sanitizedPayload.owner ? null : existingLead?.accountNo)
+    || (sanitizedPayload.accountOwner || sanitizedPayload.ownerName || sanitizedPayload.owner ? null : existingLead?.accountOwner)
   )
   const ownerName = normalizeOwnerNameInput(
-    ownerRecord?.name
-    || sanitizedPayload.accountOwner
+    sanitizedPayload.accountOwner
     || sanitizedPayload.ownerName
+    || sanitizedPayload.owner
+    || ownerRecord?.name
     || assignedUser?.name
     || existingLead?.accountOwner
     || ''
@@ -360,6 +362,8 @@ const buildLeadPayload = async (payload = {}, actor, existingLead = null) => {
     assignedTo: assignedUser?.id || existingLead?.assignedTo || null,
     createdBy: existingLead?.createdBy || actor.id,
     ownerName,
+    accountOwner: ownerName,
+    accountOwnerName: ownerName,
     notes: sanitizedPayload.remark || sanitizedPayload.notes || existingLead?.notes || '',
     formType: sanitizedPayload.formType || existingLead?.formType || 'account',
     accountNo,

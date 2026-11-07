@@ -180,28 +180,7 @@ const getAccountRowsWithRequiredFields = (rows = [], deals = []) => rows.map((ro
   }
   const resolvedPoValue = resolveRowPo()
 
-    const rawRowStatus = String(row.status || row.accountStatus || raw.status || raw.accountStatus || raw.stage || '').trim().toLowerCase()
-  let isRowNotQuoted = rawRowStatus === 'not_quoted' || rawRowStatus === 'not quoted'
-  if (!isRowNotQuoted && Array.isArray(deals) && deals.length > 0) {
-    const rId = String(row.id || raw.id || raw._id || raw.legacyId || '')
-    const rAccNo = String(row.accountNumber || row.accountNo || raw.accountNumber || raw.accountNo || '').trim()
-    const rAccName = String(row.accountName || row.name || raw.accountName || raw.name || '').trim().toLowerCase()
-    const matchingDealForStatus = deals.find((d) => {
-      const dAccId = String(d.accountId || d.raw?.accountId || '')
-      if (rId && dAccId && dAccId === rId) return true
-      const dAccNo = String(d.linkedAccountNumber || d.accountNumber || d.accountNo || '').trim()
-      if (rAccNo && dAccNo && dAccNo === rAccNo) return true
-      const dAccName = String(d.linkedAccountName || d.accountName || d.customerName || '').trim().toLowerCase()
-      if (rAccName && dAccName && dAccName === rAccName) return true
-      return false
-    })
-    if (matchingDealForStatus) {
-      const dealStat = String(matchingDealForStatus.status || matchingDealForStatus.stage || matchingDealForStatus.data?.status || matchingDealForStatus.data?.stage || '').trim().toLowerCase()
-      if (dealStat === 'not_quoted' || dealStat === 'not quoted') {
-        isRowNotQuoted = true
-      }
-    }
-  }
+  const resolvedAccountStatus = row.accountStatus ?? raw.accountStatus ?? formData.accountStatus ?? row.status ?? raw.status ?? ''
 
   return {
     ...row,
@@ -212,7 +191,8 @@ const getAccountRowsWithRequiredFields = (rows = [], deals = []) => rows.map((ro
     accountOwnerDisplay: row.accountOwnerDisplay || cleanAccountOwner,
     poValue: resolvedPoValue || row.poValue || '',
     dealValue: resolvedPoValue || row.dealValue || '',
-    ...(isRowNotQuoted ? { status: 'Not Quoted', accountStatus: 'Not Quoted' } : {}),
+    accountStatus: resolvedAccountStatus,
+    status: resolvedAccountStatus || row.status || '',
   }
 })
 
@@ -354,17 +334,30 @@ const enrichBoardDataWithQuotationFields = (boardData, quotations = [], availabl
 }
 
 const getRowSortTime = (row = {}) => {
-  const candidate = (
-    row.lastReassignedAt
-    || row.raw?.lastReassignedAt
-    || row.accountDate
-    || row.raw?.accountDate
-    || row.createdAt
-    || row.raw?.createdAt
-    || 0
-  )
-  const time = new Date(candidate).getTime()
-  return Number.isNaN(time) ? 0 : time
+  const dates = [
+    row.lastReassignedAt,
+    row.raw?.lastReassignedAt,
+    row.reassignedDate,
+    row.raw?.reassignedDate,
+    row.reassignDate,
+    row.raw?.reassignDate,
+    row.updatedAt,
+    row.raw?.updatedAt,
+    row.accountDate,
+    row.raw?.accountDate,
+    row.createdAt,
+    row.raw?.createdAt,
+  ]
+  let maxTime = 0
+  for (const d of dates) {
+    if (d) {
+      const t = new Date(d).getTime()
+      if (!Number.isNaN(t) && t > maxTime) {
+        maxTime = t
+      }
+    }
+  }
+  return maxTime
 }
 
 const compareAccountRows = (left = {}, right = {}) => {
@@ -462,21 +455,26 @@ const getConvertedAccountsFieldText = (row = {}, fieldKey = '') => {
     case 'accountOwner': return row.accountOwnerDisplay || row.accountOwnerName || row.accountOwner || ''
         case 'status':
     case 'accountStatus': {
-      const val = String(row.accountStatus || row.status || row.stage || row.raw?.accountStatus || row.raw?.status || row.raw?.stage || row.accountState || '').trim()
-      const lower = val.toLowerCase()
-      if (lower === 'not_quoted' || lower === 'not quoted') return 'Not Quoted'
+      const dbStatus = row.accountStatus ?? row.raw?.accountStatus ?? row.formData?.accountStatus ?? row.status ?? row.raw?.status ?? null
+      if (dbStatus === null || dbStatus === undefined || String(dbStatus).trim() === '' || String(dbStatus).trim() === '-' || String(dbStatus).trim().toLowerCase() === 'null') {
+        return '-'
+      }
+      const val = String(dbStatus).trim()
+      const lower = val.toLowerCase().replace(/[\s-]+/g, '_')
+      if (lower === 'pending') return 'Pending'
+      if (lower === 'not_quoted') return 'Not Quoted'
       if (lower === 'rejected') return 'Rejected'
-      if (lower === 'quotation_sent' || lower === 'quotation sent') return 'Quotation Sent'
-      if (lower === 'priority_1' || lower === 'priority 1') return 'Priority 1'
-      if (lower === 'priority_2' || lower === 'priority 2') return 'Priority 2'
-      if (lower === 'follow_up' || lower === 'follow-up' || lower === 'follow up') return 'Follow-Up'
-      if (lower === 'technical_offer' || lower === 'technical offer') return 'Technical Offer'
-      if (lower === 'commercial_offer' || lower === 'commercial offer') return 'Commercial Offer'
-      if (lower === 'quote_revision' || lower === 'quotation revision' || lower === 'quote revision') return 'Quotation Revision'
-      if (lower === 'order_received' || lower === 'order received') return 'Order Received'
-      if (lower === 'convert_to_po' || lower === 'convert to po' || lower === 'po_converted' || lower === 'po converted') return 'Convert To PO'
-      if (lower === 'new' || lower === 'pending') return 'New'
-      return row.accountStatus || row.status || ''
+      if (lower === 'quotation_sent') return 'Quotation Sent'
+      if (lower === 'priority_1') return 'Priority 1'
+      if (lower === 'priority_2') return 'Priority 2'
+      if (lower === 'follow_up') return 'Follow-Up'
+      if (lower === 'technical_offer') return 'Technical Offer'
+      if (lower === 'commercial_offer') return 'Commercial Offer'
+      if (lower === 'quote_revision') return 'Quotation Revision'
+      if (lower === 'order_received') return 'Order Received'
+      if (lower === 'convert_to_po' || lower === 'po_converted') return 'Convert To PO'
+      if (lower === 'new') return 'New'
+      return val
     }
     case 'accountSource': return row.accountSource || ''
     case 'accountState': return row.accountState || ''
@@ -982,7 +980,8 @@ const activeStageParam = searchParams.get('stage')
     [activeStage, boardData.rowsByStage, deals]
   )
 
-  const shouldShowAllStageRecords = variantKey === 'myAccounts' || variantKey === 'searchAccount' || !showStageTabs
+  const hasExplicitStageParam = Boolean(activeStageParam && activeStageParam !== 'all')
+  const shouldShowAllStageRecords = (!hasExplicitStageParam && (variantKey === 'myAccounts' || variantKey === 'searchAccount')) || !showStageTabs
   const boardRows = shouldShowAllStageRecords ? convertedBoardRecords : stageRows
   const convertedFieldOptions = useMemo(() => (
     CONVERTED_ACCOUNT_FIELD_DEFINITIONS.filter((field) => field.key)
