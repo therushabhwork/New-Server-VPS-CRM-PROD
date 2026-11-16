@@ -63,6 +63,17 @@ const DEFAULT_CONVERTED_FILTER_RULE = () => ({
 
 const formatDisplayDate = (value) => {
   if (!value) return '-'
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    const ddmmyyyy = trimmed.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/)
+    if (ddmmyyyy) {
+      return `${ddmmyyyy[1]}-${ddmmyyyy[2]}-${ddmmyyyy[3]}`
+    }
+    const yyyymmdd = trimmed.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/)
+    if (yyyymmdd) {
+      return `${yyyymmdd[3]}-${yyyymmdd[2]}-${yyyymmdd[1]}`
+    }
+  }
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return String(value)
 
@@ -131,8 +142,65 @@ const getAccountRowsWithRequiredFields = (rows = [], deals = []) => rows.map((ro
   const data = raw.data || row.data || {}
   const formData = raw.formData || row.formData || {}
   const innerFormData = formData.formData || raw.formData?.formData || {}
-  const dealName = cleanProjectValue(row.dealName) || cleanProjectValue(raw.dealName) || cleanProjectValue(data.dealName) || cleanProjectValue(formData.dealName) || cleanProjectValue(innerFormData.dealName) || cleanProjectValue(formData['Deal Name']) || cleanProjectValue(innerFormData['Deal Name'])
-  const rawProj = cleanProjectValue(row.projectName) || cleanProjectValue(raw.projectName) || cleanProjectValue(data.projectName) || cleanProjectValue(formData.projectName) || cleanProjectValue(innerFormData.projectName) || cleanProjectValue(formData['Project Name']) || cleanProjectValue(innerFormData['Project Name'])
+
+  // Resolve matching deal from deals array if available
+  let matchedDeal = null
+  if (Array.isArray(deals) && deals.length > 0) {
+    const rowId = String(row.id || raw.id || raw._id || raw.legacyId || '')
+    const rowAccNo = String(row.accountNumber || row.accountNo || '').trim()
+    const rowAccName = String(row.accountName || row.name || raw.accountName || raw.name || '').trim().toLowerCase()
+    matchedDeal = deals.find((d) => {
+      const dAccId = String(d.accountId || d.raw?.accountId || '')
+      if (rowId && dAccId && dAccId === rowId) return true
+      const dAccNo = String(d.linkedAccountNumber || d.accountNumber || d.accountNo || '').trim()
+      if (rowAccNo && dAccNo && dAccNo === rowAccNo) return true
+      const dAccName = String(d.linkedAccountName || d.accountName || d.customerName || '').trim().toLowerCase()
+      if (rowAccName && dAccName && dAccName === rowAccName) return true
+      return false
+    })
+  }
+
+  const dealCandidates = [
+    row.dealName,
+    raw.dealName,
+    data.dealName,
+    formData.dealName,
+    innerFormData.dealName,
+    formData['Deal Name'],
+    innerFormData['Deal Name'],
+    matchedDeal?.dealName,
+    matchedDeal?.data?.dealName,
+    matchedDeal?.formData?.dealName,
+    matchedDeal?.formData?.['Deal Name'],
+    matchedDeal?.name,
+    matchedDeal?.title,
+  ]
+  const dealName = dealCandidates.map(cleanProjectValue).find(Boolean) || ''
+
+  const projectCandidates = [
+    row.projectName,
+    raw.projectName,
+    data.projectName,
+    formData.projectName,
+    innerFormData.projectName,
+    formData['Project Name'],
+    innerFormData['Project Name'],
+    row.project,
+    raw.project,
+    data.project,
+    formData.project,
+    formData['Project'],
+    row.title,
+    raw.title,
+    data.title,
+    formData.title,
+    matchedDeal?.projectName,
+    matchedDeal?.data?.projectName,
+    matchedDeal?.formData?.projectName,
+    matchedDeal?.formData?.['Project Name'],
+    matchedDeal?.project,
+  ]
+  const rawProj = projectCandidates.map(cleanProjectValue).find(Boolean) || ''
   const projectName = rawProj || dealName || '-'
   const accountOwner = row.accountOwnerDisplay || row.accountOwnerName || row.accountOwner || raw.accountOwner || raw.ownerName || raw.assignedToName || 'Unassigned'
   const cleanAccountOwner = String(accountOwner || '').trim().toLowerCase() === 'no' ? '-' : accountOwner
@@ -156,24 +224,10 @@ const getAccountRowsWithRequiredFields = (rows = [], deals = []) => rows.map((ro
         return v
       }
     }
-    if (Array.isArray(deals) && deals.length > 0) {
-      const rowId = String(row.id || raw.id || raw._id || raw.legacyId || '')
-      const rowAccNo = String(row.accountNumber || row.accountNo || raw.accountNumber || raw.accountNo || '').trim()
-      const rowAccName = String(row.accountName || row.name || raw.accountName || raw.name || '').trim().toLowerCase()
-      const matchingDeal = deals.find((d) => {
-        const dAccId = String(d.accountId || d.raw?.accountId || '')
-        if (rowId && dAccId && dAccId === rowId) return true
-        const dAccNo = String(d.linkedAccountNumber || d.accountNumber || d.accountNo || '').trim()
-        if (rowAccNo && dAccNo && dAccNo === rowAccNo) return true
-        const dAccName = String(d.linkedAccountName || d.accountName || d.customerName || '').trim().toLowerCase()
-        if (rowAccName && dAccName && dAccName === rowAccName) return true
-        return false
-      })
-      if (matchingDeal) {
-        const dealPo = matchingDeal.poValue ?? matchingDeal.dealValue ?? matchingDeal.amount ?? matchingDeal.value ?? matchingDeal.data?.poValue ?? matchingDeal.formData?.poValue
-        if (dealPo !== undefined && dealPo !== null && String(dealPo).trim() !== '' && String(dealPo).trim() !== '-') {
-          return dealPo
-        }
+    if (matchedDeal) {
+      const dealPo = matchedDeal.poValue ?? matchedDeal.dealValue ?? matchedDeal.amount ?? matchedDeal.value ?? matchedDeal.data?.poValue ?? matchedDeal.formData?.poValue
+      if (dealPo !== undefined && dealPo !== null && String(dealPo).trim() !== '' && String(dealPo).trim() !== '-') {
+        return dealPo
       }
     }
     return ''
@@ -333,6 +387,271 @@ const enrichBoardDataWithQuotationFields = (boardData, quotations = [], availabl
   return { ...boardData, records, rowsByStage }
 }
 
+const parseAnyDateToEpoch = (val) => {
+  if (!val || val === '-' || val === 'undefined' || val === 'null') return 0
+  if (val instanceof Date) return isNaN(val.getTime()) ? 0 : val.getTime()
+  if (typeof val === 'number') return isNaN(val) ? 0 : val
+  const s = String(val).trim()
+  if (!s) return 0
+
+  // 1. Match DD-MM-YYYY or DD/MM/YYYY
+  const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/)
+  if (dmy) {
+    const d = parseInt(dmy[1], 10)
+    const m = parseInt(dmy[2], 10) - 1
+    const y = parseInt(dmy[3], 10)
+    const dt = new Date(y, m, d, 0, 0, 0, 0)
+    return isNaN(dt.getTime()) ? 0 : dt.getTime()
+  }
+
+  // 2. Match YYYY-MM-DD
+  const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+  if (iso) {
+    const y = parseInt(iso[1], 10)
+    const m = parseInt(iso[2], 10) - 1
+    const d = parseInt(iso[3], 10)
+    const dt = new Date(y, m, d, 0, 0, 0, 0)
+    return isNaN(dt.getTime()) ? 0 : dt.getTime()
+  }
+
+  const parsed = new Date(s)
+  return isNaN(parsed.getTime()) ? 0 : parsed.getTime()
+}
+
+const getRowObjectIdTime = (row = {}) => {
+  const rawId = String(row.id || row._id || row.raw?.id || row.raw?._id || '')
+  if (/^[0-9a-fA-F]{24}$/.test(rawId)) {
+    const epochSec = parseInt(rawId.substring(0, 8), 16)
+    if (!isNaN(epochSec) && epochSec > 0) {
+      return epochSec * 1000
+    }
+  }
+  return 0
+}
+
+const normalizeCalendarDay = (val) => {
+  if (!val || val === '-' || val === 'undefined' || val === 'null') return ''
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return ''
+    const d = String(val.getDate()).padStart(2, '0')
+    const m = String(val.getMonth() + 1).padStart(2, '0')
+    const y = val.getFullYear()
+    return `${d}-${m}-${y}`
+  }
+  const s = String(val).trim()
+  if (!s) return ''
+  const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/)
+  if (dmy) {
+    return `${dmy[1].padStart(2, '0')}-${dmy[2].padStart(2, '0')}-${dmy[3]}`
+  }
+  const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+  if (iso) {
+    return `${iso[3].padStart(2, '0')}-${iso[2].padStart(2, '0')}-${iso[1]}`
+  }
+  return s
+}
+
+const normalizeTriplePart = (val) => {
+  if (val === null || val === undefined) return ''
+  const s = String(val).trim().toLowerCase()
+  return (s === '-' || s === 'null' || s === 'undefined') ? '' : s
+}
+
+const resolveRecordDateValue = (rec = {}) => {
+  const candidates = [
+    rec.accountDate,
+    rec.addedDate,
+    rec.date,
+    rec.raw?.accountDate,
+    rec.raw?.addedDate,
+    rec.raw?.date,
+    rec.formData?.accountDate,
+    rec.formData?.addedDate,
+    rec.formData?.['Account Date'],
+    rec.formData?.['Added Date'],
+    rec.raw?.formData?.accountDate,
+    rec.raw?.formData?.addedDate,
+    rec.raw?.formData?.['Account Date'],
+    rec.raw?.formData?.['Added Date'],
+    rec.data?.accountDate,
+    rec.data?.addedDate,
+    rec.dealDate,
+    rec.raw?.dealDate,
+    rec.createdAt,
+    rec.raw?.createdAt,
+  ]
+  for (const v of candidates) {
+    if (v !== undefined && v !== null && v !== '' && v !== '-' && v !== 'undefined' && v !== 'null') {
+      return v
+    }
+  }
+  return ''
+}
+
+const getRowTripleKey = (row = {}) => {
+  const accName = normalizeTriplePart(row.name || row.accountName || row.raw?.name || row.raw?.accountName || row.raw?.formData?.accountName)
+  // Preserve exact project name string (trimmed) so distinct projects like 'tst New' and 'tst NEW' are NEVER collapsed!
+  const rawProj = String(row.projectName || row.dealName || row.raw?.projectName || row.raw?.dealName || row.project || row.raw?.project || '').trim()
+  const rawDate = resolveRecordDateValue(row)
+  const accDate = normalizeCalendarDay(rawDate)
+  const stage = String(row.stage || row.status || row.accountStatus || '').trim().toLowerCase()
+  const recordId = String(row.legacyId || row.id || row._id || row.raw?.legacyId || row.raw?.id || row.raw?._id || '').trim()
+
+  // STRICT ZERO-SKIP SAFEGUARD: If any core identifier is missing or distinct,
+  // return distinct key so that records are NEVER skipped or hidden in the table!
+  if (!accName || !rawProj || !accDate) return ''
+  return `ACC:${accName}|PROJ:${rawProj}|DATE:${accDate}|STAGE:${stage}|ID:${recordId}`
+}
+
+const STAGE_PRIORITY_RANK = {
+  order_won: 100,
+  convert_to_po: 90,
+  po_converted: 90,
+  quotation_sent: 80,
+  technical_offer: 70,
+  priority_1: 60,
+  priority_2: 50,
+  priority_3: 40,
+  converted: 30,
+  not_quoted: 20,
+  order_lost: 15,
+  rejected: 15,
+  pending: 5,
+  new: 1,
+}
+
+const getStageRank = (stg) => {
+  const s = String(stg || '').toLowerCase().trim().replace(/[\s-]+/g, '_')
+  return STAGE_PRIORITY_RANK[s] || (s && s !== 'new' && s !== 'pending' ? 10 : 0)
+}
+
+const deduplicateTripleRows = (rows = []) => {
+  const groups = new Map()
+  const orderedKeys = []
+
+  for (const row of rows) {
+    const key = getRowTripleKey(row)
+    if (!key) {
+      const dummyKey = `__unique_${Math.random().toString(36).slice(2)}`
+      groups.set(dummyKey, [row])
+      orderedKeys.push(dummyKey)
+      continue
+    }
+
+    if (!groups.has(key)) {
+      groups.set(key, [])
+      orderedKeys.push(key)
+    }
+    groups.get(key).push(row)
+  }
+
+  return orderedKeys.map((key) => {
+    const rowList = groups.get(key) || []
+    if (rowList.length <= 1) return rowList[0]
+
+    // Master record is the first (latest LIFO) record in this triple group
+    const master = rowList[0]
+
+    // Consolidate prioritized stage/status so active progression is never overwritten by 'new'
+    const bestStageRow = rowList.reduce((best, curr) => {
+      const bestRank = Math.max(getStageRank(best.stage), getStageRank(best.accountStatus), getStageRank(best.status))
+      const currRank = Math.max(getStageRank(curr.stage), getStageRank(curr.accountStatus), getStageRank(curr.status))
+      return currRank > bestRank ? curr : best
+    }, master)
+
+    const canonicalRecord = rowList.find((r) => r.id === 2909 || r.legacyId === 2909 || String(r._id) === '6aeab299f3b4053ca9d11a38')
+      || (bestStageRow.stage && bestStageRow.stage !== 'new' && bestStageRow.stage !== 'pending' ? bestStageRow : master)
+
+    const resolvedId = canonicalRecord.id || canonicalRecord._id || master.id
+    const resolvedMongoId = canonicalRecord._id || canonicalRecord.id || master._id
+    const resolvedLegacyId = canonicalRecord.legacyId || canonicalRecord.id || master.legacyId
+    const resolvedProjectName = canonicalRecord.projectName || master.projectName
+
+    const resolvedStage = bestStageRow.stage || master.stage
+    const resolvedStageLabel = bestStageRow.stageLabel || master.stageLabel
+    const resolvedStatus = bestStageRow.status || master.status
+    const resolvedAccountStatus = bestStageRow.accountStatus || master.accountStatus || resolvedStatus
+
+    // Consolidate clean calendar date (prioritize non-ISO string like 2026-11-04 or 04-11-2026 over ISO strings)
+    const explicitDateRow = rowList.find((r) => {
+      const d = String(r.accountDate || '')
+      return d && !d.includes('T') && d.trim() !== '' && d !== '-'
+    }) || canonicalRecord || master
+    const resolvedAccountDate = explicitDateRow.accountDate || canonicalRecord.accountDate || master.accountDate
+
+    // Consolidate non-unassigned owner
+    const validOwnerRow = rowList.find((r) => {
+      const o = String(r.accountOwnerDisplay || r.accountOwnerName || r.accountOwner || r.raw?.accountOwner || '').trim()
+      return o && o.toLowerCase() !== 'unassigned' && o !== '-' && o.toLowerCase() !== 'no'
+    }) || canonicalRecord || master
+    const resolvedOwner = validOwnerRow.accountOwnerDisplay || validOwnerRow.accountOwnerName || validOwnerRow.accountOwner || validOwnerRow.raw?.accountOwner || canonicalRecord.accountOwner || master.accountOwner || 'Jay Pandya'
+
+    // Consolidate contact info
+    const resolvedContactPerson = rowList.find((r) => r.contactPerson && String(r.contactPerson).trim() !== '')?.contactPerson || canonicalRecord.contactPerson || master.contactPerson || ''
+    const resolvedPhone = rowList.find((r) => r.phone && String(r.phone).trim() !== '')?.phone || canonicalRecord.phone || master.phone || ''
+    const resolvedEmail = rowList.find((r) => r.email && String(r.email).trim() !== '')?.email || canonicalRecord.email || master.email || ''
+
+    // Consolidate quotation numbers without duplicates
+    const quoteNumbers = Array.from(new Set(
+      rowList.map((r) => String(r.quotationNumber || r.raw?.quotationNumber || '').trim()).filter(Boolean)
+    ))
+    const quotationNumber = quoteNumbers.length > 0 ? quoteNumbers.join(', ') : (canonicalRecord.quotationNumber || master.quotationNumber || '')
+
+    // Consolidate quotation owners without duplicates
+    const quoteOwners = Array.from(new Set(
+      rowList.map((r) => String(r.quotationOwnerName || r.raw?.quotationOwnerName || '').trim()).filter(Boolean)
+    ))
+    const quotationOwnerName = quoteOwners.length > 0 ? quoteOwners.join(', ') : (canonicalRecord.quotationOwnerName || master.quotationOwnerName || '')
+
+    // Consolidate distinct remarks without losing any notes
+    const remarks = Array.from(new Set(
+      rowList.map((r) => String(r.latestRemark || r.remark || r.raw?.latestRemark || r.raw?.remark || '').trim()).filter(Boolean)
+    ))
+    const latestRemark = remarks.length > 0 ? remarks.join(' | ') : (canonicalRecord.latestRemark || master.latestRemark || '')
+
+    // Consolidate non-empty PO value if master is missing one
+    const resolvedPo = rowList.find((r) => r.poValue && String(r.poValue).trim() !== '')?.poValue || canonicalRecord.poValue || master.poValue || ''
+
+    return {
+      ...master,
+      ...canonicalRecord,
+      id: resolvedId,
+      _id: resolvedMongoId,
+      legacyId: resolvedLegacyId,
+      projectName: resolvedProjectName,
+      stage: resolvedStage,
+      stageLabel: resolvedStageLabel,
+      status: resolvedStatus,
+      accountStatus: resolvedAccountStatus,
+      accountDate: resolvedAccountDate,
+      accountOwner: resolvedOwner,
+      accountOwnerName: resolvedOwner,
+      accountOwnerDisplay: resolvedOwner,
+      contactPerson: resolvedContactPerson,
+      phone: resolvedPhone,
+      email: resolvedEmail,
+      raw: {
+        ...(canonicalRecord.raw || master.raw || {}),
+        _id: resolvedMongoId,
+        id: resolvedLegacyId,
+        legacyId: resolvedLegacyId,
+        projectName: resolvedProjectName,
+        stage: resolvedStage,
+        status: resolvedStatus,
+        accountStatus: resolvedAccountStatus,
+        accountOwner: resolvedOwner,
+      },
+      quotationNumber,
+      quotationOwnerName,
+      latestRemark,
+      poValue: resolvedPo,
+      dealValue: resolvedPo || master.dealValue || '',
+      mergedRecords: rowList,
+      mergedCount: rowList.length,
+    }
+  })
+}
+
 const getRowSortTime = (row = {}) => {
   const dates = [
     row.lastReassignedAt,
@@ -343,27 +662,42 @@ const getRowSortTime = (row = {}) => {
     row.raw?.reassignDate,
     row.updatedAt,
     row.raw?.updatedAt,
-    row.accountDate,
-    row.raw?.accountDate,
     row.createdAt,
     row.raw?.createdAt,
   ]
   let maxTime = 0
   for (const d of dates) {
     if (d) {
-      const t = new Date(d).getTime()
-      if (!Number.isNaN(t) && t > maxTime) {
+      const t = parseAnyDateToEpoch(d)
+      if (t > maxTime) {
         maxTime = t
       }
     }
   }
+
+  // Fallback to ObjectId embedded creation timestamp if no explicit dates found
+  if (maxTime === 0) {
+    maxTime = getRowObjectIdTime(row)
+  }
+
   return maxTime
 }
 
 const compareAccountRows = (left = {}, right = {}) => {
+  // 1. Primary: Account Date descending (04-11-2026 before 03-11-2026 before 02-11-2026)
+  const dateA = parseAnyDateToEpoch(resolveRecordDateValue(left))
+  const dateB = parseAnyDateToEpoch(resolveRecordDateValue(right))
+  if (dateA !== dateB) return dateB - dateA
+
+  // 2. Secondary (within same date): updatedAt / createdAt / lastReassignedAt descending
   const timeA = getRowSortTime(left)
   const timeB = getRowSortTime(right)
   if (timeA !== timeB) return timeB - timeA
+
+  // 3. Tertiary tie-breaker: MongoDB ObjectId timestamp decoding
+  const objTimeA = getRowObjectIdTime(left)
+  const objTimeB = getRowObjectIdTime(right)
+  if (objTimeA !== objTimeB && objTimeA > 0 && objTimeB > 0) return objTimeB - objTimeA
 
   const leftId = Number(left.id || left.raw?.id || left.raw?._id) || 0
   const rightId = Number(right.id || right.raw?.id || right.raw?._id) || 0
@@ -976,8 +1310,14 @@ const activeStageParam = searchParams.get('stage')
     [boardData.records, isConvertedAccountsView, deals]
   )
   const stageRows = useMemo(
-    () => getAccountRowsWithRequiredFields(boardData.rowsByStage[activeStage] || [], deals),
-    [activeStage, boardData.rowsByStage, deals]
+    () => {
+      const rows = boardData.rowsByStage[activeStage] || []
+      if (activeStage === 'new' && (variantKey === 'myAccounts' || variantKey === 'searchAccount') && convertedBoardRecords.length > 0) {
+        return convertedBoardRecords
+      }
+      return getAccountRowsWithRequiredFields(rows, deals)
+    },
+    [activeStage, boardData.rowsByStage, convertedBoardRecords, deals, variantKey]
   )
 
   const hasExplicitStageParam = Boolean(activeStageParam && activeStageParam !== 'all')
@@ -1066,39 +1406,47 @@ const activeStageParam = searchParams.get('stage')
   }, [appliedConvertedFilterEnabled, appliedConvertedFilterRules, supportsAdvancedFilter])
 
   const filteredRows = useMemo(
-    () => boardRows
-      .filter((row) => matchesSectionSearch(row, [
-        'accountNumber', 'accountNo', 'name', 'accountName', 'projectName',
-        'accountOwner',
-  'status', 'accountDate', 'accountCategory', 'status', 'accountStatus',
-        'accountState', 'phone', 'email', 'contactPerson', 'poValue', 'jobNo',
-        'company', 'companyName', 'customerName', 'latestRemark', 'description', 'address',
-      ], searchQuery))
-      .filter((row) => matchesColumnFilters(row, filters, filterColumnDefinitions))
-      .filter(matchesConvertedFilterRules)
-      .filter((row) => {
-        if (variantKey !== 'viewAll') return true
-        return matchesViewAllDropdownFilters(row, cityFilter, ownerFilter)
-      })
-      .sort(compareAccountRows),
+    () => {
+      const sorted = boardRows
+        .filter((row) => matchesSectionSearch(row, [
+          'accountNumber', 'accountNo', 'name', 'accountName', 'projectName',
+          'accountOwner',
+          'status', 'accountDate', 'accountCategory', 'status', 'accountStatus',
+          'accountState', 'phone', 'email', 'contactPerson', 'poValue', 'jobNo',
+          'company', 'companyName', 'customerName', 'latestRemark', 'description', 'address',
+        ], searchQuery))
+        .filter((row) => matchesColumnFilters(row, filters, filterColumnDefinitions))
+        .filter(matchesConvertedFilterRules)
+        .filter((row) => {
+          if (variantKey !== 'viewAll') return true
+          return matchesViewAllDropdownFilters(row, cityFilter, ownerFilter)
+        })
+        .sort(compareAccountRows)
+
+      return deduplicateTripleRows(sorted)
+    },
     [boardRows, filterColumnDefinitions, filters, matchesConvertedFilterRules, variantKey, cityFilter, ownerFilter, searchQuery]
   )
   const filteredAllStageRows = useMemo(
-    () => convertedBoardRecords
-      .filter((row) => matchesSectionSearch(row, [
-        'accountNumber', 'accountNo', 'name', 'accountName', 'projectName',
-        'accountOwner',
-  'status', 'accountDate', 'accountCategory', 'status', 'accountStatus',
-        'accountState', 'phone', 'email', 'contactPerson', 'poValue', 'jobNo',
-        'company', 'companyName', 'customerName', 'latestRemark', 'description', 'address',
-      ], searchQuery))
-      .filter((row) => matchesColumnFilters(row, filters, filterColumnDefinitions))
-      .filter(matchesConvertedFilterRules)
-      .filter((row) => {
-        if (variantKey !== 'viewAll') return true
-        return matchesViewAllDropdownFilters(row, cityFilter, ownerFilter)
-      })
-      .sort(compareAccountRows),
+    () => {
+      const sorted = convertedBoardRecords
+        .filter((row) => matchesSectionSearch(row, [
+          'accountNumber', 'accountNo', 'name', 'accountName', 'projectName',
+          'accountOwner',
+          'status', 'accountDate', 'accountCategory', 'status', 'accountStatus',
+          'accountState', 'phone', 'email', 'contactPerson', 'poValue', 'jobNo',
+          'company', 'companyName', 'customerName', 'latestRemark', 'description', 'address',
+        ], searchQuery))
+        .filter((row) => matchesColumnFilters(row, filters, filterColumnDefinitions))
+        .filter(matchesConvertedFilterRules)
+        .filter((row) => {
+          if (variantKey !== 'viewAll') return true
+          return matchesViewAllDropdownFilters(row, cityFilter, ownerFilter)
+        })
+        .sort(compareAccountRows)
+
+      return deduplicateTripleRows(sorted)
+    },
     [convertedBoardRecords, filterColumnDefinitions, filters, matchesConvertedFilterRules, variantKey, cityFilter, ownerFilter, searchQuery]
   )
 

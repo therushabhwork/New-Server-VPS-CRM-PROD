@@ -63,22 +63,34 @@ const formatProjectNameDisplay = (value, row = {}) => {
     value,
     row.projectName,
     row.dealName,
+    row.project,
+    row.title,
     data.projectName,
     data.dealName,
+    data.project,
+    data.title,
     raw.projectName,
     raw.dealName,
+    raw.project,
+    raw.title,
     formData.projectName,
     formData.dealName,
+    formData.project,
     formData['Project Name'],
     formData['Deal Name'],
+    formData['Project'],
     raw.formData?.projectName,
     raw.formData?.dealName,
+    raw.formData?.project,
     raw.formData?.['Project Name'],
     raw.formData?.['Deal Name'],
+    raw.formData?.['Project'],
     innerFormData.projectName,
     innerFormData.dealName,
+    innerFormData.project,
     innerFormData['Project Name'],
     innerFormData['Deal Name'],
+    innerFormData['Project'],
   ]
 
   const name = candidates.map(cleanName).find(Boolean) || ''
@@ -88,6 +100,7 @@ const formatProjectNameDisplay = (value, row = {}) => {
 const formatAccountOwnerDisplay = (value, row = {}) => {
   const name = row.accountOwnerDisplay
     || row.accountOwnerName
+    || row.accountOwner
     || value
     || row.raw?.accountOwner
     || row.raw?.ownerName
@@ -156,6 +169,18 @@ const formatLegacyBoardDate = (value, row = {}) => {
     || row.raw?.createdAt
     || row.raw?.created_at
   if (!dateVal) return emptyValue
+
+  if (typeof dateVal === 'string') {
+    const trimmed = dateVal.trim()
+    const ddmmyyyy = trimmed.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/)
+    if (ddmmyyyy) {
+      return `${ddmmyyyy[1]}-${ddmmyyyy[2]}-${ddmmyyyy[3]}`
+    }
+    const yyyymmdd = trimmed.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/)
+    if (yyyymmdd) {
+      return `${yyyymmdd[3]}-${yyyymmdd[2]}-${yyyymmdd[1]}`
+    }
+  }
 
   const date = new Date(dateVal)
   if (Number.isNaN(date.getTime())) return String(dateVal)

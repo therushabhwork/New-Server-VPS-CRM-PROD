@@ -117,8 +117,10 @@ function resolveDocumentField(doc, fieldIdentifier, usersLookupMap = {}) {
       rawVal = findDeepFieldValue(doc, 'quotationNumber') || findDeepFieldValue(doc, 'quoteNumber') || findDeepFieldValue(doc, 'quotationNo') || doc._id;
     } else if (canon.includes('customerno') || canon.includes('customernumber')) {
       rawVal = findDeepFieldValue(doc, 'customerNumber') || findDeepFieldValue(doc, 'customerNo') || doc._id;
+    } else if (canon.includes('project') || canon.includes('dealname')) {
+      rawVal = findDeepFieldValue(doc, 'projectName') || findDeepFieldValue(doc, 'dealName') || findDeepFieldValue(doc, 'project') || findDeepFieldValue(doc, 'title') || findDeepFieldValue(doc, 'name');
     } else if (canon.includes('date')) {
-      rawVal = findDeepFieldValue(doc, 'accountDate') || findDeepFieldValue(doc, 'dealDate') || findDeepFieldValue(doc, 'quotationDate') || findDeepFieldValue(doc, 'quoteDate') || findDeepFieldValue(doc, 'convertedAt') || findDeepFieldValue(doc, 'date') || doc.createdAt;
+      rawVal = findDeepFieldValue(doc, 'accountDate') || findDeepFieldValue(doc, 'addedDate') || findDeepFieldValue(doc, 'dealDate') || findDeepFieldValue(doc, 'quotationDate') || findDeepFieldValue(doc, 'quoteDate') || findDeepFieldValue(doc, 'convertedAt') || findDeepFieldValue(doc, 'date') || doc.createdAt;
     } else if (canon.includes('owner')) {
       rawVal = findDeepFieldValue(doc, 'accountOwner') || findDeepFieldValue(doc, 'dealOwner') || findDeepFieldValue(doc, 'quotationOwner') || findDeepFieldValue(doc, 'customerOwner') || findDeepFieldValue(doc, 'ownerName') || findDeepFieldValue(doc, 'owner') || findDeepFieldValue(doc, 'assignedTo') || findDeepFieldValue(doc, 'ownerCode');
     } else if (canon.includes('status') || canon.includes('stage')) {

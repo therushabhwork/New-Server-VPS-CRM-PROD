@@ -50,6 +50,11 @@ const buildBoardDataFromRecords = (records = []) => {
 export const isOwnedByCurrentUser = (record, user) => {
   if (!user) return false
 
+  // Admin and CRM Admin role bypass: ensure admins testing/viewing accounts can see all accounts
+  if (user.role === 'admin' || user.role === 'super_admin' || user.isAdmin || user.isCrmAdmin || user.mode === 'admin') {
+    return true
+  }
+
   const raw = record.raw || {}
 
   // Match by id against creator id on the raw record.
@@ -117,6 +122,15 @@ export const isOwnedByCurrentUser = (record, user) => {
     raw.ownerName,
     record.assignedUserName,
     raw.assignedUserName,
+    raw.formData?.['Account Owner'],
+    raw.formData?.accountOwner,
+    raw.formData?.owner,
+    record.formData?.['Account Owner'],
+    record.formData?.accountOwner,
+    record.formData?.owner,
+    raw.data?.accountOwner,
+    raw.data?.dealOwner,
+    raw.data?.selectedAccountOwner,
   ]
 
   const userNames = [

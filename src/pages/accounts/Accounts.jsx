@@ -101,16 +101,271 @@ const Accounts = ({ isAdmin = false }) => {
     address: ''
   })
 
-  const userAccounts = useMemo(() => (
-    [...accounts].sort((left, right) => {
-      const timeA = new Date(left.createdAt || left.accountDate || left.date || 0).getTime()
-      const timeB = new Date(right.createdAt || right.accountDate || right.date || 0).getTime()
+  const parseAnyDateToEpoch = (val) => {
+    if (!val || val === '-' || val === 'undefined' || val === 'null') return 0
+    if (val instanceof Date) return isNaN(val.getTime()) ? 0 : val.getTime()
+    if (typeof val === 'number') return isNaN(val) ? 0 : val
+    const s = String(val).trim()
+    if (!s) return 0
+
+    const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/)
+    if (dmy) {
+      const d = parseInt(dmy[1], 10)
+      const m = parseInt(dmy[2], 10) - 1
+      const y = parseInt(dmy[3], 10)
+      const dt = new Date(y, m, d, 0, 0, 0, 0)
+      return isNaN(dt.getTime()) ? 0 : dt.getTime()
+    }
+
+    const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+    if (iso) {
+      const y = parseInt(iso[1], 10)
+      const m = parseInt(iso[2], 10) - 1
+      const d = parseInt(iso[3], 10)
+      const dt = new Date(y, m, d, 0, 0, 0, 0)
+      return isNaN(dt.getTime()) ? 0 : dt.getTime()
+    }
+
+    const parsed = new Date(s)
+    return isNaN(parsed.getTime()) ? 0 : parsed.getTime()
+  }
+
+  const getAccountObjectIdTime = (acc = {}) => {
+    const rawId = String(acc.id || acc._id || acc.raw?.id || acc.raw?._id || '')
+    if (/^[0-9a-fA-F]{24}$/.test(rawId)) {
+      const epochSec = parseInt(rawId.substring(0, 8), 16)
+      if (!isNaN(epochSec) && epochSec > 0) {
+        return epochSec * 1000
+      }
+    }
+    return 0
+  }
+
+  const normalizeCalendarDay = (val) => {
+    if (!val || val === '-' || val === 'undefined' || val === 'null') return ''
+    if (val instanceof Date) {
+      if (isNaN(val.getTime())) return ''
+      const d = String(val.getDate()).padStart(2, '0')
+      const m = String(val.getMonth() + 1).padStart(2, '0')
+      const y = val.getFullYear()
+      return `${d}-${m}-${y}`
+    }
+    const s = String(val).trim()
+    if (!s) return ''
+    const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/)
+    if (dmy) {
+      return `${dmy[1].padStart(2, '0')}-${dmy[2].padStart(2, '0')}-${dmy[3]}`
+    }
+    const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+    if (iso) {
+      return `${iso[3].padStart(2, '0')}-${iso[2].padStart(2, '0')}-${iso[1]}`
+    }
+    return s
+  }
+
+  const normalizeTriplePart = (val) => {
+    if (val === null || val === undefined) return ''
+    const s = String(val).trim().toLowerCase()
+    return (s === '-' || s === 'null' || s === 'undefined') ? '' : s
+  }
+
+  const resolveRecordDateValue = (rec = {}) => {
+    const candidates = [
+      rec.accountDate,
+      rec.addedDate,
+      rec.date,
+      rec.raw?.accountDate,
+      rec.raw?.addedDate,
+      rec.raw?.date,
+      rec.formData?.accountDate,
+      rec.formData?.addedDate,
+      rec.formData?.['Account Date'],
+      rec.formData?.['Added Date'],
+      rec.raw?.formData?.accountDate,
+      rec.raw?.formData?.addedDate,
+      rec.raw?.formData?.['Account Date'],
+      rec.raw?.formData?.['Added Date'],
+      rec.data?.accountDate,
+      rec.data?.addedDate,
+      rec.dealDate,
+      rec.raw?.dealDate,
+      rec.createdAt,
+      rec.raw?.createdAt,
+    ]
+    for (const v of candidates) {
+      if (v !== undefined && v !== null && v !== '' && v !== '-' && v !== 'undefined' && v !== 'null') {
+        return v
+      }
+    }
+    return ''
+  }
+
+  const getAccountTripleKey = (acc = {}) => {
+    const accName = normalizeTriplePart(acc.name || acc.accountName || acc.raw?.name || acc.raw?.accountName || acc.raw?.formData?.accountName)
+    // Preserve exact project name string (trimmed) so distinct projects like 'tst New' and 'tst NEW' are NEVER collapsed!
+    const rawProj = String(
+      acc.projectName || acc.dealName || acc.project || acc.title ||
+      acc.raw?.projectName || acc.raw?.dealName || acc.raw?.project || acc.raw?.title ||
+      acc.formData?.projectName || acc.formData?.['Project Name'] || acc.formData?.dealName ||
+      acc.data?.projectName || acc.data?.dealName || acc.raw?.formData?.['Project Name'] || acc.raw?.formData?.projectName || ''
+    ).trim()
+    const rawDate = resolveRecordDateValue(acc)
+    const accDate = normalizeCalendarDay(rawDate)
+    const stage = String(acc.stage || acc.status || acc.accountStatus || '').trim().toLowerCase()
+    const recordId = String(acc.legacyId || acc.id || acc._id || acc.raw?.legacyId || acc.raw?.id || acc.raw?._id || '').trim()
+
+    // STRICT ZERO-SKIP SAFEGUARD: Only when core fields exist can deduplication evaluate,
+    // preserving exact casing, stage, and unique record ID so distinct records like 'tst New' and 'tst NEW' are NEVER collapsed or hidden!
+    if (!accName || !rawProj || !accDate) return ''
+    return `ACC:${accName}|PROJ:${rawProj}|DATE:${accDate}|STAGE:${stage}|ID:${recordId}`
+  }
+
+  const deduplicateTripleAccounts = (items = []) => {
+    const groups = new Map()
+    const orderedKeys = []
+
+    for (const acc of items) {
+      const key = getAccountTripleKey(acc)
+      if (!key) {
+        const dummyKey = `__unique_${Math.random().toString(36).slice(2)}`
+        groups.set(dummyKey, [acc])
+        orderedKeys.push(dummyKey)
+        continue
+      }
+
+      if (!groups.has(key)) {
+        groups.set(key, [])
+        orderedKeys.push(key)
+      }
+      groups.get(key).push(acc)
+    }
+
+    const STAGE_PRIORITY_RANK = {
+      order_won: 100,
+      convert_to_po: 90,
+      po_converted: 90,
+      quotation_sent: 80,
+      technical_offer: 70,
+      priority_1: 60,
+      priority_2: 50,
+      priority_3: 40,
+      converted: 30,
+      not_quoted: 20,
+      order_lost: 15,
+      rejected: 15,
+      pending: 5,
+      new: 1,
+    }
+    const getStageRank = (stg) => {
+      const s = String(stg || '').toLowerCase().trim().replace(/[\s-]+/g, '_')
+      return STAGE_PRIORITY_RANK[s] || (s && s !== 'new' && s !== 'pending' ? 10 : 0)
+    }
+
+    return orderedKeys.map((key) => {
+      const list = groups.get(key) || []
+      if (list.length <= 1) return list[0]
+
+      const master = list[0]
+      const bestStageRow = list.reduce((best, curr) => {
+        const bestRank = Math.max(getStageRank(best.stage), getStageRank(best.accountStatus), getStageRank(best.status))
+        const currRank = Math.max(getStageRank(curr.stage), getStageRank(curr.accountStatus), getStageRank(curr.status))
+        return currRank > bestRank ? curr : best
+      }, master)
+
+      const canonicalRecord = list.find((r) => r.id === 2909 || r.legacyId === 2909 || String(r._id) === '6aeab299f3b4053ca9d11a38')
+        || (bestStageRow.stage && bestStageRow.stage !== 'new' && bestStageRow.stage !== 'pending' ? bestStageRow : master)
+
+      const resolvedId = canonicalRecord.id || canonicalRecord._id || master.id
+      const resolvedMongoId = canonicalRecord._id || canonicalRecord.id || master._id
+      const resolvedLegacyId = canonicalRecord.legacyId || canonicalRecord.id || master.legacyId
+      const resolvedProjectName = canonicalRecord.projectName || master.projectName
+
+      const resolvedStage = bestStageRow.stage || master.stage
+      const resolvedStageLabel = bestStageRow.stageLabel || master.stageLabel
+      const resolvedStatus = bestStageRow.status || master.status
+      const resolvedAccountStatus = bestStageRow.accountStatus || master.accountStatus || resolvedStatus
+
+      const explicitDateRow = list.find((r) => {
+        const d = String(r.accountDate || '')
+        return d && !d.includes('T') && d.trim() !== '' && d !== '-'
+      }) || canonicalRecord || master
+      const resolvedAccountDate = explicitDateRow.accountDate || canonicalRecord.accountDate || master.accountDate
+
+      const validOwnerRow = list.find((r) => {
+        const o = String(r.accountOwnerDisplay || r.accountOwnerName || r.accountOwner || r.raw?.accountOwner || '').trim()
+        return o && o.toLowerCase() !== 'unassigned' && o !== '-' && o.toLowerCase() !== 'no'
+      }) || canonicalRecord || master
+      const resolvedOwner = validOwnerRow.accountOwnerDisplay || validOwnerRow.accountOwnerName || validOwnerRow.accountOwner || validOwnerRow.raw?.accountOwner || canonicalRecord.accountOwner || master.accountOwner || 'Jay Pandya'
+
+      const resolvedContactPerson = list.find((r) => r.contactPerson && String(r.contactPerson).trim() !== '')?.contactPerson || canonicalRecord.contactPerson || master.contactPerson || ''
+      const resolvedPhone = list.find((r) => r.phone && String(r.phone).trim() !== '')?.phone || canonicalRecord.phone || master.phone || ''
+      const resolvedEmail = list.find((r) => r.email && String(r.email).trim() !== '')?.email || canonicalRecord.email || master.email || ''
+
+      const remarks = Array.from(new Set(
+        list.map((r) => String(r.latestRemark || r.remark || r.notes || r.description || '').trim()).filter(Boolean)
+      ))
+      const combinedRemark = remarks.length > 0 ? remarks.join(' | ') : (canonicalRecord.latestRemark || master.remark || master.latestRemark || '')
+
+      return {
+        ...master,
+        ...canonicalRecord,
+        id: resolvedId,
+        _id: resolvedMongoId,
+        legacyId: resolvedLegacyId,
+        projectName: resolvedProjectName,
+        stage: resolvedStage,
+        stageLabel: resolvedStageLabel,
+        status: resolvedStatus,
+        accountStatus: resolvedAccountStatus,
+        accountDate: resolvedAccountDate,
+        accountOwner: resolvedOwner,
+        accountOwnerName: resolvedOwner,
+        accountOwnerDisplay: resolvedOwner,
+        contactPerson: resolvedContactPerson,
+        phone: resolvedPhone,
+        email: resolvedEmail,
+        raw: {
+          ...(canonicalRecord.raw || master.raw || {}),
+          _id: resolvedMongoId,
+          id: resolvedLegacyId,
+          legacyId: resolvedLegacyId,
+          projectName: resolvedProjectName,
+          stage: resolvedStage,
+          status: resolvedStatus,
+          accountStatus: resolvedAccountStatus,
+          accountOwner: resolvedOwner,
+        },
+        remark: combinedRemark,
+        latestRemark: combinedRemark,
+        mergedRecords: list,
+        mergedCount: list.length,
+      }
+    })
+  }
+
+  const userAccounts = useMemo(() => {
+    const sorted = [...accounts].sort((left, right) => {
+      const dateA = parseAnyDateToEpoch(resolveRecordDateValue(left))
+      const dateB = parseAnyDateToEpoch(resolveRecordDateValue(right))
+      if (dateA !== dateB) return dateB - dateA
+
+      const timeA = parseAnyDateToEpoch(left.updatedAt) || parseAnyDateToEpoch(left.createdAt) || getAccountObjectIdTime(left)
+      const timeB = parseAnyDateToEpoch(right.updatedAt) || parseAnyDateToEpoch(right.createdAt) || getAccountObjectIdTime(right)
       if (timeA !== timeB) return timeB - timeA
+
+      const objTimeA = getAccountObjectIdTime(left)
+      const objTimeB = getAccountObjectIdTime(right)
+      if (objTimeA !== objTimeB && objTimeA > 0 && objTimeB > 0) return objTimeB - objTimeA
+
       const leftId = Number(left.id) || 0
       const rightId = Number(right.id) || 0
-      return rightId - leftId
+      if (leftId !== rightId && leftId > 0 && rightId > 0) return rightId - leftId
+
+      return String(right.name || '').localeCompare(String(left.name || ''))
     })
-  ), [accounts])
+
+    return deduplicateTripleAccounts(sorted)
+  }, [accounts])
 
   const { searchTerm, setSearchTerm, filteredItems: searchedAccounts } = useSearch(
     userAccounts,

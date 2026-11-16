@@ -6,7 +6,19 @@ import { normalizeConvertedDealRecord } from './convertedDealApi'
 const getPayload = (response) => response?.data ?? response ?? null
 
 const normalizeLeadRecord = (lead = {}) => {
-  const rawAccountOwner = lead.accountOwnerName || lead.accountOwner || lead.ownerName || lead.owner_user_name || ''
+  const rawAccountOwner = (
+    lead.accountOwnerName
+    || lead.accountOwner
+    || lead.ownerName
+    || lead.owner_user_name
+    || lead.formData?.['Account Owner']
+    || lead.formData?.accountOwner
+    || lead.formData?.owner
+    || lead.raw?.formData?.['Account Owner']
+    || lead.raw?.formData?.accountOwner
+    || lead.data?.accountOwner
+    || ''
+  )
   const accountOwner = getCanonicalCrmUserName(rawAccountOwner) || String(rawAccountOwner || '').trim()
   const accountOwnerCode = lead.accountOwnerCode || lead.ownerCode || lead.formData?.accountOwnerCode || lead.formData?.ownerCode || getCrmOwnerCode(accountOwner)
   const accountNumber = lead.accountNumber || lead.accountNo || lead.account_no || lead.ownerCode || accountOwnerCode || ''
@@ -14,9 +26,22 @@ const normalizeLeadRecord = (lead = {}) => {
   const phone = lead.phone || lead.mobile || lead.contactMobile || lead.contactPhone || ''
   const email = lead.email || lead.alternateEmail || lead.contactEmail || ''
 
+  const resolvedProjectName = (
+    lead.projectName
+    || lead.project_name
+    || lead.formData?.['Project Name']
+    || lead.formData?.projectName
+    || lead.formData?.project_name
+    || lead.formData?.project
+    || lead.data?.projectName
+    || lead.dealName
+    || lead.formData?.dealName
+    || null
+  )
+
   return {
     ...lead,
-    id: lead.id,
+    id: lead.id || lead._id || lead.raw?._id || lead.raw?.id || accountNumber,
     name: lead.name || accountName,
     phone,
     email,
@@ -32,7 +57,7 @@ const normalizeLeadRecord = (lead = {}) => {
     accountState: lead.accountState || lead.status || 'pending',
     alternateEmail: lead.alternateEmail || email || '',
     alternatePhone: lead.alternatePhone || lead.mobile || phone || '',
-    projectName: lead.projectName || lead.project_name || null,
+    projectName: resolvedProjectName,
     isConverted: Boolean(lead.isConverted || lead.convertedFromAccount || lead.dealId),
     convertedAt: lead.convertedAt || '',
     convertedBy: lead.convertedBy || '',

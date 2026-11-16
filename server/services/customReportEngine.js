@@ -151,12 +151,43 @@ const DEFAULT_FIELDS = {
 
 const formatDate = (val) => {
   if (!val) return '-';
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    const ddmmyyyy = trimmed.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+    if (ddmmyyyy) {
+      return `${ddmmyyyy[1]}-${ddmmyyyy[2]}-${ddmmyyyy[3]}`;
+    }
+    const yyyymmdd = trimmed.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/);
+    if (yyyymmdd) {
+      return `${yyyymmdd[3]}-${yyyymmdd[2]}-${yyyymmdd[1]}`;
+    }
+  }
   const d = new Date(val);
   if (Number.isNaN(d.getTime())) return String(val);
   const day = String(d.getDate()).padStart(2, '0');
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const year = d.getFullYear();
-  return `${day}/${month}/${year}`;
+  return `${day}-${month}-${year}`;
+};
+
+const formatAccountStatus = (status) => {
+  if (!status || status === '-') return '-';
+  const s = String(status).trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (s === 'priority_1') return 'Priority 1';
+  if (s === 'priority_2') return 'Priority 2';
+  if (s === 'priority_3') return 'Priority 3';
+  if (s === 'technical_offer') return 'Technical Offer';
+  if (s === 'commercial_offer') return 'Commercial Offer';
+  if (s === 'quotation_sent') return 'Quotation Sent';
+  if (s === 'quote_revision') return 'Quotation Revision';
+  if (s === 'convert_to_po' || s === 'po_converted') return 'Convert To PO';
+  if (s === 'order_won') return 'Order Won';
+  if (s === 'order_lost') return 'Order Lost';
+  if (s === 'not_quoted') return 'Not Quoted';
+  if (s === 'pending') return 'Pending';
+  if (s === 'new') return 'New';
+  if (s === 'rejected') return 'Rejected';
+  return String(status);
 };
 
 const parseDateTimestamp = (value) => {
@@ -181,13 +212,16 @@ const parseDateTimestamp = (value) => {
     return Number.isNaN(dateObj.getTime()) ? null : dateObj.getTime();
   }
 
-  // DD-MM-YYYY or DD/MM/YYYY
-  const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  // DD-MM-YYYY or DD/MM/YYYY (with optional time) - Indian standard CRM date
+  const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
   if (dmyMatch) {
     const d = parseInt(dmyMatch[1], 10);
     const m = parseInt(dmyMatch[2], 10) - 1;
     const y = parseInt(dmyMatch[3], 10);
-    const dateObj = new Date(y, m, d, 0, 0, 0, 0);
+    const hr = dmyMatch[4] ? parseInt(dmyMatch[4], 10) : 0;
+    const min = dmyMatch[5] ? parseInt(dmyMatch[5], 10) : 0;
+    const sec = dmyMatch[6] ? parseInt(dmyMatch[6], 10) : 0;
+    const dateObj = new Date(y, m, d, hr, min, sec, 0);
     return Number.isNaN(dateObj.getTime()) ? null : dateObj.getTime();
   }
 
@@ -235,9 +269,25 @@ const resolveDateBounds = (dateRangeType = 'last_7_days', customStart = null, cu
 const mapAccountDoc = (doc) => {
   const rawNo = doc.accountNumber || doc.accountNo || doc.id || '-';
   const rawName = doc.name || doc.companyName || doc.customerName || doc.accountName || '-';
-  const rawOwner = doc.accountOwnerName || doc.accountOwner || doc.ownerName || doc.owner || doc.ownerCode || '-';
+  const rawOwner = doc.accountOwnerName
+    || doc.accountOwner
+    || doc.ownerName
+    || doc.owner
+    || doc.formData?.['Account Owner']
+    || doc.formData?.accountOwner
+    || doc.ownerCode
+    || '-';
   const rawDate = formatDate(doc.accountDate || doc.date || doc.createdAt);
-  const rawStatus = doc.status || doc.accountStatus || '-';
+  const rawStatus = formatAccountStatus(doc.stage || doc.status || doc.accountStatus || doc.formData?.accountStatus || doc.formData?.status || '-');
+  const rawProject = doc.projectName
+    || doc.project
+    || doc.formData?.['Project Name']
+    || doc.formData?.projectName
+    || doc.formData?.['Project']
+    || doc.formData?.project
+    || doc.data?.projectName
+    || doc.data?.project
+    || '-';
 
   return {
     ...doc,
@@ -254,6 +304,9 @@ const mapAccountDoc = (doc) => {
     date: rawDate,
     status: rawStatus,
     accountStatus: rawStatus,
+    stage: doc.stage || rawStatus,
+    projectName: rawProject,
+    project: rawProject,
     accountCategory: doc.accountCategory || doc.category || '-',
     category: doc.accountCategory || doc.category || '-',
     accountSource: doc.accountSource || doc.source || '-',
@@ -529,12 +582,18 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
       const id = String(row._id || row.id || '').trim();
       if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`;
     } else if (entityType === 'account') {
+      const id = String(row._id || row.id || row.legacyId || '').trim();
+      if (id && id !== '-' && id !== 'UNDEFINED' && id !== 'NULL') return `ACC_ID:${id}`;
       const accNo = String(
         row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
       ).trim().toUpperCase();
-      if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL') return `ACC:${accNo}`;
-      const id = String(row._id || row.id || '').trim();
-      if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`;
+      const projName = String(row['Project Name'] || row.projectName || row.project || '').trim();
+      const rawDate = row['Account Date'] || row.accountDate || row.date || row.createdAt || '';
+      const stage = String(row.stage || row.status || row.accountStatus || '').trim().toLowerCase();
+      if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL') {
+        return `ACC:${accNo}|PROJ:${projName}|DATE:${rawDate}|STAGE:${stage}`;
+      }
+      return `ACC_PROJ:${projName}|DATE:${rawDate}|STAGE:${stage}`;
     } else {
       const dealNo = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || '').trim().toUpperCase();
       if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL') return `DEAL:${dealNo}`;
@@ -1169,10 +1228,18 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
   let targetOwnerName = '';
 
   if (ownerFilter && ownerFilter !== 'all') {
+    // Extract email and clean name if combined string like "Krunal Patel (mkt.brd@swatiswitchgears.com)" is provided
+    const emailInParensMatch = rawOwnerInput.match(/[\(<]([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})[\)>]/)
+      || rawOwnerInput.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    const extractedEmail = emailInParensMatch ? emailInParensMatch[1].toLowerCase().trim() : '';
+    const cleanName = rawOwnerInput.replace(/[\(<].*?[\)>]/g, '').trim();
+
     // 1. Resolve canonical email directly from usersMap (from users collection)
     if (usersMap._emails && usersMap._emails[ownerFilter]) {
       targetOwnerEmail = usersMap._emails[ownerFilter].toLowerCase().trim();
-    } else if (ownerFilter.includes('@')) {
+    } else if (extractedEmail) {
+      targetOwnerEmail = extractedEmail;
+    } else if (ownerFilter.includes('@') && !ownerFilter.includes(' ')) {
       targetOwnerEmail = ownerFilter;
     }
 
@@ -1181,14 +1248,22 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
       if (!targetOwnerEmail && usersMap._emails && usersMap._emails[String(targetOwnerName).toLowerCase().trim()]) {
         targetOwnerEmail = usersMap._emails[String(targetOwnerName).toLowerCase().trim()].toLowerCase().trim();
       }
+    } else if (cleanName && usersMap[cleanName.toLowerCase()]) {
+      targetOwnerName = usersMap[cleanName.toLowerCase()];
     } else if (usersMap._names && usersMap._names[ownerFilter]) {
       targetOwnerName = usersMap._names[ownerFilter];
+    } else if (cleanName && usersMap._names && usersMap._names[cleanName.toLowerCase()]) {
+      targetOwnerName = usersMap._names[cleanName.toLowerCase()];
     } else {
-      targetOwnerName = rawOwnerInput;
+      targetOwnerName = cleanName || rawOwnerInput;
     }
 
     if (usersMap._profiles && usersMap._profiles[ownerFilter]) {
       const prof = usersMap._profiles[ownerFilter];
+      if (prof.email) targetOwnerEmail = prof.email.toLowerCase().trim();
+      if (prof.name) targetOwnerName = prof.name;
+    } else if (cleanName && usersMap._profiles && usersMap._profiles[cleanName.toLowerCase()]) {
+      const prof = usersMap._profiles[cleanName.toLowerCase()];
       if (prof.email) targetOwnerEmail = prof.email.toLowerCase().trim();
       if (prof.name) targetOwnerName = prof.name;
     }
@@ -1196,16 +1271,25 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
     // Build the set of target owner emails (exact mail-wise identification)
     const targetOwnerEmails = new Set();
     if (targetOwnerEmail) targetOwnerEmails.add(targetOwnerEmail);
+    if (extractedEmail) targetOwnerEmails.add(extractedEmail);
     if (targetOwnerName && usersMap._emails && usersMap._emails[targetOwnerName.toLowerCase().trim()]) {
       targetOwnerEmails.add(usersMap._emails[targetOwnerName.toLowerCase().trim()].toLowerCase().trim());
+    }
+    if (cleanName && usersMap._emails && usersMap._emails[cleanName.toLowerCase().trim()]) {
+      targetOwnerEmails.add(usersMap._emails[cleanName.toLowerCase().trim()].toLowerCase().trim());
     }
 
     // Build owner identities for exact code or exact name if doc stores owner name/code
     const targetOwnerExactIdentities = new Set([ownerFilter]);
     if (targetOwnerName) targetOwnerExactIdentities.add(targetOwnerName.toLowerCase().trim());
+    if (cleanName) targetOwnerExactIdentities.add(cleanName.toLowerCase().trim());
     if (targetOwnerEmail) targetOwnerExactIdentities.add(targetOwnerEmail);
+    if (extractedEmail) targetOwnerExactIdentities.add(extractedEmail);
     if (usersMap._codes && usersMap._codes[ownerFilter]) {
       targetOwnerExactIdentities.add(String(usersMap._codes[ownerFilter]).toLowerCase().trim());
+    }
+    if (cleanName && usersMap._codes && usersMap._codes[cleanName.toLowerCase()]) {
+      targetOwnerExactIdentities.add(String(usersMap._codes[cleanName.toLowerCase()]).toLowerCase().trim());
     }
     if (targetOwnerName && usersMap._codes && usersMap._codes[targetOwnerName.toLowerCase().trim()]) {
       targetOwnerExactIdentities.add(String(usersMap._codes[targetOwnerName.toLowerCase().trim()]).toLowerCase().trim());
@@ -1369,10 +1453,57 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
   let dateFilterFellBack = false;
   let dateMatchedCount = null;
 
-  // Universal Date Range Filtering (Using parseDateTimestamp for ISO, YYYY-MM-DD, and DD/MM/YYYY)
+  // Universal Date Range Filtering (Using calendar day string normalization & timestamp fallback)
   const rawFrom = tpl?.recordDateFrom || tpl?.dateRange?.fromDate || tpl?.fromDate || '';
   const rawTo = tpl?.recordDateTo || tpl?.dateRange?.toDate || tpl?.toDate || '';
+
+  const getCalendarDateStr = (val) => {
+    if (!val || val === 'undefined' || val === 'null' || val === '-') return null;
+    if (val instanceof Date && !isNaN(val.getTime())) {
+      const y = val.getFullYear();
+      const m = String(val.getMonth() + 1).padStart(2, '0');
+      const d = String(val.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    const s = String(val).trim();
+    if (!s || s === 'undefined' || s === 'null') return null;
+
+    // 1. Check DD-MM-YYYY or DD/MM/YYYY FIRST (Standard Indian CRM format, with or without time)
+    const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (dmy) {
+      return `${dmy[3]}-${String(dmy[2]).padStart(2, '0')}-${String(dmy[1]).padStart(2, '0')}`;
+    }
+
+    // 2. Check ISO YYYY-MM-DD or YYYY/MM/DD
+    const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (iso) {
+      return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
+    }
+
+    // 3. If string has ISO timestamp with T or Z, parse as Date
+    if (s.includes('T') || s.includes('Z')) {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+    }
+
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+    return null;
+  };
+
   if (rawFrom || rawTo) {
+    const fromStr = getCalendarDateStr(rawFrom);
+    const toStr = getCalendarDateStr(rawTo);
     const fromTime = rawFrom ? parseDateTimestamp(rawFrom) : null;
     let toTime = rawTo ? parseDateTimestamp(rawTo) : null;
     if (toTime !== null) {
@@ -1384,18 +1515,66 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
     const dateFiltered = filteredDocs.filter((doc) => {
       let rawDateVal = null;
       if (entityType === 'account') {
-        rawDateVal = doc.accountDate || doc.formData?.accountDate || doc.formData?.formData?.accountDate || doc.date || doc.createdAt;
+        const candidates = [
+          doc.accountDate,
+          doc.addedDate,
+          doc.formData?.accountDate,
+          doc.formData?.addedDate,
+          doc.formData?.['Added Date'],
+          doc.formData?.['Account Date'],
+          doc.formData?.formData?.accountDate,
+          doc.formData?.formData?.addedDate,
+          doc.data?.accountDate,
+          doc.data?.addedDate,
+          doc.raw?.accountDate,
+          doc.raw?.addedDate,
+          doc.date,
+          doc.createdAt,
+        ];
+        rawDateVal = candidates.find(v => v !== undefined && v !== null && v !== 'undefined' && v !== 'null' && v !== '' && v !== '-');
       } else if (entityType === 'deal') {
-        rawDateVal = doc.dealDate || doc.data?.dealDate || doc.data?.data?.dealDate || doc.data?.convertedAt || doc.formData?.dealDate || doc.quotationDate || doc.createdAt;
+        const candidates = [
+          doc.dealDate,
+          doc.data?.dealDate,
+          doc.data?.data?.dealDate,
+          doc.data?.convertedAt,
+          doc.formData?.dealDate,
+          doc.quotationDate,
+          doc.createdAt,
+        ];
+        rawDateVal = candidates.find(v => v !== undefined && v !== null && v !== 'undefined' && v !== 'null' && v !== '' && v !== '-');
       } else if (entityType === 'customer') {
-        rawDateVal = doc.createdAt || doc.addedDate || doc.date;
+        const candidates = [
+          doc.createdAt,
+          doc.addedDate,
+          doc.date,
+        ];
+        rawDateVal = candidates.find(v => v !== undefined && v !== null && v !== 'undefined' && v !== 'null' && v !== '' && v !== '-');
       } else if (entityType === 'quotation') {
-        rawDateVal = doc.quotationDate || doc.data?.quotationDate || doc.data?.customerReference?.date || doc.date || doc.createdAt;
+        const candidates = [
+          doc.quotationDate,
+          doc.data?.quotationDate,
+          doc.data?.customerReference?.date,
+          doc.date,
+          doc.createdAt,
+        ];
+        rawDateVal = candidates.find(v => v !== undefined && v !== null && v !== 'undefined' && v !== 'null' && v !== '' && v !== '-');
       } else {
-        rawDateVal = doc.date || doc.createdAt;
+        const candidates = [doc.date, doc.createdAt];
+        rawDateVal = candidates.find(v => v !== undefined && v !== null && v !== 'undefined' && v !== 'null' && v !== '' && v !== '-');
       }
 
       if (!rawDateVal) return false;
+
+      // Primary check: Calendar Day String Normalization (100% immune to timezone clipping)
+      const docDateStr = getCalendarDateStr(rawDateVal);
+      if (docDateStr) {
+        if (fromStr && docDateStr < fromStr) return false;
+        if (toStr && docDateStr > toStr) return false;
+        return true;
+      }
+
+      // Fallback timestamp check
       const docTime = parseDateTimestamp(rawDateVal);
       if (docTime === null) return false;
 

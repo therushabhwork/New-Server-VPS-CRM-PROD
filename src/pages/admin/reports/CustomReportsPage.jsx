@@ -32,6 +32,7 @@ import { exportExcelWorkbook, exportCsvWorkbook } from '../../../utils/excelExpo
 import { slugify } from '../../../utils/helpers'
 import apiClient from '../../../services/apiClient'
 import reportApi from '../../../services/reportApi'
+import { userApi } from '../../../services/userApi'
 import { customerService } from '../../../services/customerService'
 import { jsPDF } from 'jspdf'
 import { autoTable } from 'jspdf-autotable'
@@ -127,6 +128,12 @@ export const parseToStandardDateTimestamp = (value) => {
   }
 
   return null
+}
+
+export const parseAnyDateToEpoch = (val) => {
+  if (!val || val === '-' || val === 'undefined' || val === 'null') return 0
+  const t = parseToStandardDateTimestamp(val)
+  return t || 0
 }
 
 export const formatToDMY = (dateInput) => {
@@ -1022,17 +1029,6 @@ const CustomReportFilterModal = ({
             </button>
           </div>
           <div className="cr-filter-top-right">
-            {onApplyView && (
-              <button
-                type="button"
-                className="cr-btn-primary cr-btn-view"
-                onClick={onApplyView}
-                disabled={loading}
-                title="View dynamic live records in structured table"
-              >
-                <FaEye /> {loading ? 'Loading...' : 'View Report'}
-              </button>
-            )}
             <button
               type="button"
               className="cr-btn-pdf"
@@ -1100,7 +1096,7 @@ const CustomReportFilterModal = ({
                 value={filterState.owner}
                 onChange={(e) => setFilterState((prev) => ({ ...prev, owner: e.target.value }))}
               >
-                <option value="All">All Owners</option>
+                <option value="All">All Users / All Owners</option>
                 {ownerOptions.map((opt) => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
@@ -1115,7 +1111,7 @@ const CustomReportFilterModal = ({
                   type="text"
                   placeholder="DD-MM-YYYY"
                   value={filterState.startDate || ''}
-                  onChange={(e) => setFilterState((prev) => ({ ...prev, startDate: e.target.value }))}
+                  onChange={(e) => setFilterState((prev) => ({ ...prev, period: 'Custom Date Range', startDate: e.target.value }))}
                 />
                 <span className="cr-date-picker-icon-btn" title="Choose date from calendar">
                   <FaCalendarAlt />
@@ -1128,7 +1124,7 @@ const CustomReportFilterModal = ({
                     })()}
                     onChange={(e) => {
                       if (e.target.value) {
-                        setFilterState((prev) => ({ ...prev, startDate: formatToDMY(e.target.value) }))
+                        setFilterState((prev) => ({ ...prev, period: 'Custom Date Range', startDate: formatToDMY(e.target.value) }))
                       }
                     }}
                   />
@@ -1143,7 +1139,7 @@ const CustomReportFilterModal = ({
                   type="text"
                   placeholder="DD-MM-YYYY"
                   value={filterState.endDate || ''}
-                  onChange={(e) => setFilterState((prev) => ({ ...prev, endDate: e.target.value }))}
+                  onChange={(e) => setFilterState((prev) => ({ ...prev, period: 'Custom Date Range', endDate: e.target.value }))}
                 />
                 <span className="cr-date-picker-icon-btn" title="Choose date from calendar">
                   <FaCalendarAlt />
@@ -1156,7 +1152,7 @@ const CustomReportFilterModal = ({
                     })()}
                     onChange={(e) => {
                       if (e.target.value) {
-                        setFilterState((prev) => ({ ...prev, endDate: formatToDMY(e.target.value) }))
+                        setFilterState((prev) => ({ ...prev, period: 'Custom Date Range', endDate: formatToDMY(e.target.value) }))
                       }
                     }}
                   />
@@ -1217,6 +1213,7 @@ const StructuredReportModal = ({
     return (
       String(r.accountNumber || r.dealNumber || r.quotationNumber || '').toLowerCase().includes(term) ||
       String(r.accountName || r.dealName || r.subject || r.customerName || '').toLowerCase().includes(term) ||
+      String(r.projectName || r.project || '').toLowerCase().includes(term) ||
       String(r.contactPerson || '').toLowerCase().includes(term) ||
       String(r.phone || '').toLowerCase().includes(term) ||
       String(r.email || '').toLowerCase().includes(term) ||
@@ -1388,6 +1385,7 @@ const StructuredReportModal = ({
                     <th style={{ width: '45px', textAlign: 'center' }}>#</th>
                     <th style={{ width: '130px' }}>Account No</th>
                     <th style={{ width: '220px' }}>Account Name</th>
+                    <th style={{ width: '200px' }}>Project Name</th>
                     <th style={{ width: '160px' }}>Contact Person</th>
                     <th style={{ width: '130px' }}>Phone</th>
                     <th style={{ width: '190px' }}>Email</th>
@@ -1400,7 +1398,7 @@ const StructuredReportModal = ({
                 <tbody>
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={10} style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
+                      <td colSpan={11} style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
                         No matching records found for this filter criteria.
                       </td>
                     </tr>
@@ -1410,6 +1408,7 @@ const StructuredReportModal = ({
                         <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{row.srNo || idx + 1}</td>
                         <td style={{ fontWeight: 700, color: '#1e293b' }}>{row.accountNumber}</td>
                         <td style={{ fontWeight: 600, color: '#0f172a' }}>{row.accountName}</td>
+                        <td style={{ fontWeight: 500, color: '#334155' }}>{row.projectName || '-'}</td>
                         <td>{row.contactPerson}</td>
                         <td>{row.phone}</td>
                         <td>{row.email}</td>
@@ -1503,6 +1502,39 @@ const SplitDropdown = ({ label, options, isOpen, buttonRef, onToggle, onSelect }
   </div>
 )
 
+const getCalendarDayStr = (val) => {
+  if (!val || val === 'undefined' || val === 'null' || val === '-') return null
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    const y = val.getFullYear()
+    const m = String(val.getMonth() + 1).padStart(2, '0')
+    const d = String(val.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+  const s = String(val).trim()
+  if (!s || s === 'undefined' || s === 'null') return null
+
+  // If string has ISO timestamp / time components (T, Z, or :), parse as local Date to preserve timezone (IST)
+  if (s.includes('T') || s.includes('Z') || s.includes(':')) {
+    const d = new Date(s)
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${y}-${m}-${day}`
+    }
+  }
+
+  const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`
+  const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/)
+  if (dmy) return `${dmy[3]}-${String(dmy[2]).padStart(2, '0')}-${String(dmy[1]).padStart(2, '0')}`
+  const d = new Date(s)
+  if (!isNaN(d.getTime())) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  return null
+}
+
 const filterCollectionRecords = (records, filterState = {}, entityType = 'account') => {
   if (!Array.isArray(records)) return []
   const {
@@ -1513,21 +1545,38 @@ const filterCollectionRecords = (records, filterState = {}, entityType = 'accoun
     status,
   } = (filterState || {})
 
+  let fromStr = null
+  let toStr = null
   let fromTime = null
   let toTime = null
 
-  if (period === 'All Dates') {
+  // 1. Explicit user-selected startDate and endDate are ALWAYS prioritized FIRST
+  if (startDate || endDate) {
+    if (startDate) {
+      fromStr = getCalendarDayStr(startDate)
+      fromTime = parseDMYToTimestamp(startDate)
+    }
+    if (endDate) {
+      toStr = getCalendarDayStr(endDate)
+      const parsedEnd = parseDMYToTimestamp(endDate)
+      if (parsedEnd) toTime = parsedEnd + 86399999
+    }
+  } else if (period === 'All Dates') {
     fromTime = null
     toTime = null
   } else if (period === 'Today') {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
+    fromStr = getCalendarDayStr(today)
+    toStr = getCalendarDayStr(today)
     fromTime = today.getTime()
     toTime = fromTime + 86399999
   } else if (period === 'Yesterday') {
     const yest = new Date()
     yest.setDate(yest.getDate() - 1)
     yest.setHours(0, 0, 0, 0)
+    fromStr = getCalendarDayStr(yest)
+    toStr = getCalendarDayStr(yest)
     fromTime = yest.getTime()
     toTime = fromTime + 86399999
   } else if (period === 'This Week' || period === 'Last 7 Days') {
@@ -1535,11 +1584,15 @@ const filterCollectionRecords = (records, filterState = {}, entityType = 'accoun
     const past = new Date()
     past.setDate(past.getDate() - 7)
     past.setHours(0, 0, 0, 0)
+    fromStr = getCalendarDayStr(past)
+    toStr = getCalendarDayStr(now)
     fromTime = past.getTime()
     toTime = now.getTime()
   } else if (period === 'This Month') {
     const now = new Date()
     const startMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
+    fromStr = getCalendarDayStr(startMonth)
+    toStr = getCalendarDayStr(now)
     fromTime = startMonth.getTime()
     toTime = now.getTime()
   } else if (period === 'Last 30 Days') {
@@ -1547,22 +1600,16 @@ const filterCollectionRecords = (records, filterState = {}, entityType = 'accoun
     const past = new Date()
     past.setDate(past.getDate() - 30)
     past.setHours(0, 0, 0, 0)
+    fromStr = getCalendarDayStr(past)
+    toStr = getCalendarDayStr(now)
     fromTime = past.getTime()
     toTime = now.getTime()
   } else if (period === 'This Year') {
     const startYear = new Date(new Date().getFullYear(), 0, 1, 0, 0, 0, 0)
+    fromStr = getCalendarDayStr(startYear)
+    toStr = getCalendarDayStr(new Date())
     fromTime = startYear.getTime()
     toTime = new Date().getTime()
-  } else {
-    // Custom Date Range: optional startDate and endDate in DD-MM-YYYY or standard formats
-    if (startDate) {
-      const parsedStart = parseDMYToTimestamp(startDate)
-      if (parsedStart) fromTime = parsedStart
-    }
-    if (endDate) {
-      const parsedEnd = parseDMYToTimestamp(endDate)
-      if (parsedEnd) toTime = parsedEnd + 86399999
-    }
   }
 
   const normEntity = normalizeEntityKey(entityType || filterState?.entityType || 'account')
@@ -1570,41 +1617,100 @@ const filterCollectionRecords = (records, filterState = {}, entityType = 'accoun
   const selectedStatusNorm = String(status || '').trim().toLowerCase()
 
   const filtered = records.filter((rec) => {
-    if (fromTime !== null || toTime !== null) {
-      const rawDate =
-        (normEntity === 'deal'
-          ? (rec.dealDate || rec.formData?.dealDate)
-          : normEntity === 'quotation'
-          ? (rec.quotationDate || rec.formData?.quotationDate || rec.data?.quotationDate)
-          : (rec.accountDate || rec.formData?.accountDate || rec.leadDate || rec.raw?.accountDate)) ||
-        rec.date ||
-        rec.createdAt ||
-        rec.formData?.createdAt ||
-        rec.createdOn
+    if (fromStr || toStr || fromTime !== null || toTime !== null) {
+      let rawCandidates = []
+      if (normEntity === 'deal') {
+        rawCandidates = [rec.dealDate, rec.formData?.dealDate, rec.data?.dealDate, rec.data?.convertedAt, rec.quotationDate, rec.createdAt, rec.createdOn]
+      } else if (normEntity === 'quotation') {
+        rawCandidates = [rec.quotationDate, rec.formData?.quotationDate, rec.data?.quotationDate, rec.date, rec.createdAt, rec.createdOn]
+      } else {
+        rawCandidates = [rec.accountDate, rec.formData?.accountDate, rec.leadDate, rec.raw?.accountDate, rec.date, rec.createdAt, rec.createdOn]
+      }
+      const rawDate = rawCandidates.find(v => v !== undefined && v !== null && v !== 'undefined' && v !== 'null' && v !== '' && v !== '-')
+      if (!rawDate) return false
 
-      const recTime = parseToStandardDateTimestamp(rawDate)
-      if (recTime !== null) {
+      const docDateStr = getCalendarDayStr(rawDate)
+      if (docDateStr && (fromStr || toStr)) {
+        if (fromStr && docDateStr < fromStr) return false
+        if (toStr && docDateStr > toStr) return false
+      } else {
+        const recTime = parseToStandardDateTimestamp(rawDate)
+        if (recTime === null) return false
         if (fromTime !== null && recTime < fromTime) return false
         if (toTime !== null && recTime > toTime) return false
       }
     }
 
-    if (selectedOwnerNorm && selectedOwnerNorm !== 'all' && selectedOwnerNorm !== 'all owners') {
-      const recOwner = String(
-        rec.accountOwner ||
-        rec.dealOwner ||
-        rec.quotationOwner ||
-        rec.ownerName ||
-        rec.owner ||
-        rec.assignedTo ||
-        rec.formData?.accountOwner ||
-        rec.formData?.dealOwner ||
-        rec.formData?.ownerName ||
-        rec.assignedToName ||
-        rec.raw?.accountOwner ||
-        ''
-      ).trim().toLowerCase()
-      if (!recOwner.includes(selectedOwnerNorm) && !selectedOwnerNorm.includes(recOwner)) {
+    const rawOwner = String(owner || '').trim()
+    const selectedOwnerNorm = rawOwner.toLowerCase()
+    const isAllOwners = !selectedOwnerNorm ||
+      selectedOwnerNorm === 'all' ||
+      selectedOwnerNorm === 'all owners' ||
+      selectedOwnerNorm === 'all users' ||
+      selectedOwnerNorm === '*'
+
+    if (!isAllOwners) {
+      const emailMatch = rawOwner.match(/[\(<]([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})[\)>]/) ||
+        rawOwner.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/)
+      const targetEmail = emailMatch ? emailMatch[1].trim().toLowerCase() : ''
+      const targetName = rawOwner.replace(/[\(<].*?[\)>]/g, '').trim().toLowerCase()
+
+      const docOwnerNames = [
+        rec.accountOwner,
+        rec.dealOwner,
+        rec.quotationOwner,
+        rec.ownerName,
+        rec.owner,
+        rec.assignedTo,
+        rec.assignedToName,
+        rec.formData?.accountOwner,
+        rec.formData?.dealOwner,
+        rec.formData?.ownerName,
+        rec.formData?.formData?.accountOwner,
+        rec.raw?.accountOwner,
+      ].filter(Boolean).map(v => String(v).trim().toLowerCase())
+
+      const docOwnerEmails = [
+        rec.userEmail,
+        rec.accountOwnerEmail,
+        rec.ownerEmail,
+        rec.createdUserBy,
+        rec.formData?.userEmail,
+        rec.formData?.accountOwnerEmail,
+        rec.formData?.ownerEmail,
+        rec.formData?.createdUserBy,
+      ].filter(Boolean).map(v => String(v).trim().toLowerCase())
+
+      const docOwnerCodes = [
+        rec.ownerCode,
+        rec.accountOwnerCode,
+        rec.formData?.ownerCode,
+        rec.formData?.accountOwnerCode,
+      ].filter(Boolean).map(v => String(v).trim().toLowerCase())
+
+      let ownerMatched = false
+
+      // 1. Direct email match
+      if (targetEmail && docOwnerEmails.some(e => e === targetEmail || e.includes(targetEmail) || targetEmail.includes(e))) {
+        ownerMatched = true
+      }
+
+      // 2. Direct name match
+      if (!ownerMatched && targetName && docOwnerNames.some(n => n === targetName || n.includes(targetName) || targetName.includes(n))) {
+        ownerMatched = true
+      }
+
+      // 3. Fallback code match
+      if (!ownerMatched && targetName && docOwnerCodes.some(c => c === targetName || targetName.includes(c))) {
+        ownerMatched = true
+      }
+
+      // 4. Exact raw string substring match
+      if (!ownerMatched && docOwnerNames.some(n => n.includes(selectedOwnerNorm) || selectedOwnerNorm.includes(n))) {
+        ownerMatched = true
+      }
+
+      if (!ownerMatched) {
         return false
       }
     }
@@ -1828,6 +1934,16 @@ export const mapRecordsToRows = (records) => {
       rec.raw?.accountName ||
       '-'
 
+    const projName =
+      rec.projectName ||
+      rec.project ||
+      rec.formData?.projectName ||
+      rec.formData?.project ||
+      rec.formData?.formData?.projectName ||
+      rec.raw?.projectName ||
+      rec.data?.projectName ||
+      '-'
+
     const contact =
       rec.contactPerson ||
       rec.contact ||
@@ -1883,6 +1999,7 @@ export const mapRecordsToRows = (records) => {
       srNo: index + 1,
       accountNumber: accNo,
       accountName: accName,
+      projectName: projName,
       contactPerson: contact,
       phone: phone,
       email: email,
@@ -2030,6 +2147,20 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     records: [],
   })
   const [filterActionLoading, setFilterActionLoading] = useState(false)
+  const [directoryUsers, setDirectoryUsers] = useState([])
+
+  useEffect(() => {
+    let isMounted = true
+    userApi.listDirectory()
+      .then((res) => {
+        const list = Array.isArray(res) ? res : []
+        if (isMounted) setDirectoryUsers(list)
+      })
+      .catch(() => {
+        if (isMounted) setDirectoryUsers([])
+      })
+    return () => { isMounted = false }
+  }, [])
 
   useEffect(() => subscribeAdminReportTemplates(() => setTemplates(getAdminReportTemplates())), [])
 
@@ -2181,6 +2312,15 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
 
   const allOwnerNames = useMemo(() => {
     const set = new Set()
+    directoryUsers.forEach((u) => {
+      const name = (u.name || u.username || '').trim()
+      const email = (u.email || '').trim().toLowerCase()
+      if (name && email) {
+        set.add(`${name} (${email})`)
+      } else if (name) {
+        set.add(name)
+      }
+    })
     set.add('Atish Shah')
     set.add('Keval V Shah')
     set.add('Samir Sheth')
@@ -2194,8 +2334,8 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         }
       }
     })
-    return Array.from(set).sort()
-  }, [accounts])
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+  }, [directoryUsers, accounts])
 
   const fetchLiveLeads = useCallback(async () => {
     try {
@@ -2262,16 +2402,34 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     if (normEntity === 'deal') {
       const rawDeals = await fetchLiveDeals()
       const filtered = filterCollectionRecords(rawDeals, currentFilters, 'deal')
-      return mapDealRecordsToRows(filtered)
+      const mapped = mapDealRecordsToRows(filtered)
+      mapped.sort((a, b) => {
+        const epochB = parseAnyDateToEpoch(b._rawDate || b.dealDate)
+        const epochA = parseAnyDateToEpoch(a._rawDate || a.dealDate)
+        return epochB - epochA
+      })
+      return mapped
     }
     if (normEntity === 'quotation') {
       const rawQuotations = await fetchLiveQuotations()
       const filtered = filterCollectionRecords(rawQuotations, currentFilters, 'quotation')
-      return mapQuotationRecordsToRows(filtered)
+      const mapped = mapQuotationRecordsToRows(filtered)
+      mapped.sort((a, b) => {
+        const epochB = parseAnyDateToEpoch(b._rawDate || b.quotationDate)
+        const epochA = parseAnyDateToEpoch(a._rawDate || a.quotationDate)
+        return epochB - epochA
+      })
+      return mapped
     }
     const rawLeads = await fetchLiveLeads()
     const filtered = filterCollectionRecords(rawLeads, currentFilters, 'account')
-    return mapRecordsToRows(filtered)
+    const mapped = mapRecordsToRows(filtered)
+    mapped.sort((a, b) => {
+      const epochB = parseAnyDateToEpoch(b._rawDate || b.accountDate)
+      const epochA = parseAnyDateToEpoch(a._rawDate || a.accountDate)
+      return epochB - epochA
+    })
+    return mapped
   }, [fetchLiveDeals, fetchLiveQuotations, fetchLiveLeads])
 
   const getFilterModalEntityType = useCallback(() => {
@@ -2354,6 +2512,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           { header: '#', key: 'srNo', width: 8 },
           { header: 'Account No', key: 'accountNumber', width: 16 },
           { header: 'Account Name', key: 'accountName', width: 30 },
+          { header: 'Project Name', key: 'projectName', width: 28 },
           { header: 'Contact Person', key: 'contactPerson', width: 22 },
           { header: 'Phone', key: 'phone', width: 18 },
           { header: 'Email', key: 'email', width: 26 },
@@ -2364,9 +2523,20 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         ]
       }
 
+      const dateRangeLabel = (filterState.startDate && filterState.endDate)
+        ? `Date Range: ${filterState.startDate} to ${filterState.endDate}`
+        : filterState.startDate
+          ? `Date: From ${filterState.startDate}`
+          : filterState.endDate
+            ? `Date: Up to ${filterState.endDate}`
+            : `Period: ${filterState.period || 'All Dates'}`
+      const ownerLabel = filterState.owner && filterState.owner !== 'All' ? `Owner: ${filterState.owner}` : 'Owner: All Owners'
+      const statusLabel = filterState.status && filterState.status !== 'All' ? `Status: ${filterState.status}` : 'Status: All Status'
+
       exportExcelWorkbook({
         filename: `${slugify(filterState.reportName || 'report')}${ownerStr}${statusStr}-${slugify(dateRangeStr)}.xlsx`,
-        title: `${filterState.reportName || 'Custom Report'} (${filterState.owner || 'All Owners'} - ${filterState.status || 'All Status'})`,
+        title: `${filterState.reportName || 'Custom Report'} - Swati CRM`,
+        subtitle: `${ownerLabel} | ${statusLabel} | ${dateRangeLabel} | Total Records: ${rows.length} | Generated: ${new Date().toLocaleDateString('en-IN')}`,
         sheetName: sheetName,
         columns: columns,
         rows: rows,
@@ -2418,11 +2588,11 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
 
     let reportFilters = {
       reportName: report.title || report.name || 'Status Report',
-      period: 'Custom Date Range',
-      startDate: '',
-      endDate: '',
-      owner: 'All',
-      status: 'All',
+      period: report.period || (report.recordDateFrom || report.startDate ? 'Custom Date Range' : 'All Dates'),
+      startDate: report.recordDateFrom || report.dateRange?.fromDate || report.startDate || '',
+      endDate: report.recordDateTo || report.dateRange?.toDate || report.endDate || '',
+      owner: report.accountOwner || report.owner || 'All',
+      status: report.status || 'All',
     }
 
     if (report.isFixedStatusTemplate) {
@@ -2484,11 +2654,11 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
 
     let reportFilters = {
       reportName: report.title || report.name || 'Status Report',
-      period: 'Custom Date Range',
-      startDate: '',
-      endDate: '',
-      owner: 'All',
-      status: 'All',
+      period: report.period || (report.recordDateFrom || report.startDate ? 'Custom Date Range' : 'All Dates'),
+      startDate: report.recordDateFrom || report.dateRange?.fromDate || report.startDate || '',
+      endDate: report.recordDateTo || report.dateRange?.toDate || report.endDate || '',
+      owner: report.accountOwner || report.owner || 'All',
+      status: report.status || 'All',
     }
 
     if (report.isFixedStatusTemplate) {
@@ -2550,6 +2720,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         { header: '#', key: 'srNo', width: 8 },
         { header: 'Account No', key: 'accountNumber', width: 16 },
         { header: 'Account Name', key: 'accountName', width: 30 },
+        { header: 'Project Name', key: 'projectName', width: 28 },
         { header: 'Contact Person', key: 'contactPerson', width: 22 },
         { header: 'Phone', key: 'phone', width: 18 },
         { header: 'Email', key: 'email', width: 26 },
@@ -2560,9 +2731,19 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
       ]
     }
 
+    const dateRangeLabel = (reportFilters.startDate && reportFilters.endDate)
+      ? `Date Range: ${reportFilters.startDate} to ${reportFilters.endDate}`
+      : reportFilters.startDate
+        ? `Date: From ${reportFilters.startDate}`
+        : reportFilters.endDate
+          ? `Date: Up to ${reportFilters.endDate}`
+          : `Period: ${reportFilters.period || 'All Dates'}`
+    const ownerLabel = reportFilters.owner && reportFilters.owner !== 'All' ? `Owner: ${reportFilters.owner}` : 'Owner: All'
+
     exportExcelWorkbook({
       filename: `${slugify(report.title || report.name || 'report')}-${new Date().toISOString().slice(0, 10)}.xlsx`,
-      title: `${report.title || report.name} - Swati CRM`,
+      title: `${report.title || report.name || 'Custom Report'} - Swati CRM`,
+      subtitle: `${ownerLabel} | ${dateRangeLabel} | Total Records: ${rows.length} | Generated: ${new Date().toLocaleDateString('en-IN')}`,
       sheetName: sheetName,
       columns: columns,
       rows: rows,
@@ -2609,6 +2790,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         { header: '#', key: 'srNo', width: 8 },
         { header: 'Account No', key: 'accountNumber', width: 16 },
         { header: 'Account Name', key: 'accountName', width: 30 },
+        { header: 'Project Name', key: 'projectName', width: 28 },
         { header: 'Contact Person', key: 'contactPerson', width: 22 },
         { header: 'Phone', key: 'phone', width: 18 },
         { header: 'Email', key: 'email', width: 26 },
@@ -2619,9 +2801,21 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
       ]
     }
 
+    const filterInfo = structuredModalData.filterInfo || {}
+    const dateRangeLabel = filterInfo.startDate && filterInfo.endDate
+      ? `Date Range: ${filterInfo.startDate} to ${filterInfo.endDate}`
+      : filterInfo.startDate
+        ? `Date: From ${filterInfo.startDate}`
+        : filterInfo.endDate
+          ? `Date: Up to ${filterInfo.endDate}`
+          : `Period: ${filterInfo.period || 'All Dates'}`
+    const ownerLabel = filterInfo.owner && filterInfo.owner !== 'All' ? `Owner: ${filterInfo.owner}` : 'Owner: All'
+    const statusLabel = filterInfo.status && filterInfo.status !== 'All' ? `Status: ${filterInfo.status}` : 'Status: All'
+
     exportExcelWorkbook({
       filename: `${slugify(structuredModalData.title || 'custom-report')}-${new Date().toISOString().slice(0, 10)}.xlsx`,
       title: `${structuredModalData.title || 'Custom Report'} - Swati CRM`,
+      subtitle: `${ownerLabel} | ${statusLabel} | ${dateRangeLabel} | Total Records: ${structuredModalData.records?.length || 0} | Generated: ${new Date().toLocaleDateString('en-IN')}`,
       sheetName: sheetName,
       columns: columns,
       rows: structuredModalData.records,
@@ -3624,13 +3818,22 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
             const id = String(row._id || row.id || '').trim()
             if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
           } else if (targetCategory === 'account') {
-            const accNo = String(
-              row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
-            ).trim().toUpperCase()
-            if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL') return `ACC:${accNo}`
-            const id = String(row._id || row.id || '').trim()
-            if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
+            const id = String(row._id || row.id || row.legacyId || '').trim()
+            if (id && id !== '-' && id !== 'UNDEFINED' && id !== 'NULL') {
+              return `ACC_ID:${id}`
+            }
+            const accName = String(row['Account Name'] || row.accountName || row.name || '').trim().toLowerCase()
+            const projName = String(row['Project Name'] || row.projectName || row.project || '').trim()
+            const rawDate = row['Account Date'] || row.accountDate || row.date || row.createdAt || ''
+            const accDate = formatIndianDateStr(rawDate)
+            const stage = String(row.stage || row.status || row.accountStatus || '').trim().toLowerCase()
+            if (!accName || !projName || projName === '-' || !accDate || accDate === '-') {
+              return `__unique_${Math.random().toString(36).slice(2)}`
+            }
+            return `ACC:${accName}|PROJ:${projName}|DATE:${accDate}|STAGE:${stage}`
           } else {
+            const id = String(row._id || row.id || '').trim()
+            if (id && id !== '-' && id !== 'UNDEFINED' && id !== 'NULL') return `DOC_ID:${id}`
             const dealNo = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || '').trim().toUpperCase()
             if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL') return `DEAL:${dealNo}`
             const qNo = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNumber || row.quoteNumber || '').trim().toUpperCase()
@@ -3641,8 +3844,6 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
               row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
             ).trim().toUpperCase()
             if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL') return `ACC:${accNo}`
-            const id = String(row._id || row.id || '').trim()
-            if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
           }
 
           return JSON.stringify(row)
@@ -3734,8 +3935,18 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         })
         const isMultiOwner = sortedOwnerNames.length > 1 || (ownerScopeText && (ownerScopeText.toLowerCase().includes('all') || ownerScopeText.toLowerCase().includes('group')))
 
-        const rawFrom = report.recordDateFrom || report.dateRange?.fromDate || report.fromDate || ''
-        const rawTo = report.recordDateTo || report.dateRange?.toDate || report.toDate || ''
+        const formatIndianDateStr = (val) => {
+          if (!val || val === '-' || val === 'undefined' || val === 'null') return ''
+          const s = String(val).trim()
+          if (!s) return ''
+          const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/)
+          if (dmy) return `${dmy[1].padStart(2, '0')}-${dmy[2].padStart(2, '0')}-${dmy[3]}`
+          const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+          if (iso) return `${iso[3].padStart(2, '0')}-${iso[2].padStart(2, '0')}-${iso[1]}`
+          return s
+        }
+        const rawFrom = formatIndianDateStr(report.recordDateFrom || report.dateRange?.fromDate || report.fromDate || '')
+        const rawTo = formatIndianDateStr(report.recordDateTo || report.dateRange?.toDate || report.toDate || '')
         const dateRangeText = (rawFrom || rawTo) ? `Date Range: ${rawFrom || 'Start'} to ${rawTo || 'Present'}` : 'Date Range: All Dates'
 
         const criteriaList = Array.isArray(report.filters) && report.filters.length > 0
@@ -4503,7 +4714,16 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     for (const row of dataSets) {
       let rowKey = ''
       if (targetCategory === 'account') {
-        rowKey = String(row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || row.id || row._id || '').trim()
+        const id = String(row._id || row.id || row.legacyId || '').trim()
+        if (id && id !== '-' && id !== 'UNDEFINED' && id !== 'NULL') {
+          rowKey = `ACC_ID:${id}`
+        } else {
+          const accNo = String(row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || '').trim()
+          const projName = String(row['Project Name'] || row.projectName || row.project || '').trim()
+          const rawDate = row['Account Date'] || row.accountDate || row.date || row.createdAt || ''
+          const stage = String(row.stage || row.status || row.accountStatus || '').trim().toLowerCase()
+          rowKey = `ACC_NO:${accNo}|PROJ:${projName}|DATE:${rawDate}|STAGE:${stage}`
+        }
       } else if (targetCategory === 'deal') {
         rowKey = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || row.id || row._id || '').trim()
       } else if (targetCategory === 'customer') {

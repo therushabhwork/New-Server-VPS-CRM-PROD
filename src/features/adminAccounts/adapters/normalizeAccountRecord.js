@@ -128,12 +128,27 @@ const resolveStage = (account) => {
 }
 
 export const normalizeAccountRecord = (account = {}, index = 0, options = {}) => {
-  void index
   const primaryContact = Array.isArray(account.contacts) ? account.contacts[0] || {} : {}
   const stage = resolveStage(account)
   const stageMeta = stageLookup[stage] || stageLookup[DEFAULT_ACCOUNT_STAGE]
   const fallbackDate = account.createdAt || new Date().toISOString()
-  const rawAccountOwner = account.accountOwnerName || account.accountOwner || account.ownerName || account.raw?.accountOwnerName || account.raw?.accountOwner || account.raw?.ownerName || ownerByUserId[account.userId] || 'Unassigned'
+  const rawAccountOwner = (
+    account.accountOwnerName
+    || account.accountOwner
+    || account.ownerName
+    || account.raw?.accountOwnerName
+    || account.raw?.accountOwner
+    || account.raw?.ownerName
+    || account.formData?.['Account Owner']
+    || account.formData?.accountOwner
+    || account.formData?.owner
+    || account.raw?.formData?.['Account Owner']
+    || account.raw?.formData?.accountOwner
+    || account.data?.accountOwner
+    || account.raw?.data?.accountOwner
+    || ownerByUserId[account.userId]
+    || 'Unassigned'
+  )
   const accountOwner = getCanonicalCrmUserName(rawAccountOwner) || titleize(rawAccountOwner)
   const accountOwnerCode = String(
     account.accountOwnerCode
@@ -227,8 +242,31 @@ export const normalizeAccountRecord = (account = {}, index = 0, options = {}) =>
   if (typeof accountNameVal === 'string' && /Report Filter/i.test(accountNameVal)) {
     return null
   }
-  const dealNameVal = cleanNullableText(account.dealName) || cleanNullableText(account.data?.dealName) || cleanNullableText(account.raw?.data?.dealName) || cleanNullableText(account.raw?.dealName) || cleanNullableText(formData['Deal Name']) || cleanNullableText(formData.dealName) || cleanNullableText(account.raw?.formData?.dealName)
-  const rawProjectName = cleanNullableText(account.projectName) || cleanNullableText(account.data?.projectName) || cleanNullableText(formData['Project Name']) || cleanNullableText(formData.projectName) || cleanNullableText(account.raw?.projectName) || cleanNullableText(account.raw?.formData?.['Project Name']) || cleanNullableText(account.raw?.formData?.projectName)
+  const scanCaseInsensitiveKey = (obj = {}, keyword = '') => {
+    if (!obj || typeof obj !== 'object') return ''
+    const lowerKey = keyword.toLowerCase().replace(/[\s_-]+/g, '')
+    for (const [k, v] of Object.entries(obj)) {
+      if (k.toLowerCase().replace(/[\s_-]+/g, '').includes(lowerKey)) {
+        const cleaned = cleanNullableText(v)
+        if (cleaned) return cleaned
+      }
+    }
+    return ''
+  }
+
+  const scannedProjectName = (
+    scanCaseInsensitiveKey(formData, 'projectname')
+    || scanCaseInsensitiveKey(formData, 'project')
+    || scanCaseInsensitiveKey(account.raw?.formData, 'projectname')
+    || scanCaseInsensitiveKey(account.raw?.formData, 'project')
+    || scanCaseInsensitiveKey(data, 'projectname')
+    || scanCaseInsensitiveKey(data, 'project')
+    || scanCaseInsensitiveKey(account.raw?.data, 'projectname')
+    || scanCaseInsensitiveKey(account.raw?.data, 'project')
+  )
+
+  const dealNameVal = cleanNullableText(account.dealName) || cleanNullableText(account.data?.dealName) || cleanNullableText(account.raw?.data?.dealName) || cleanNullableText(account.raw?.dealName) || cleanNullableText(formData['Deal Name']) || cleanNullableText(formData.dealName) || cleanNullableText(account.raw?.formData?.dealName) || cleanNullableText(account.raw?.formData?.['Deal Name']) || cleanNullableText(formData.formData?.dealName) || cleanNullableText(formData.formData?.['Deal Name'])
+  const rawProjectName = cleanNullableText(account.projectName) || cleanNullableText(account.data?.projectName) || cleanNullableText(formData['Project Name']) || cleanNullableText(formData.projectName) || cleanNullableText(account.raw?.projectName) || cleanNullableText(account.raw?.formData?.['Project Name']) || cleanNullableText(account.raw?.formData?.projectName) || scannedProjectName || cleanNullableText(account.project) || cleanNullableText(account.data?.project) || cleanNullableText(account.raw?.project) || cleanNullableText(formData.project) || cleanNullableText(formData['Project']) || cleanNullableText(formData.formData?.projectName) || cleanNullableText(formData.formData?.['Project Name']) || cleanNullableText(account.title) || cleanNullableText(account.raw?.title)
   const projectNameVal = rawProjectName || dealNameVal || '-'
   const primaryEmailVal = primaryEmail || formData['Email'] || formData.email || formData['Alternate Email'] || account.raw?.email || account.raw?.contactEmail || ''
   const primaryPhoneVal = primaryPhone || formData['Phone'] || formData.phone || formData['Alternate Phone'] || account.raw?.phone || account.raw?.contactPhone || ''
@@ -246,8 +284,17 @@ export const normalizeAccountRecord = (account = {}, index = 0, options = {}) =>
   const productCategoryVal = titleize(account.productCategory || formData['Product Category'] || formData.productCategory || account.raw?.productCategory || '')
   const userGroupVal = account.userGroup || formData['User Group'] || formData.userGroup || account.raw?.userGroup || account.raw?.formData?.['User Group'] || ''
 
+  const uniqueRecordId = String(
+    account.id
+    || account._id
+    || account.raw?._id
+    || account.raw?.id
+    || account.recordId
+    || (accountNumber ? `${accountNumber}_${index}` : `acc_${index}_${accountNameVal}`)
+  )
+
   const normalized = {
-    id: String(account.id || account._id || accountNumber),
+    id: uniqueRecordId,
     accountNumber,
     name: accountNameVal,
     accountName: accountNameVal,
@@ -255,6 +302,7 @@ export const normalizeAccountRecord = (account = {}, index = 0, options = {}) =>
     dealName: dealNameVal,
     projectName: projectNameVal,
     accountDate: account.accountDate || account.addedDate || formData['Added Date'] || formData.addedDate || formData['Account Date'] || formData.accountDate || account.raw?.accountDate || account.raw?.addedDate || account.raw?.formData?.['Added Date'] || account.raw?.formData?.['Account Date'] || fallbackDate,
+    accountOwner,
     accountOwnerName: accountOwner,
     accountOwnerCode,
     accountOwnerDisplay,

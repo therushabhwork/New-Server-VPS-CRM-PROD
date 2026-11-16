@@ -27,7 +27,7 @@ const WizardStepper = ({
         />
       </div>
 
-      <div className="wizard-stepper__track grid grid-cols-1 sm:grid-cols-3 gap-3 relative z-10">
+      <div className={`wizard-stepper__track grid grid-cols-1 ${steps.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-3 relative z-10`}>
         {steps.map((step, index) => {
           const isActive = index === currentStep
           const isComplete = index < currentStep

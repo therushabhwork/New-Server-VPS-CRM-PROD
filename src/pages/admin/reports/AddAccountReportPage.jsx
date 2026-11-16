@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   FaCheck,
@@ -42,6 +43,7 @@ import { userApi } from '../../../services/userApi'
 import { userGroupApi } from '../../../services/userGroupApi'
 import { saveAdminReportTemplate } from '../../../features/adminReports/reportTemplateStorage'
 import './AddAccountReportPage.css'
+import './CustomReportsPage.css'
 
 const buildFilterRow = () => ({
   id: generateId('FLT'),
@@ -49,6 +51,81 @@ const buildFilterRow = () => ({
   operator: 'equals',
   value: '',
 })
+
+export const parseAnyDateToEpoch = (val) => {
+  if (!val || val === '-' || val === 'undefined' || val === 'null') return 0
+  if (val instanceof Date) return isNaN(val.getTime()) ? 0 : val.getTime()
+  if (typeof val === 'number') return isNaN(val) ? 0 : val
+  const s = String(val).trim()
+  if (!s) return 0
+
+  // 1. Match DD-MM-YYYY or DD/MM/YYYY
+  const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/)
+  if (dmy) {
+    const d = parseInt(dmy[1], 10)
+    const m = parseInt(dmy[2], 10) - 1
+    const y = parseInt(dmy[3], 10)
+    const dt = new Date(y, m, d, 0, 0, 0, 0)
+    return isNaN(dt.getTime()) ? 0 : dt.getTime()
+  }
+
+  // 2. Match YYYY-MM-DD
+  const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+  if (iso) {
+    const y = parseInt(iso[1], 10)
+    const m = parseInt(iso[2], 10) - 1
+    const d = parseInt(iso[3], 10)
+    const dt = new Date(y, m, d, 0, 0, 0, 0)
+    return isNaN(dt.getTime()) ? 0 : dt.getTime()
+  }
+
+  const parsed = new Date(s)
+  return isNaN(parsed.getTime()) ? 0 : parsed.getTime()
+}
+
+export const toHtmlDateValue = (val) => {
+  if (!val) return ''
+  const s = String(val).trim()
+  const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/)
+  if (dmy) {
+    return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`
+  }
+  const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+  if (iso) {
+    return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`
+  }
+  return s
+}
+
+export const formatToIndianDMY = (val) => {
+  if (!val || val === '-' || val === 'undefined' || val === 'null') return '-'
+  const s = String(val).trim()
+  if (!s) return '-'
+  const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/)
+  if (dmy) {
+    return `${dmy[1].padStart(2, '0')}-${dmy[2].padStart(2, '0')}-${dmy[3]}`
+  }
+  const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+  if (iso) {
+    return `${iso[3].padStart(2, '0')}-${iso[2].padStart(2, '0')}-${iso[1]}`
+  }
+  const d = new Date(s)
+  if (!isNaN(d.getTime())) {
+    return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`
+  }
+  return s
+}
+
+export const extractCleanOwnerName = (ownerStr) => {
+  if (!ownerStr) return ''
+  let s = String(ownerStr).trim()
+  if (s.toLowerCase() === 'all' || s.toLowerCase() === 'all owners' || s.toLowerCase() === 'all users' || s === '*') return ''
+  // Strip email in parentheses: "Krunal Patel (mkt.brd@...)" -> "Krunal Patel"
+  s = s.replace(/\s*\([^)]*\)/g, '').trim()
+  // Strip leading owner codes: "102 - Krunal Patel" -> "Krunal Patel"
+  s = s.replace(/^\d{3,}\s*-+\s*/u, '').trim()
+  return s
+}
 
 const initialFormState = {
   entityType: 'Account',
@@ -98,6 +175,16 @@ const AddAccountReportPage = () => {
   const [fieldSearchQuery, setFieldSearchQuery] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [isStructurePreviewOpen, setIsStructurePreviewOpen] = useState(false)
+  const [structurePreviewData, setStructurePreviewData] = useState({
+    title: '',
+    columns: [],
+    rows: [],
+    dateRangeText: '',
+    ownerScope: '',
+  })
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false)
+  const [previewSearchTerm, setPreviewSearchTerm] = useState('')
 
   // Load User Groups
   useEffect(() => {
@@ -211,13 +298,45 @@ const AddAccountReportPage = () => {
     if (templateIdParam) return // Handled in reopen loader
 
     if (contextParam === 'deal') {
-      setFormState((prev) => ({ ...prev, entityType: 'Deal', dateFilterField: 'dealDate', description: 'Deal Report Template' }))
+      setFormState((prev) => ({
+        ...prev,
+        entityType: 'Deal',
+        dateFilterField: 'dealDate',
+        description: 'Deal Report Template',
+        selectedFields: prev.selectedFields && prev.selectedFields.length > 0
+          ? prev.selectedFields
+          : ['dealNumber', 'dealName', 'dealDate', 'dealOwner', 'stage', 'dealValue', 'projectName'],
+      }))
     } else if (contextParam === 'quotation') {
-      setFormState((prev) => ({ ...prev, entityType: 'Quotation', dateFilterField: 'quotationDate', description: 'Quotation Report Template' }))
+      setFormState((prev) => ({
+        ...prev,
+        entityType: 'Quotation',
+        dateFilterField: 'quotationDate',
+        description: 'Quotation Report Template',
+        selectedFields: prev.selectedFields && prev.selectedFields.length > 0
+          ? prev.selectedFields
+          : ['quotationNo', 'date', 'accountName', 'dealName', 'grandTotal', 'status'],
+      }))
     } else if (contextParam === 'customer') {
-      setFormState((prev) => ({ ...prev, entityType: 'Customer', dateFilterField: 'createdAt', description: 'Customer Report Template' }))
+      setFormState((prev) => ({
+        ...prev,
+        entityType: 'Customer',
+        dateFilterField: 'createdAt',
+        description: 'Customer Report Template',
+        selectedFields: prev.selectedFields && prev.selectedFields.length > 0
+          ? prev.selectedFields
+          : ['customerNumber', 'customerName', 'companyName', 'city', 'phone', 'email', 'status'],
+      }))
     } else {
-      setFormState((prev) => ({ ...prev, entityType: 'Account', dateFilterField: 'accountDate', description: 'Account Report Template' }))
+      setFormState((prev) => ({
+        ...prev,
+        entityType: 'Account',
+        dateFilterField: 'accountDate',
+        description: 'Account Report Template',
+        selectedFields: prev.selectedFields && prev.selectedFields.length > 0
+          ? prev.selectedFields
+          : ['accountNumber', 'accountDate', 'name', 'projectName', 'accountOwner', 'status', 'phone', 'email'],
+      }))
     }
   }, [contextParam, templateIdParam])
 
@@ -380,15 +499,15 @@ const AddAccountReportPage = () => {
     setSelectedUserGroups([])
   }
 
-  // Excel Export Handler (Fetches real date-filtered MongoDB records via unified report engine)
-  const handleExportExcel = async () => {
-    setPageError('')
+  // Shared Report Processing (Fetches date-filtered MongoDB records, applies multi-record uniqueness & date-wise sorting)
+  const fetchProcessedReportData = async () => {
     if (formState.selectedFields.length === 0) {
-      setPageError('Select at least one field to export.')
-      return
+      throw new Error('Select at least one field to preview or export.')
     }
 
-    const reportTitle = formState.reportName.trim() || `${formState.entityType} Report`
+    const cleanOwner = extractCleanOwnerName(formState.accountOwner)
+    const reportTitle = formState.reportName.trim() ||
+      (cleanOwner ? `${cleanOwner} ${formState.entityType || 'Account'} Report` : `${formState.entityType || 'Account'} Report`)
     const selectedKeys = selectedFieldObjects.map((f) => f.key)
     const columns = selectedFieldObjects.map((f) => ({
       key: f.label,
@@ -398,175 +517,218 @@ const AddAccountReportPage = () => {
       formatter: (val, row) => {
         if (!row) return '-'
         const resolved = row[f.label] ?? (f.key ? row[f.key] : undefined) ?? val
-        return (resolved !== undefined && resolved !== null && resolved !== '') ? String(resolved) : '-'
+        if (resolved === undefined || resolved === null || resolved === '' || resolved === 'undefined' || resolved === 'null') return '-'
+        const canonKey = String(f.key || f.label || '').toLowerCase()
+        if (canonKey.includes('date') || canonKey.includes('createdat')) {
+          return formatToIndianDMY(resolved)
+        }
+        return String(resolved)
       },
     }))
 
-    setIsExporting(true)
-    try {
-      const hasDateRange = Boolean(formState.recordDateFrom || formState.recordDateTo)
-      const sanitizedFilters = formState.filters.filter(
-        (f) => f.field && ((f.value !== undefined && f.value !== null && String(f.value).trim() !== '') || f.operator === 'is_empty' || f.operator === 'is_not_empty')
-      )
-      const payload = {
-        template: {
-          entityType: formState.entityType,
-          reportName: reportTitle,
-          accountOwner: formState.accountOwner || 'all',
-          owner: formState.accountOwner || 'all',
-          userGroups: selectedUserGroups,
-          selectedUserGroups: selectedUserGroups,
-          userGroupMembers: selectedGroupMembers,
-          dateFilterField: formState.dateFilterField || (formState.entityType === 'Deal' ? 'dealDate' : formState.entityType === 'Quotation' ? 'quotationDate' : formState.entityType === 'Customer' ? 'createdAt' : 'accountDate'),
-          recordDateFrom: formState.recordDateFrom || undefined,
-          recordDateTo: formState.recordDateTo || undefined,
-          selectedFields: selectedKeys,
-          displayFields: selectedKeys,
-          filters: sanitizedFilters,
-        },
-        dataSource: formState.entityType.toLowerCase(),
-        reportContext: formState.entityType.toLowerCase(),
+    const fromDateIso = toHtmlDateValue(formState.recordDateFrom)
+    const toDateIso = toHtmlDateValue(formState.recordDateTo)
+    const hasDateRange = Boolean(fromDateIso || toDateIso)
+    const sanitizedFilters = formState.filters.filter(
+      (f) => f.field && ((f.value !== undefined && f.value !== null && String(f.value).trim() !== '') || f.operator === 'is_empty' || f.operator === 'is_not_empty')
+    )
+    const payload = {
+      template: {
+        entityType: formState.entityType,
+        reportName: reportTitle,
+        accountOwner: formState.accountOwner || 'all',
+        owner: formState.accountOwner || 'all',
+        userGroups: selectedUserGroups,
+        selectedUserGroups: selectedUserGroups,
+        userGroupMembers: selectedGroupMembers,
+        dateFilterField: formState.dateFilterField || (formState.entityType === 'Deal' ? 'dealDate' : formState.entityType === 'Quotation' ? 'quotationDate' : formState.entityType === 'Customer' ? 'createdAt' : 'accountDate'),
+        recordDateFrom: fromDateIso || undefined,
+        recordDateTo: toDateIso || undefined,
         selectedFields: selectedKeys,
-        ownerFilter: formState.accountOwner || 'all',
-        period: hasDateRange ? 'custom' : 'all',
-        recordDateFrom: formState.recordDateFrom || undefined,
-        recordDateTo: formState.recordDateTo || undefined,
-        dateRange: {
-          fromDate: formState.recordDateFrom || undefined,
-          toDate: formState.recordDateTo || undefined,
-        },
-        quotesGeneratedRange: {
-          generatedFrom: formState.generatedFrom || undefined,
-          generatedTo: formState.generatedTo || undefined,
-        },
+        displayFields: selectedKeys,
+        filters: sanitizedFilters,
+      },
+      dataSource: formState.entityType.toLowerCase(),
+      reportContext: formState.entityType.toLowerCase(),
+      selectedFields: selectedKeys,
+      ownerFilter: formState.accountOwner || 'all',
+      period: hasDateRange ? 'custom' : 'all',
+      recordDateFrom: fromDateIso || undefined,
+      recordDateTo: toDateIso || undefined,
+      dateRange: {
+        fromDate: fromDateIso || undefined,
+        toDate: toDateIso || undefined,
+      },
+      quotesGeneratedRange: {
         generatedFrom: formState.generatedFrom || undefined,
         generatedTo: formState.generatedTo || undefined,
-        filters: sanitizedFilters,
-        limit: 0,
-      }
-      const res = await apiClient.post('/reports/export-excel', payload)
-      const exportPayload = (res && typeof res === 'object') ? res : {}
+      },
+      generatedFrom: formState.generatedFrom || undefined,
+      generatedTo: formState.generatedTo || undefined,
+      filters: sanitizedFilters,
+      limit: 0,
+    }
+    const res = await apiClient.post('/reports/export-excel', payload)
+    const exportPayload = (res && typeof res === 'object') ? res : {}
 
-      let rawRecords = []
-      if (Array.isArray(exportPayload.rows)) rawRecords = exportPayload.rows
-      else if (Array.isArray(exportPayload.records)) rawRecords = exportPayload.records
-      else if (Array.isArray(exportPayload.data)) rawRecords = exportPayload.data
-      else if (Array.isArray(exportPayload)) rawRecords = exportPayload
-      else if (exportPayload.row && typeof exportPayload.row === 'object') rawRecords = [exportPayload.row]
-      else if (exportPayload.record && typeof exportPayload.record === 'object') rawRecords = [exportPayload.record]
-      else if (exportPayload._id || exportPayload.id || exportPayload.accountNumber || exportPayload.dealNumber || exportPayload.quotationNumber) rawRecords = [exportPayload]
+    let rawRecords = []
+    if (Array.isArray(exportPayload.rows)) rawRecords = exportPayload.rows
+    else if (Array.isArray(exportPayload.records)) rawRecords = exportPayload.records
+    else if (Array.isArray(exportPayload.data)) rawRecords = exportPayload.data
+    else if (Array.isArray(exportPayload)) rawRecords = exportPayload
+    else if (exportPayload.row && typeof exportPayload.row === 'object') rawRecords = [exportPayload.row]
+    else if (exportPayload.record && typeof exportPayload.record === 'object') rawRecords = [exportPayload.record]
+    else if (exportPayload._id || exportPayload.id || exportPayload.accountNumber || exportPayload.dealNumber || exportPayload.quotationNumber) rawRecords = [exportPayload]
 
-      const exportRows = rawRecords
+    if (rawRecords.length === 0) {
+      throw new Error('No matching records found for the selected date range and filters.')
+    }
 
-      if (exportRows.length === 0) {
-        setPageError('No matching records found to export for the selected date range and filters.')
-        return
-      }
-
-      // Canonical deduplication ensuring 100% zero repeated rows
-      // For deals, quotations, and customers, never deduplicate by Account No. because multiple records can share an account
-      const currentEntity = String(formState.entityType || 'Account').trim().toLowerCase()
-      const getCanonicalRecordKey = (row) => {
-        if (currentEntity === 'deal') {
-          const dealNo = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || '').trim().toUpperCase()
-          if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL') return `DEAL:${dealNo}`
-          const id = String(row._id || row.id || '').trim()
-          if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
-        } else if (currentEntity === 'quotation') {
-          const qNo = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNumber || row.quoteNumber || '').trim().toUpperCase()
-          if (qNo && qNo !== '-' && qNo !== 'UNDEFINED' && qNo !== 'NULL') return `QUOTE:${qNo}`
-          const id = String(row._id || row.id || '').trim()
-          if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
-        } else if (currentEntity === 'customer') {
-          const custNo = String(row['Customer No.'] || row['Customer No'] || row.customerNumber || '').trim().toUpperCase()
-          if (custNo && custNo !== '-' && custNo !== 'UNDEFINED' && custNo !== 'NULL') return `CUST:${custNo}`
-          const id = String(row._id || row.id || '').trim()
-          if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
-        } else if (currentEntity === 'account') {
-          const accNo = String(
-            row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
-          ).trim().toUpperCase()
-          if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL') return `ACC:${accNo}`
-          const id = String(row._id || row.id || '').trim()
-          if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
-        } else {
-          const dealNo = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || '').trim().toUpperCase()
-          if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL') return `DEAL:${dealNo}`
-          const qNo = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNumber || row.quoteNumber || '').trim().toUpperCase()
-          if (qNo && qNo !== '-' && qNo !== 'UNDEFINED' && qNo !== 'NULL') return `QUOTE:${qNo}`
-          const custNo = String(row['Customer No.'] || row['Customer No'] || row.customerNumber || '').trim().toUpperCase()
-          if (custNo && custNo !== '-' && custNo !== 'UNDEFINED' && custNo !== 'NULL') return `CUST:${custNo}`
-          const accNo = String(
-            row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
-          ).trim().toUpperCase()
-          if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL') return `ACC:${accNo}`
-          const id = String(row._id || row.id || '').trim()
-          if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
+    // Canonical deduplication ensuring 100% zero repeated rows while preserving multi-project & multi-date records
+    const currentEntity = String(formState.entityType || 'Account').trim().toLowerCase()
+    const getCanonicalRecordKey = (row) => {
+      if (currentEntity === 'deal') {
+        const id = String(row._id || row.id || '').trim()
+        if (id && id !== '-' && id !== 'UNDEFINED' && id !== 'NULL') return `DEAL_ID:${id}`
+        const dealNo = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || '').trim().toUpperCase()
+        if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL') return `DEAL:${dealNo}`
+      } else if (currentEntity === 'quotation') {
+        const id = String(row._id || row.id || '').trim()
+        if (id && id !== '-' && id !== 'UNDEFINED' && id !== 'NULL') return `QUOTE_ID:${id}`
+        const qNo = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNumber || row.quoteNumber || '').trim().toUpperCase()
+        if (qNo && qNo !== '-' && qNo !== 'UNDEFINED' && qNo !== 'NULL') return `QUOTE:${qNo}`
+      } else if (currentEntity === 'customer') {
+        const id = String(row._id || row.id || '').trim()
+        if (id && id !== '-' && id !== 'UNDEFINED' && id !== 'NULL') return `CUST_ID:${id}`
+        const custNo = String(row['Customer No.'] || row['Customer No'] || row.customerNumber || '').trim().toUpperCase()
+        if (custNo && custNo !== '-' && custNo !== 'UNDEFINED' && custNo !== 'NULL') return `CUST:${custNo}`
+      } else if (currentEntity === 'account') {
+        const id = String(row._id || row.id || row.legacyId || '').trim()
+        if (id && id !== '-' && id !== 'UNDEFINED' && id !== 'NULL') {
+          return `ACC_ID:${id}`
         }
-
-        return JSON.stringify(row)
-      }
-
-      const seenRowKeys = new Set()
-      const dedupedRows = []
-      for (const row of exportRows) {
-        const rowKey = getCanonicalRecordKey(row)
-        if (!seenRowKeys.has(rowKey)) {
-          seenRowKeys.add(rowKey)
-          dedupedRows.push(row)
+        const accName = String(row['Account Name'] || row.accountName || row.name || '').trim().toLowerCase()
+        const projName = String(row['Project Name'] || row.projectName || row.project || '').trim()
+        const rawDate = row['Account Date'] || row.accountDate || row.date || row.createdAt || ''
+        const accDate = formatToIndianDMY(rawDate)
+        const stage = String(row.stage || row.status || row.accountStatus || '').trim().toLowerCase()
+        if (!accName || !projName || projName === '-' || !accDate || accDate === '-') {
+          return `__unique_${Math.random().toString(36).slice(2)}`
         }
-      }
-
-      // Group records by Owner if All Owners or multiple owners exist
-      const entityLabel = formState.entityType || 'Account'
-      const entityPlural = entityLabel === 'Customer' ? 'Customers' : entityLabel === 'Deal' ? 'Deals' : entityLabel === 'Quotation' ? 'Quotations' : 'Accounts'
-
-      const ownerGroups = {}
-      dedupedRows.forEach((row) => {
-        const ownerName = String(
-          row[`${entityLabel} Owner`] ||
-          row['Account Owner'] || row.accountOwner ||
-          row['Deal Owner'] || row.dealOwner ||
-          row['Quotation Owner'] || row.quotationOwner ||
-          row['Customer Owner'] || row.customerOwner ||
-          row.ownerName || row.owner || formState.accountOwner || 'Unassigned'
-        ).trim() || 'Unassigned'
-        if (!ownerGroups[ownerName]) ownerGroups[ownerName] = []
-        ownerGroups[ownerName].push(row)
-      })
-
-      const sortedOwnerNames = Object.keys(ownerGroups).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-      const isMultiOwner = sortedOwnerNames.length > 1 || !formState.accountOwner || formState.accountOwner === 'all'
-
-      const finalExcelRows = []
-      if (isMultiOwner && sortedOwnerNames.length > 1) {
-        sortedOwnerNames.forEach((ownerName) => {
-          const groupRows = ownerGroups[ownerName] || []
-          const ownerHeaderRow = {}
-          columns.forEach((c, idx) => {
-            if (idx === 0) {
-              ownerHeaderRow[c.key] = `▶ ${entityLabel} Owner: ${ownerName} (${groupRows.length} ${entityPlural})`
-              ownerHeaderRow[c.label] = ownerHeaderRow[c.key]
-            } else {
-              ownerHeaderRow[c.key] = ''
-              ownerHeaderRow[c.label] = ''
-            }
-          })
-          finalExcelRows.push(ownerHeaderRow)
-          groupRows.forEach(r => finalExcelRows.push(r))
-        })
+        return `ACC:${accName}|PROJ:${projName}|DATE:${accDate}|STAGE:${stage}`
       } else {
-        dedupedRows.forEach(r => finalExcelRows.push(r))
+        const id = String(row._id || row.id || '').trim()
+        if (id && id !== '-' && id !== 'UNDEFINED' && id !== 'NULL') return `DOC_ID:${id}`
+        const accNo = String(row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || '').trim().toUpperCase()
+        const accName = String(row['Account Name'] || row.accountName || row.name || '').trim().toLowerCase()
+        const projName = String(row['Project Name'] || row.projectName || row.project || '').trim().toLowerCase()
+        const accDate = String(row['Account Date'] || row.accountDate || row.date || row.createdAt || '').trim().toLowerCase()
+        return `ACC:${accNo}|NAME:${accName}|PROJ:${projName}|DATE:${accDate}`
       }
+      return JSON.stringify(row)
+    }
 
-      const totalOwnersText = isMultiOwner && sortedOwnerNames.length > 1 ? ` | Total Owners: ${sortedOwnerNames.length}` : ''
+    const seenRowKeys = new Set()
+    const dedupedRows = []
+    for (const row of rawRecords) {
+      const rowKey = getCanonicalRecordKey(row)
+      if (!seenRowKeys.has(rowKey)) {
+        seenRowKeys.add(rowKey)
+        dedupedRows.push(row)
+      }
+    }
+
+    // Strict Date-Wise Sorting (latest first) across Project Name, Account Name, and Date
+    const parseRowDateEpoch = (row) => {
+      const val = row['Account Date'] || row.accountDate || row['Deal Date'] || row.dealDate ||
+        row['Quotation Date'] || row.quotationDate || row['Created Date'] || row.createdAt || '';
+      return parseAnyDateToEpoch(val);
+    };
+
+    dedupedRows.sort((a, b) => parseRowDateEpoch(b) - parseRowDateEpoch(a))
+
+    // Group records by Owner if All Owners or multiple owners exist
+    const entityLabel = formState.entityType || 'Account'
+    const entityPlural = entityLabel === 'Customer' ? 'Customers' : entityLabel === 'Deal' ? 'Deals' : entityLabel === 'Quotation' ? 'Quotations' : 'Accounts'
+
+    const ownerGroups = {}
+    dedupedRows.forEach((row) => {
+      const ownerName = String(
+        row[`${entityLabel} Owner`] ||
+        row['Account Owner'] || row.accountOwner ||
+        row['Deal Owner'] || row.dealOwner ||
+        row['Quotation Owner'] || row.quotationOwner ||
+        row['Customer Owner'] || row.customerOwner ||
+        row.ownerName || row.owner || formState.accountOwner || 'Unassigned'
+      ).trim() || 'Unassigned'
+      if (!ownerGroups[ownerName]) ownerGroups[ownerName] = []
+      ownerGroups[ownerName].push(row)
+    })
+
+    const sortedOwnerNames = Object.keys(ownerGroups).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+    const isMultiOwner = sortedOwnerNames.length > 1 || !formState.accountOwner || formState.accountOwner === 'all'
+
+    const finalExcelRows = []
+    if (isMultiOwner && sortedOwnerNames.length > 1) {
+      sortedOwnerNames.forEach((ownerName) => {
+        const groupRows = ownerGroups[ownerName] || []
+        groupRows.sort((a, b) => parseRowDateEpoch(b) - parseRowDateEpoch(a))
+        const ownerHeaderRow = {}
+        columns.forEach((c, idx) => {
+          if (idx === 0) {
+            ownerHeaderRow[c.key] = `▶ ${entityLabel} Owner: ${ownerName} (${groupRows.length} ${entityPlural})`
+            ownerHeaderRow[c.label] = ownerHeaderRow[c.key]
+          } else {
+            ownerHeaderRow[c.key] = ''
+            ownerHeaderRow[c.label] = ''
+          }
+        })
+        finalExcelRows.push(ownerHeaderRow)
+        groupRows.forEach(r => finalExcelRows.push(r))
+      })
+    } else {
+      dedupedRows.forEach(r => finalExcelRows.push(r))
+    }
+
+    const fromDisplay = formatToIndianDMY(formState.recordDateFrom)
+    const toDisplay = formatToIndianDMY(formState.recordDateTo)
+    const dateRangeText = (formState.recordDateFrom && formState.recordDateTo)
+      ? `Date Range: ${fromDisplay} to ${toDisplay}`
+      : formState.recordDateFrom
+        ? `Date: From ${fromDisplay}`
+        : formState.recordDateTo
+          ? `Date: Up to ${toDisplay}`
+          : 'Date: All Dates';
+
+    const totalOwnersText = isMultiOwner && sortedOwnerNames.length > 1 ? ` | Total Owners: ${sortedOwnerNames.length}` : ''
+
+    return {
+      reportTitle,
+      columns,
+      dedupedRows,
+      finalExcelRows,
+      isMultiOwner,
+      sortedOwnerNames,
+      totalOwnersText,
+      dateRangeText,
+    }
+  }
+
+  // Excel Export Handler (Fetches real date-filtered MongoDB records via unified report engine)
+  const handleExportExcel = async () => {
+    setPageError('')
+    setIsExporting(true)
+    try {
+      const data = await fetchProcessedReportData()
+      const cleanOwner = extractCleanOwnerName(formState.accountOwner)
+      const ownerLabel = cleanOwner ? `Owner Scope: ${cleanOwner}` : (formState.accountOwner || 'All Owners')
       exportExcelWorkbook({
-        filename: `${slugify(reportTitle)}.xlsx`,
-        title: reportTitle,
-        subtitle: `Owner Scope: ${formState.accountOwner || 'All Owners'}${totalOwnersText} | Total Unique Records: ${dedupedRows.length} | Generated: ${new Date().toLocaleDateString('en-IN')}`,
+        filename: `${slugify(data.reportTitle)}.xlsx`,
+        title: data.reportTitle,
+        subtitle: `${ownerLabel}${data.totalOwnersText} | ${data.dateRangeText} | Total Unique Records: ${data.dedupedRows.length} | Generated: ${new Date().toLocaleDateString('en-IN')}`,
         sheetName: `${formState.entityType} Data`,
-        columns,
-        rows: finalExcelRows,
+        columns: data.columns,
+        rows: data.finalExcelRows,
       })
     } catch (err) {
       console.error('Export error:', err)
@@ -575,6 +737,38 @@ const AddAccountReportPage = () => {
       setIsExporting(false)
     }
   }
+
+  // Structure View Preview Handler (Opens interactive on-screen modal table)
+  const handleOpenStructurePreview = async () => {
+    setPageError('')
+    setIsPreviewLoading(true)
+    try {
+      const data = await fetchProcessedReportData()
+      const cleanOwner = extractCleanOwnerName(formState.accountOwner)
+      setStructurePreviewData({
+        title: data.reportTitle,
+        columns: data.columns,
+        rows: data.dedupedRows,
+        dateRangeText: data.dateRangeText,
+        ownerScope: cleanOwner || formState.accountOwner || 'All Owners',
+      })
+      setPreviewSearchTerm('')
+      setIsStructurePreviewOpen(true)
+    } catch (err) {
+      console.error('Preview error:', err)
+      setPageError(err.response?.data?.error || err.message || 'Failed to generate structure preview.')
+    } finally {
+      setIsPreviewLoading(false)
+    }
+  }
+
+  const filteredPreviewRows = useMemo(() => {
+    if (!previewSearchTerm) return structurePreviewData.rows || []
+    const term = previewSearchTerm.toLowerCase()
+    return (structurePreviewData.rows || []).filter((r) => {
+      return Object.values(r).some((v) => String(v ?? '').toLowerCase().includes(term))
+    })
+  }, [structurePreviewData.rows, previewSearchTerm])
 
   // Submit Handler: Saves or Updates Template
   const handleSubmit = async (event) => {
@@ -635,8 +829,12 @@ const AddAccountReportPage = () => {
         groupId: m.groupId,
       })),
       dateFilterField: formState.dateFilterField || (formState.entityType === 'Deal' ? 'dealDate' : formState.entityType === 'Quotation' ? 'quotationDate' : formState.entityType === 'Customer' ? 'createdAt' : 'accountDate'),
-      recordDateFrom: formState.recordDateFrom,
-      recordDateTo: formState.recordDateTo,
+      recordDateFrom: toHtmlDateValue(formState.recordDateFrom) || undefined,
+      recordDateTo: toHtmlDateValue(formState.recordDateTo) || undefined,
+      dateRange: {
+        fromDate: toHtmlDateValue(formState.recordDateFrom) || undefined,
+        toDate: toHtmlDateValue(formState.recordDateTo) || undefined,
+      },
       filters: cleanedFilters,
       displayFields: displayFieldKeys,
       selectedFields: displayFieldKeys,
@@ -881,7 +1079,14 @@ const AddAccountReportPage = () => {
                       <div
                         className={`account-report-builder-searchable-option ${!formState.accountOwner ? 'is-selected' : ''}`}
                         onClick={() => {
-                          setFormState((prev) => ({ ...prev, accountOwner: '' }))
+                          setFormState((prev) => {
+                            const isAutoGenerated = !prev.reportName || prev.reportName.includes('Report')
+                            return {
+                              ...prev,
+                              accountOwner: '',
+                              reportName: isAutoGenerated ? `${prev.entityType || 'Account'} Report` : prev.reportName,
+                            }
+                          })
                           setIsOwnerDropdownOpen(false)
                           setOwnerSearchText('')
                         }}
@@ -895,7 +1100,18 @@ const AddAccountReportPage = () => {
                             key={option.value}
                             className={`account-report-builder-searchable-option ${formState.accountOwner === option.value ? 'is-selected' : ''}`}
                             onClick={() => {
-                              setFormState((prev) => ({ ...prev, accountOwner: option.value }))
+                              const cleanName = extractCleanOwnerName(option.value || option.label)
+                              setFormState((prev) => {
+                                const isAutoGenerated = !prev.reportName || prev.reportName.includes('Report')
+                                const updatedReportName = isAutoGenerated && cleanName
+                                  ? `${cleanName} ${prev.entityType || 'Account'} Report`
+                                  : prev.reportName
+                                return {
+                                  ...prev,
+                                  accountOwner: option.value,
+                                  reportName: updatedReportName,
+                                }
+                              })
                               setIsOwnerDropdownOpen(false)
                               setOwnerSearchText('')
                             }}
@@ -928,13 +1144,13 @@ const AddAccountReportPage = () => {
               <div className="account-report-builder-date-range">
                 <input
                   type="date"
-                  value={formState.recordDateFrom}
+                  value={toHtmlDateValue(formState.recordDateFrom)}
                   onChange={(e) => setFormState((prev) => ({ ...prev, recordDateFrom: e.target.value }))}
                 />
                 <span>to</span>
                 <input
                   type="date"
-                  value={formState.recordDateTo}
+                  value={toHtmlDateValue(formState.recordDateTo)}
                   onChange={(e) => setFormState((prev) => ({ ...prev, recordDateTo: e.target.value }))}
                 />
               </div>
@@ -1080,6 +1296,15 @@ const AddAccountReportPage = () => {
             <button
               type="button"
               className="account-report-builder-btn"
+              onClick={handleOpenStructurePreview}
+              disabled={isPreviewLoading}
+              style={{ backgroundColor: '#2563eb', color: '#fff', borderColor: '#2563eb' }}
+            >
+              <FaEye /> {isPreviewLoading ? 'Loading Preview...' : 'Preview Structure View'}
+            </button>
+            <button
+              type="button"
+              className="account-report-builder-btn"
               onClick={handleExportExcel}
               disabled={isExporting}
               style={{ backgroundColor: '#107c41', color: '#fff', borderColor: '#107c41' }}
@@ -1096,6 +1321,85 @@ const AddAccountReportPage = () => {
           </div>
         </div>
       </form>
+
+      {/* Structure View Preview Modal */}
+      {isStructurePreviewOpen && createPortal(
+        <div className="cr-struct-modal-overlay" onClick={() => setIsStructurePreviewOpen(false)}>
+          <div className="cr-struct-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cr-struct-modal-header">
+              <div className="cr-struct-header-main">
+                <h2>{structurePreviewData.title || 'Structure Report View'}</h2>
+                <span className="cr-struct-badge">Total Records: {filteredPreviewRows.length}</span>
+                <div className="cr-struct-filter-chips">
+                  <span className="cr-struct-chip">Scope: {structurePreviewData.ownerScope}</span>
+                  <span className="cr-struct-chip">{structurePreviewData.dateRangeText}</span>
+                </div>
+              </div>
+              <div className="cr-struct-header-actions">
+                <div className="cr-struct-search-box">
+                  <FaSearch className="cr-struct-search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Search table..."
+                    value={previewSearchTerm}
+                    onChange={(e) => setPreviewSearchTerm(e.target.value)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="cr-struct-action-btn cr-struct-btn--excel"
+                  onClick={handleExportExcel}
+                  title="Download Excel Workbook"
+                >
+                  <FaFileExcel /> Export Excel (.xlsx)
+                </button>
+                <button
+                  type="button"
+                  className="cr-struct-close-btn"
+                  onClick={() => setIsStructurePreviewOpen(false)}
+                  aria-label="Close"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+            </div>
+
+            <div className="cr-struct-table-wrapper">
+              <table className="cr-struct-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '45px', textAlign: 'center' }}>#</th>
+                    {structurePreviewData.columns.map((c) => (
+                      <th key={c.key}>{c.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPreviewRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={structurePreviewData.columns.length + 1} style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
+                        No records match your filter criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredPreviewRows.map((row, idx) => (
+                      <tr key={idx}>
+                        <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{idx + 1}</td>
+                        {structurePreviewData.columns.map((c) => {
+                          const rawVal = row[c.label] ?? row[c.key]
+                          const cellVal = c.formatter ? c.formatter(rawVal, row) : (rawVal !== undefined && rawVal !== null && rawVal !== '' ? String(rawVal) : '-')
+                          return <td key={c.key}>{cellVal}</td>
+                        })}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
