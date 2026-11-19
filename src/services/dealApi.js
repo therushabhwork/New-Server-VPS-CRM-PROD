@@ -1,4 +1,4 @@
-﻿import apiClient from './apiClient'
+import apiClient from './apiClient'
 import { getCanonicalCrmUserName, getCrmOwnerCode, getCrmOwnerDisplay } from '../features/users/crmUserDirectory'
 import { normalizeOptionalIntegerInput, normalizeOptionalNumberInput } from '../features/adminDeals/config/dealUtils'
 
@@ -190,6 +190,11 @@ export const dealApi = {
 
   async importDeals(deals) {
     const response = await apiClient.post('/deals/import', { deals })
+    return response.data?.success ? response.data.data : response.data
+  },
+
+  async frontendDeleteDeal(id) {
+    const response = await apiClient.patch(`/deals/${encodeURIComponent(id)}/frontend-delete`)
     return response.data?.success ? response.data.data : response.data
   },
 }

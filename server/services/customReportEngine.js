@@ -58,6 +58,9 @@ const ACCOUNT_FIELD_LABELS = {
   remarks: 'Latest Remark',
   addedBy: 'Added By',
   createdAt: 'Created At',
+  updatedAt: 'Last Updated',
+  lastUpdated: 'Last Updated',
+  lastUpdate: 'Last Updated',
   accountState: 'Account State',
   state: 'Account State',
 };
@@ -89,6 +92,9 @@ const DEAL_FIELD_LABELS = {
   poValue: 'PO Value',
   addedOn: 'Added On',
   createdAt: 'Created At',
+  updatedAt: 'Last Updated',
+  lastUpdated: 'Last Updated',
+  lastUpdate: 'Last Updated',
 };
 
 const CUSTOMER_FIELD_LABELS = {
@@ -117,6 +123,9 @@ const CUSTOMER_FIELD_LABELS = {
   state: 'State',
   industryType: 'Industry Type',
   createdAt: 'Created At',
+  updatedAt: 'Last Updated',
+  lastUpdated: 'Last Updated',
+  lastUpdate: 'Last Updated',
 };
 
 const QUOTATION_FIELD_LABELS = {
@@ -140,13 +149,16 @@ const QUOTATION_FIELD_LABELS = {
   projectName: 'Project Name',
   validUntil: 'Valid Until',
   createdAt: 'Created At',
+  updatedAt: 'Last Updated',
+  lastUpdated: 'Last Updated',
+  lastUpdate: 'Last Updated',
 };
 
 const DEFAULT_FIELDS = {
-  account: ['accountNumber', 'accountDate', 'name', 'accountOwner', 'status', 'projectName', 'phone', 'email'],
-  deal: ['dealNumber', 'dealName', 'dealDate', 'dealOwner', 'dealType', 'status', 'dealValue', 'projectName'],
-  customer: ['customerNumber', 'customerName', 'companyName', 'city', 'phone', 'email', 'status'],
-  quotation: ['quotationNo', 'date', 'accountName', 'dealName', 'grandTotal', 'status'],
+  account: ['accountNumber', 'accountDate', 'name', 'accountOwner', 'status', 'projectName', 'phone', 'email', 'updatedAt'],
+  deal: ['dealNumber', 'dealName', 'dealDate', 'dealOwner', 'dealType', 'status', 'dealValue', 'projectName', 'updatedAt'],
+  customer: ['customerNumber', 'customerName', 'companyName', 'city', 'phone', 'email', 'status', 'updatedAt'],
+  quotation: ['quotationNo', 'date', 'accountName', 'dealName', 'grandTotal', 'status', 'updatedAt'],
 };
 
 const formatDate = (val) => {
@@ -168,13 +180,28 @@ const parseDateTimestamp = (value) => {
   if (typeof value === 'number') {
     return Number.isNaN(value) ? null : value;
   }
+  if (typeof value === 'object') {
+    if (value.$date) {
+      if (typeof value.$date === 'object' && value.$date.$numberLong) {
+        const ms = parseInt(value.$date.$numberLong, 10);
+        return Number.isNaN(ms) ? null : ms;
+      }
+      const t = new Date(value.$date).getTime();
+      return Number.isNaN(t) ? null : t;
+    }
+    if (value.$numberLong) {
+      const ms = parseInt(value.$numberLong, 10);
+      return Number.isNaN(ms) ? null : ms;
+    }
+  }
   const str = String(value).trim();
   if (!str) return null;
 
   // ISO or YYYY-MM-DD
-  const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  const isoMatch = str.match(/^(\d{2,4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (isoMatch) {
-    const y = parseInt(isoMatch[1], 10);
+    let y = parseInt(isoMatch[1], 10);
+    if (y < 100) y += 2000;
     const m = parseInt(isoMatch[2], 10) - 1;
     const d = parseInt(isoMatch[3], 10);
     const dateObj = new Date(y, m, d, 0, 0, 0, 0);
@@ -182,11 +209,12 @@ const parseDateTimestamp = (value) => {
   }
 
   // DD-MM-YYYY or DD/MM/YYYY
-  const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/);
   if (dmyMatch) {
     const d = parseInt(dmyMatch[1], 10);
     const m = parseInt(dmyMatch[2], 10) - 1;
-    const y = parseInt(dmyMatch[3], 10);
+    let y = parseInt(dmyMatch[3], 10);
+    if (y < 100) y += 2000;
     const dateObj = new Date(y, m, d, 0, 0, 0, 0);
     return Number.isNaN(dateObj.getTime()) ? null : dateObj.getTime();
   }
@@ -262,8 +290,8 @@ const mapAccountDoc = (doc) => {
     phone: doc.phone || doc.mobile || '-',
     mobile: doc.phone || doc.mobile || '-',
     email: doc.email || '-',
-    projectName: doc.projectName || doc.project || '-',
-    project: doc.projectName || doc.project || '-',
+    projectName: doc.projectName || doc.formData?.projectName || doc.project || doc.formData?.project || doc.data?.projectName || (Array.isArray(doc.formData?.projects) && doc.formData.projects[0]?.projectName) || doc.dealName || doc.formData?.dealName || '-',
+    project: doc.projectName || doc.formData?.projectName || doc.project || doc.formData?.project || doc.data?.projectName || (Array.isArray(doc.formData?.projects) && doc.formData.projects[0]?.projectName) || doc.dealName || doc.formData?.dealName || '-',
     location: doc.location || doc.city || '-',
     city: doc.location || doc.city || '-',
     poValue: doc.poValue || '-',
@@ -814,9 +842,16 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
   }
 
   // 9. Generate Excel Workbook Buffer with Top Bar & Spaced Owner Headers matching CustomReportsPage.jsx
+  const getRecordTimestamp = (r) => {
+    const raw = r.updatedAt || r.formData?.updatedAt || r.accountDate || r.formData?.accountDate || r.dealDate || r.quotationDate || r.date || r.createdAt;
+    return parseDateTimestamp(raw) || 0;
+  };
+
   const excelRows = [];
   sortedOwnerNames.forEach((ownerName) => {
-    const groupRows = ownerGroups[ownerName] || [];
+    const groupRows = (ownerGroups[ownerName] || []).slice();
+    // Enforce LIFO (Last-In, First-Out) sorting: most recent records first
+    groupRows.sort((a, b) => getRecordTimestamp(b) - getRecordTimestamp(a));
     const isReassigned = checkIsReassigned(ownerName);
 
     const distinctFromNames = Array.from(
@@ -910,7 +945,15 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
 }
 
 
-async function getUsersLookupMap() {
+let _cachedUsersLookup = null;
+let _cachedUsersLookupExpiry = 0;
+
+async function getUsersLookupMap(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && _cachedUsersLookup && now < _cachedUsersLookupExpiry) {
+    return _cachedUsersLookup;
+  }
+
   const map = {};
   const _emails = {};
   const _names = {};
@@ -951,7 +994,80 @@ async function getUsersLookupMap() {
       registerKey(email);
       registerKey(ownerCode);
       registerKey(u.employeeId);
+
+      // Support natural name variations for all users dynamically
+      if (/naim(\s+vh?ora)?/i.test(displayName) || /naim(\s+vh?ora)?/i.test(username)) {
+        registerKey('naim vhora');
+        registerKey('naim vora');
+        registerKey('naim vohra');
+        registerKey('naim');
+      }
+      if (/krunal(\s+patel)?/i.test(displayName) || /krunal(\s+patel)?/i.test(username)) {
+        registerKey('krunal patel');
+        registerKey('krunal');
+      }
+      if (/jagruti|jagurti/i.test(displayName)) {
+        registerKey('jagruti parmar');
+        registerKey('jagurti parmar');
+        registerKey('jagruti');
+        registerKey('jagurti');
+      }
+      if (/kanu|kanubhai/i.test(displayName)) {
+        registerKey('kanu shah');
+        registerKey('kanubhai shah');
+      }
     });
+
+    // Dynamically retrieve true owner codes from MongoDB leads and deals collections for ALL owners
+    try {
+      const leadsCol = mongoose.connection.db.collection('leads');
+      if (leadsCol) {
+        const leadGroups = await leadsCol.aggregate([
+          {
+            $group: {
+              _id: {
+                ownerName: '$ownerName',
+                accountOwner: '$accountOwner',
+                formAccountOwner: '$formData.accountOwner'
+              },
+              ownerCodes: { $addToSet: '$ownerCode' },
+              accountCodes: { $addToSet: '$accountOwnerCode' },
+              formCodes: { $addToSet: '$formData.ownerCode' },
+              formAccountCodes: { $addToSet: '$formData.accountOwnerCode' }
+            }
+          }
+        ]).toArray();
+
+        leadGroups.forEach((grp) => {
+          const candidateNames = [
+            grp._id?.ownerName,
+            grp._id?.accountOwner,
+            grp._id?.formAccountOwner
+          ].filter(Boolean).map(n => String(n).trim());
+
+          const collectedCodes = [
+            ...(grp.ownerCodes || []),
+            ...(grp.accountCodes || []),
+            ...(grp.formCodes || []),
+            ...(grp.formAccountCodes || [])
+          ].filter(c => c != null && String(c).trim() !== '').map(c => String(c).trim());
+
+          candidateNames.forEach((candName) => {
+            const lowerName = candName.toLowerCase();
+            const matchedProfile = _profiles[lowerName];
+            if (matchedProfile) {
+              collectedCodes.forEach((code) => {
+                const lowerCode = code.toLowerCase();
+                _codes[lowerCode] = code;
+                _profiles[lowerCode] = matchedProfile;
+                if (matchedProfile.email) _emails[lowerCode] = matchedProfile.email;
+                map[lowerCode] = matchedProfile.name;
+              });
+            }
+          });
+        });
+      }
+    } catch (_) {}
   } catch (_) {}
 
   map._emails = _emails;
@@ -964,9 +1080,9 @@ async function getUsersLookupMap() {
 
 const detectTemplateEntityType = (tpl) => {
   let raw = String(tpl?.entityType || tpl?.categoryKey || tpl?.reportContext || '').toLowerCase().trim();
-  if (raw === 'accounts' || raw === 'lead' || raw === 'leads') return 'account';
+  if (raw === 'account' || raw === 'accounts' || raw === 'lead' || raw === 'leads') return 'account';
   if (raw === 'deals' || raw === 'deal') return 'deal';
-  if (raw === 'quotations' || raw === 'quotation') return 'quotation';
+  if (raw === 'quotations' || raw === 'quotation' || raw === 'quote') return 'quotation';
   if (raw === 'customers' || raw === 'customer') return 'customer';
 
   // Dynamic signature inspection from selectedFields & displayFields
@@ -974,9 +1090,9 @@ const detectTemplateEntityType = (tpl) => {
     .map((f) => (typeof f === 'object' ? (f.key || f.label) : String(f)))
     .map((f) => f.toLowerCase());
 
-  if (allFields.some((f) => f.includes('deal'))) return 'deal';
-  if (allFields.some((f) => f.includes('quotation') || f.includes('quote'))) return 'quotation';
-  if (allFields.some((f) => f.includes('customer'))) return 'customer';
+  if (allFields.some((f) => f === 'dealname' || f === 'dealnumber' || f === 'dealvalue' || f === 'stage')) return 'deal';
+  if (allFields.some((f) => f === 'quotationnumber' || f === 'quotationno' || f === 'quotationdate')) return 'quotation';
+  if (allFields.some((f) => f === 'customernumber' || f === 'customerno')) return 'customer';
 
   const name = String(tpl?.reportName || tpl?.title || tpl?.name || '').toLowerCase();
   if (name.includes('deal')) return 'deal';
@@ -1142,8 +1258,16 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
         if (!flt.field) return true;
         const docVal = resolveDocumentField(doc, flt.field, usersMap);
         const op = String(flt.operator || 'equals').trim().toLowerCase();
-        const targetVal = String(flt.value !== undefined && flt.value !== null ? flt.value : '').trim().toLowerCase();
-        const testStr = String(docVal !== undefined && docVal !== null ? docVal : '').trim().toLowerCase();
+        let targetVal = String(flt.value !== undefined && flt.value !== null ? flt.value : '').trim().toLowerCase();
+        let testStr = String(docVal !== undefined && docVal !== null ? docVal : '').trim().toLowerCase();
+
+        const canonField = canonicalizeKey(flt.field);
+        if (canonField.includes('date') || canonField.includes('createdat') || canonField.includes('updatedat') || canonField.includes('addedon')) {
+          const dtFormatted = formatDateDisplay(flt.value);
+          if (dtFormatted && dtFormatted !== '-') {
+            targetVal = dtFormatted.toLowerCase();
+          }
+        }
 
         if (op === 'equals' || op === 'equal' || op === '=') return testStr === targetVal;
         if (op === 'not_equals' || op === 'not_equal' || op === '!=') return testStr !== targetVal;
@@ -1164,9 +1288,22 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
 
   // Universal Owner Filter (Dynamic lookup across users collection - Exact Mail-Wise Matching)
   const rawOwnerInput = String(tpl?.accountOwnerEmail || tpl?.ownerEmail || tpl?.accountOwner || tpl?.owner || tpl?.ownerFilter || 'all').trim();
-  const ownerFilter = rawOwnerInput.toLowerCase();
-  let targetOwnerEmail = '';
-  let targetOwnerName = '';
+
+  // Decompose parenthetical format: e.g. "Naim Vhora (sales1@swatiswitchgears.com)" or "Krunal Patel (1002)"
+  let extractedName = rawOwnerInput;
+  let extractedEmail = '';
+  let extractedCode = '';
+  const inParens = rawOwnerInput.match(/^(.*?)\s*\(([^)]+)\)$/);
+  if (inParens) {
+    extractedName = inParens[1].trim();
+    const inside = inParens[2].trim();
+    if (inside.includes('@')) extractedEmail = inside.toLowerCase();
+    else if (/^\d+$/.test(inside)) extractedCode = inside;
+  }
+
+  const ownerFilter = extractedName.toLowerCase();
+  let targetOwnerEmail = extractedEmail;
+  let targetOwnerName = extractedName;
 
   if (ownerFilter && ownerFilter !== 'all') {
     // 1. Resolve canonical email directly from usersMap (from users collection)
@@ -1174,6 +1311,8 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
       targetOwnerEmail = usersMap._emails[ownerFilter].toLowerCase().trim();
     } else if (ownerFilter.includes('@')) {
       targetOwnerEmail = ownerFilter;
+    } else if (extractedEmail) {
+      targetOwnerEmail = extractedEmail;
     }
 
     if (usersMap[ownerFilter]) {
@@ -1184,7 +1323,7 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
     } else if (usersMap._names && usersMap._names[ownerFilter]) {
       targetOwnerName = usersMap._names[ownerFilter];
     } else {
-      targetOwnerName = rawOwnerInput;
+      targetOwnerName = extractedName;
     }
 
     if (usersMap._profiles && usersMap._profiles[ownerFilter]) {
@@ -1196,14 +1335,18 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
     // Build the set of target owner emails (exact mail-wise identification)
     const targetOwnerEmails = new Set();
     if (targetOwnerEmail) targetOwnerEmails.add(targetOwnerEmail);
+    if (extractedEmail) targetOwnerEmails.add(extractedEmail);
     if (targetOwnerName && usersMap._emails && usersMap._emails[targetOwnerName.toLowerCase().trim()]) {
       targetOwnerEmails.add(usersMap._emails[targetOwnerName.toLowerCase().trim()].toLowerCase().trim());
     }
 
     // Build owner identities for exact code or exact name if doc stores owner name/code
-    const targetOwnerExactIdentities = new Set([ownerFilter]);
+    const targetOwnerExactIdentities = new Set([ownerFilter, rawOwnerInput.toLowerCase()]);
+    if (extractedName) targetOwnerExactIdentities.add(extractedName.toLowerCase().trim());
     if (targetOwnerName) targetOwnerExactIdentities.add(targetOwnerName.toLowerCase().trim());
     if (targetOwnerEmail) targetOwnerExactIdentities.add(targetOwnerEmail);
+    if (extractedEmail) targetOwnerExactIdentities.add(extractedEmail);
+    if (extractedCode) targetOwnerExactIdentities.add(extractedCode.toLowerCase());
     if (usersMap._codes && usersMap._codes[ownerFilter]) {
       targetOwnerExactIdentities.add(String(usersMap._codes[ownerFilter]).toLowerCase().trim());
     }
@@ -1228,38 +1371,37 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
         return true;
       }
 
-      // 2. Resolve document's owner via users collection lookup to obtain their canonical mail
-      const docRawOwners = [
-        doc.accountOwner,
-        doc.formData?.accountOwner,
-        doc.formData?.formData?.accountOwner,
-        doc.ownerName,
-        doc.formData?.ownerName,
-        doc.owner,
-        doc.formData?.owner,
-        doc.dealOwner,
-        doc.data?.dealOwner,
-        doc.dealOwnerName,
-        doc.data?.dealOwnerName,
-        doc.data?.data?.dealOwner,
-        doc.quotationOwner,
-        doc.data?.quotationOwner,
-        doc.data?.selectedAccountOwner,
-        doc.customerOwner,
-        doc.assignedTo,
-        doc.assignedToName,
-      ].filter(Boolean).map(o => String(o).trim().toLowerCase());
+      // 2. Strict Explicit Owner Match (Current active owner has highest authority)
+      const effectiveDealOwner = (doc.dealOwner && String(doc.dealOwner).trim() !== '')
+        ? doc.dealOwner
+        : (doc.data?.dealOwner || null);
 
-      for (const rawO of docRawOwners) {
-        if (targetOwnerExactIdentities.has(rawO)) return true;
-        // Resolve this doc owner's email from users collection
-        if (usersMap._emails && usersMap._emails[rawO]) {
-          const resolvedDocEmail = String(usersMap._emails[rawO]).toLowerCase().trim();
+      const currentDocOwner = String(
+        entityType === 'deal'
+          ? (effectiveDealOwner || doc.dealOwnerName || doc.ownerName || doc.owner || '')
+          : entityType === 'quotation'
+            ? (doc.quotationOwner || doc.data?.quotationOwner || doc.ownerName || doc.owner || '')
+            : entityType === 'customer'
+              ? (doc.customerOwner || doc.assignedTo || doc.assignedToName || doc.ownerName || doc.owner || '')
+              : (doc.accountOwner || doc.formData?.accountOwner || doc.ownerName || doc.formData?.ownerName || doc.owner || doc.raw?.accountOwner || '')
+      ).trim();
+
+      if (currentDocOwner && currentDocOwner !== '-' && currentDocOwner !== 'unassigned' && currentDocOwner !== 'undefined' && currentDocOwner !== 'null') {
+        const lowerCurrent = currentDocOwner.toLowerCase();
+        if (targetOwnerExactIdentities.has(lowerCurrent) || lowerCurrent === targetOwnerName.toLowerCase()) {
+          return true;
+        }
+        if (usersMap._emails && usersMap._emails[lowerCurrent]) {
+          const resolvedDocEmail = String(usersMap._emails[lowerCurrent]).toLowerCase().trim();
           if (targetOwnerEmails.has(resolvedDocEmail)) return true;
+        }
+        // If current explicit owner belongs to another recognized colleague in usersMap, REJECT!
+        if (usersMap[lowerCurrent] || usersMap._names?.[lowerCurrent] || usersMap._profiles?.[lowerCurrent] || (usersMap._emails && usersMap._emails[lowerCurrent])) {
+          return false;
         }
       }
 
-      // 3. Resolve document's owner code via users collection lookup to obtain canonical mail
+      // 3. Resolve document's owner code via users collection lookup to obtain canonical mail (ONLY if no conflicting explicit owner)
       const docCodes = [
         doc.ownerCode,
         doc.formData?.ownerCode,
@@ -1370,8 +1512,8 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
   let dateMatchedCount = null;
 
   // Universal Date Range Filtering (Using parseDateTimestamp for ISO, YYYY-MM-DD, and DD/MM/YYYY)
-  const rawFrom = tpl?.recordDateFrom || tpl?.dateRange?.fromDate || tpl?.fromDate || '';
-  const rawTo = tpl?.recordDateTo || tpl?.dateRange?.toDate || tpl?.toDate || '';
+  const rawFrom = tpl?.recordDateFrom || tpl?.dateRange?.fromDate || tpl?.fromDate || tpl?.dateFrom || tpl?.customStartDate || tpl?.startDate || '';
+  const rawTo = tpl?.recordDateTo || tpl?.dateRange?.toDate || tpl?.toDate || tpl?.dateTo || tpl?.customEndDate || tpl?.endDate || '';
   if (rawFrom || rawTo) {
     const fromTime = rawFrom ? parseDateTimestamp(rawFrom) : null;
     let toTime = rawTo ? parseDateTimestamp(rawTo) : null;
@@ -1381,27 +1523,36 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
       toTime = toObj.getTime();
     }
 
+    const targetDateField = String(tpl?.dateFilterField || tpl?.dateRange?.dateFilterField || '').trim();
+
     const dateFiltered = filteredDocs.filter((doc) => {
-      let rawDateVal = null;
+      let dateCandidates = [];
       if (entityType === 'account') {
-        rawDateVal = doc.accountDate || doc.formData?.accountDate || doc.formData?.formData?.accountDate || doc.date || doc.createdAt;
+        if (targetDateField === 'updatedAt') {
+          dateCandidates = [doc.updatedAt, doc.formData?.updatedAt, doc.createdAt];
+        } else if (targetDateField === 'createdAt') {
+          dateCandidates = [doc.createdAt, doc.formData?.createdAt];
+        } else {
+          const accDate = doc.accountDate || doc.formData?.accountDate || doc.formData?.formData?.accountDate || doc.date;
+          dateCandidates = accDate ? [accDate] : [doc.createdAt, doc.updatedAt];
+        }
       } else if (entityType === 'deal') {
-        rawDateVal = doc.dealDate || doc.data?.dealDate || doc.data?.data?.dealDate || doc.data?.convertedAt || doc.formData?.dealDate || doc.quotationDate || doc.createdAt;
+        dateCandidates = [doc.dealDate, doc.data?.dealDate, doc.data?.data?.dealDate, doc.data?.convertedAt, doc.formData?.dealDate, doc.quotationDate, doc.createdAt, doc.updatedAt];
       } else if (entityType === 'customer') {
-        rawDateVal = doc.createdAt || doc.addedDate || doc.date;
+        dateCandidates = [doc.createdAt, doc.addedDate, doc.date, doc.updatedAt];
       } else if (entityType === 'quotation') {
-        rawDateVal = doc.quotationDate || doc.data?.quotationDate || doc.data?.customerReference?.date || doc.date || doc.createdAt;
+        dateCandidates = [doc.quotationDate, doc.data?.quotationDate, doc.data?.customerReference?.date, doc.date, doc.createdAt, doc.updatedAt];
       } else {
-        rawDateVal = doc.date || doc.createdAt;
+        dateCandidates = [doc.date, doc.createdAt, doc.updatedAt];
       }
 
-      if (!rawDateVal) return false;
-      const docTime = parseDateTimestamp(rawDateVal);
-      if (docTime === null) return false;
-
-      if (fromTime !== null && docTime < fromTime) return false;
-      if (toTime !== null && docTime > toTime) return false;
-      return true;
+      return dateCandidates.filter(Boolean).some((rawDateVal) => {
+        const docTime = parseDateTimestamp(rawDateVal);
+        if (docTime === null) return false;
+        if (fromTime !== null && docTime < fromTime) return false;
+        if (toTime !== null && docTime > toTime) return false;
+        return true;
+      });
     });
 
     dateMatchedCount = dateFiltered.length;
@@ -1430,6 +1581,15 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
     return labelDict[strKey] || strKey;
   });
 
+  // LIFO sorting (Last-In, First-Out: newest records at the top)
+  filteredDocs.sort((a, b) => {
+    const rawA = a.updatedAt || a.formData?.updatedAt || a.accountDate || a.formData?.accountDate || a.dealDate || a.quotationDate || a.date || a.createdAt;
+    const rawB = b.updatedAt || b.formData?.updatedAt || b.accountDate || b.formData?.accountDate || b.dealDate || b.quotationDate || b.date || b.createdAt;
+    const tA = parseDateTimestamp(rawA) || 0;
+    const tB = parseDateTimestamp(rawB) || 0;
+    return tB - tA;
+  });
+
   const rows = filteredDocs.map((doc) => {
     const rowObj = {};
     fields.forEach((fieldIdentifier, idx) => {
@@ -1449,6 +1609,20 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
     rowObj['Deal No.'] = rowObj['Deal No.'] || rowObj['Deal No'] || doc.dealNumber || doc.data?.dealNumber;
     rowObj['Quotation No.'] = rowObj['Quotation No.'] || rowObj['Quotation No'] || doc.quotationNumber || doc.data?.quotationNumber;
     rowObj['Customer No.'] = rowObj['Customer No.'] || rowObj['Customer No'] || doc.customerNumber || doc.formData?.customerNumber;
+
+    // Always attach resolved owner metadata to rowObj for grouping in Excel and PDF exports
+    const resolvedDocOwner = (function() {
+      const oVal = resolveDocumentField(doc, 'accountOwner', usersMap);
+      if (oVal && oVal !== '-') return oVal;
+      const rawO = doc.accountOwner || doc.formData?.accountOwner || doc.ownerName || doc.owner || doc.dealOwner || doc.quotationOwner;
+      if (rawO && rawO !== '-') return rawO;
+      return tpl?.owner || tpl?.accountOwner || tpl?.ownerFilter || 'Unassigned';
+    })();
+
+    rowObj.accountOwner = rowObj.accountOwner || resolvedDocOwner;
+    rowObj['Account Owner'] = rowObj['Account Owner'] || resolvedDocOwner;
+    rowObj.owner = rowObj.owner || resolvedDocOwner;
+    rowObj.ownerName = rowObj.ownerName || resolvedDocOwner;
 
     // Dynamic creator / original owner for Reassigned Accounts
     const rawCreatorName = doc.createdByUserName || doc.formData?.createdByUserName || doc.addedBy || doc.formData?.addedBy || doc.formData?.formData?.addedBy || '';
@@ -1485,12 +1659,22 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
 function generateTemplateExcelBuffer({ reportTitle, fieldLabels, rows }) {
   const workbook = XLSX.utils.book_new();
   const rowsForSheet = rows.length > 0 ? rows : [{ 'Report Status': 'No records found matching report criteria' }];
-  const keys = fieldLabels && fieldLabels.length > 0 ? fieldLabels : Object.keys(rowsForSheet[0] || {});
-  const worksheet = XLSX.utils.json_to_sheet(rowsForSheet, { header: keys });
+  let keys = fieldLabels && fieldLabels.length > 0 ? fieldLabels : Object.keys(rowsForSheet[0] || {});
+  keys = keys.filter(k => k && !String(k).startsWith('_'));
+
+  const cleanExportRows = rowsForSheet.map((r) => {
+    const cleanRow = {};
+    keys.forEach((k) => {
+      cleanRow[k] = r[k] !== undefined && r[k] !== null ? r[k] : (r[String(k).toLowerCase()] ?? '-');
+    });
+    return cleanRow;
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(cleanExportRows, { header: keys });
 
   worksheet['!cols'] = keys.map(key => {
     let maxLen = key.length;
-    rowsForSheet.slice(0, 100).forEach(r => {
+    cleanExportRows.slice(0, 100).forEach(r => {
       const v = String(r[key] ?? '');
       if (v.length > maxLen) maxLen = v.length;
     });

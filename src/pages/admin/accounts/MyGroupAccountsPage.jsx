@@ -1128,6 +1128,15 @@ const activeStageParam = searchParams.get('stage')
       || value.startsWith('kevalvshah@')
     ))
   }, [user?.email, user?.name, user?.username])
+
+  const isAuthorizedForDelete = useMemo(() => {
+    const targetKeywords = ['keval', 'parth', 'rushabh', 'samir']
+    const currentUserEmail = String(user?.email || '').trim().toLowerCase()
+    const currentUserName = String(user?.name || user?.username || '').trim().toLowerCase()
+    return targetKeywords.some((k) => currentUserName.includes(k) || currentUserEmail.includes(k))
+  }, [user?.email, user?.name, user?.username])
+
+  const [isBulkDeletingAccounts, setIsBulkDeletingAccounts] = useState(false)
   const [fetchedBackendAccount, setFetchedBackendAccount] = useState(null)
 
   useEffect(() => {
@@ -1367,9 +1376,13 @@ const activeStageParam = searchParams.get('stage')
     return filteredColumns
   }, [availableUsers, columns, convertedColumnDefinitions, isConvertedAccountsView, user, useRowOwnerCodeAsAccountNumber, visibleColumnKeys, variantKey, dbMongoUsers])
   const rowActionsEnabled = isAdminPortal ? view.rowActionMenuEnabled : true
-  const rowActions = useMemo(() => (
-    isAdminPortal ? (view.rowActions || ACCOUNT_ROW_ACTIONS) : USER_ACCOUNT_ROW_ACTIONS
-  ), [isAdminPortal, view.rowActions])
+  const rowActions = useMemo(() => {
+    const base = isAdminPortal ? (view.rowActions || ACCOUNT_ROW_ACTIONS) : USER_ACCOUNT_ROW_ACTIONS
+    if (!isAuthorizedForDelete) {
+      return base.filter((action) => action.key !== 'delete-account')
+    }
+    return base
+  }, [isAdminPortal, view.rowActions, isAuthorizedForDelete])
   const drawerActions = isAdminPortal ? ACCOUNT_DRAWER_ACTIONS : USER_ACCOUNT_DRAWER_ACTIONS
 
   const handleOpenAccount = (row) => {
@@ -1408,24 +1421,8 @@ const activeStageParam = searchParams.get('stage')
   const handleDeleteAccount = async (row) => {
     if (!row?.id) return
 
-    const usersList = dbMongoUsers.length > 0 ? dbMongoUsers : availableUsers
-    const targetKeywords = ['keval', 'parth', 'rushabh', 'samir']
-    const authorizedUsers = (Array.isArray(usersList) ? usersList : []).filter((u) => {
-      const uName = String(u?.name || u?.username || '').trim().toLowerCase()
-      const uEmail = String(u?.email || '').trim().toLowerCase()
-      return targetKeywords.some((k) => uName.includes(k) || uEmail.includes(k))
-    })
-
-    const authorizedEmails = new Set(
-      authorizedUsers.map((u) => String(u?.email || '').trim().toLowerCase()).filter(Boolean)
-    )
-
-    const currentUserEmail = String(user?.email || '').trim().toLowerCase()
-    const currentUserName = String(user?.name || user?.username || '').trim().toLowerCase()
-    const isAuthorized = (currentUserEmail && authorizedEmails.has(currentUserEmail)) || targetKeywords.some((k) => currentUserName.includes(k) || currentUserEmail.includes(k))
-
-    if (!isAuthorized) {
-      addNotification('warning', 'Permission Denied', 'Only authorized users can allow to delete accounts.')
+    if (!isAuthorizedForDelete) {
+      addNotification('warning', 'Permission Denied', 'Only authorized users can delete accounts.')
       return
     }
 
@@ -1440,6 +1437,36 @@ const activeStageParam = searchParams.get('stage')
 
     updateUrlState({ accountId: null }, true)
     addNotification('success', 'Account deleted', 'Account was removed from the list.')
+  }
+
+  const handleBulkDeleteAccounts = async () => {
+    if (!isAuthorizedForDelete) {
+      addNotification('warning', 'Permission Denied', 'Only authorized users can delete accounts.')
+      return
+    }
+
+    if (selectedAccountIds.length === 0) return
+
+    const confirmed = window.confirm(`Are you sure you want to delete ${selectedAccountIds.length} selected Account(s)?`)
+    if (!confirmed) return
+
+    setIsBulkDeletingAccounts(true)
+    try {
+      let count = 0
+      for (const id of selectedAccountIds) {
+        const result = await deleteAccount(id)
+        if (result && result.success !== false) {
+          count++
+        }
+      }
+      setSelectedAccountIds([])
+      addNotification('success', 'Accounts deleted', `${count} account(s) were removed from the list.`)
+      refreshData()
+    } catch (err) {
+      addNotification('error', 'Delete failed', err.message || 'Unable to delete accounts.')
+    } finally {
+      setIsBulkDeletingAccounts(false)
+    }
   }
 
   const handleDrawerClose = () => {
@@ -1881,6 +1908,17 @@ const activeStageParam = searchParams.get('stage')
                 Refresh
               </Button>
             ) : null}
+            {isAuthorizedForDelete && selectedAccountIds.length > 0 ? (
+              <Button
+                variant="danger"
+                size="small"
+                onClick={handleBulkDeleteAccounts}
+                loading={isBulkDeletingAccounts}
+                style={{ backgroundColor: '#dc2626', color: '#fff', borderColor: '#dc2626' }}
+              >
+                Delete Selected ({selectedAccountIds.length})
+              </Button>
+            ) : null}
             {showExportButton ? (
               <AccountsExportButton
                 currentStageRows={filteredRows}
@@ -1916,7 +1954,7 @@ const activeStageParam = searchParams.get('stage')
           rowActionsEnabled={rowActionsEnabled}
           rowActions={rowActions}
           mainButtonBehavior={view.mainButtonBehavior}
-          selectable={!useExactAccountListTable && activeStage !== 'daily_fresh_leads' && activeStage !== 'no_follow_leads' && variantKey !== 'dailyFreshLeads' && variantKey !== 'noFollowLeads' && variantKey !== 'weeklyReportsAll'}
+          selectable={(variantKey === 'searchAccount' || !useExactAccountListTable) && activeStage !== 'daily_fresh_leads' && activeStage !== 'no_follow_leads' && variantKey !== 'dailyFreshLeads' && variantKey !== 'noFollowLeads' && variantKey !== 'weeklyReportsAll'}
           showSerialNumber={!useExactAccountListTable}
           selectedRowIds={selectedAccountIds}
           onSelectionChange={setSelectedAccountIds}

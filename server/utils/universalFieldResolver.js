@@ -17,25 +17,47 @@ function parseUniversalDate(val) {
     const d = new Date(val);
     return isNaN(d.getTime()) ? null : d;
   }
+  // Check for BSON date objects or MongoDB extended JSON representations
+  if (typeof val === 'object') {
+    if (val.$date) {
+      if (typeof val.$date === 'object' && val.$date.$numberLong) {
+        const num = parseInt(val.$date.$numberLong, 10);
+        const d = new Date(num);
+        return isNaN(d.getTime()) ? null : d;
+      }
+      return parseUniversalDate(val.$date);
+    }
+    if (val.$numberLong) {
+      const num = parseInt(val.$numberLong, 10);
+      const d = new Date(num);
+      return isNaN(d.getTime()) ? null : d;
+    }
+  }
   const str = String(val).trim();
-  if (!str) return null;
+  if (!str || str === '[object Object]') return null;
 
   // DD-MM-YYYY or DD/MM/YYYY
-  const dmy = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  const dmy = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/);
   if (dmy) {
     const d = parseInt(dmy[1], 10);
     const m = parseInt(dmy[2], 10) - 1;
-    const y = parseInt(dmy[3], 10);
+    let y = parseInt(dmy[3], 10);
+    if (y < 100) y += 2000;
     const dt = new Date(y, m, d);
     return isNaN(dt.getTime()) ? null : dt;
   }
 
   // YYYY-MM-DD
-  const ymd = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  const ymd = str.match(/^(\d{2,4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (ymd) {
-    const y = parseInt(ymd[1], 10);
+    let y = parseInt(ymd[1], 10);
+    if (y < 100) y += 2000;
     const m = parseInt(ymd[2], 10) - 1;
     const d = parseInt(ymd[3], 10);
+    if (str.includes('T') || str.includes(':')) {
+      const parsedIso = new Date(str);
+      if (!isNaN(parsedIso.getTime())) return parsedIso;
+    }
     const dt = new Date(y, m, d);
     return isNaN(dt.getTime()) ? null : dt;
   }
@@ -106,10 +128,33 @@ function resolveDocumentField(doc, fieldIdentifier, usersLookupMap = {}) {
 
   let rawVal = findDeepFieldValue(doc, fieldIdentifier);
 
-  if (rawVal === undefined || rawVal === null || rawVal === '') {
-    if (canon.includes('accountname') || canon === 'name' || canon === 'company' || canon === 'companyname') {
-      rawVal = findDeepFieldValue(doc, 'accountName') || findDeepFieldValue(doc, 'name') || findDeepFieldValue(doc, 'companyName') || findDeepFieldValue(doc, 'company') || findDeepFieldValue(doc, 'customerName') || findDeepFieldValue(doc, 'title');
-    } else if (canon.includes('accountno') || canon.includes('accountnumber') || canon === 'id') {
+  if (canon.includes('accountname') || canon.includes('customername') || canon === 'name' || canon === 'company' || canon === 'companyname') {
+    const pName = doc.projectName || doc.formData?.projectName || doc.data?.projectName || (doc.formData && doc.formData['Project Name']);
+    const accCandidate = doc.accountName || doc.formData?.accountName || (doc.formData && doc.formData['Account Name']) || doc.customerName || doc.formData?.customerName || doc.companyName || doc.formData?.companyName;
+    if (accCandidate && pName && String(rawVal || doc.name || '').trim().toLowerCase() === String(pName).trim().toLowerCase()) {
+      rawVal = accCandidate;
+    } else if (rawVal === undefined || rawVal === null || rawVal === '') {
+      rawVal = accCandidate || findDeepFieldValue(doc, 'name') || findDeepFieldValue(doc, 'company') || findDeepFieldValue(doc, 'title');
+    }
+  } else if (canon.includes('project')) {
+    rawVal = findDeepFieldValue(doc, 'projectName') ||
+      findDeepFieldValue(doc, 'project') ||
+      doc.projectName ||
+      doc.formData?.projectName ||
+      (doc.formData && doc.formData['Project Name']) ||
+      doc.data?.projectName ||
+      (Array.isArray(doc.formData?.projects) && doc.formData.projects[0]?.projectName) ||
+      findDeepFieldValue(doc, 'dealName') ||
+      doc.dealName ||
+      doc.formData?.dealName;
+    if (!rawVal || rawVal === '-') {
+      const accName = doc.accountName || doc.formData?.accountName;
+      if (doc.name && accName && String(doc.name).trim().toLowerCase() !== String(accName).trim().toLowerCase()) {
+        rawVal = doc.name;
+      }
+    }
+  } else if (rawVal === undefined || rawVal === null || rawVal === '') {
+    if (canon.includes('accountno') || canon.includes('accountnumber') || canon === 'id') {
       rawVal = findDeepFieldValue(doc, 'accountNumber') || findDeepFieldValue(doc, 'accountNo') || findDeepFieldValue(doc, 'id') || doc._id;
     } else if (canon.includes('dealno') || canon.includes('dealnumber')) {
       rawVal = findDeepFieldValue(doc, 'dealNumber') || findDeepFieldValue(doc, 'id') || doc._id;
@@ -117,8 +162,20 @@ function resolveDocumentField(doc, fieldIdentifier, usersLookupMap = {}) {
       rawVal = findDeepFieldValue(doc, 'quotationNumber') || findDeepFieldValue(doc, 'quoteNumber') || findDeepFieldValue(doc, 'quotationNo') || doc._id;
     } else if (canon.includes('customerno') || canon.includes('customernumber')) {
       rawVal = findDeepFieldValue(doc, 'customerNumber') || findDeepFieldValue(doc, 'customerNo') || doc._id;
+    } else if (canon.includes('project')) {
+      rawVal = findDeepFieldValue(doc, 'projectName') ||
+        findDeepFieldValue(doc, 'project') ||
+        doc.projectName ||
+        doc.formData?.projectName ||
+        doc.data?.projectName ||
+        (Array.isArray(doc.formData?.projects) && doc.formData.projects[0]?.projectName) ||
+        findDeepFieldValue(doc, 'dealName') ||
+        doc.dealName ||
+        doc.formData?.dealName;
     } else if (canon.includes('date')) {
       rawVal = findDeepFieldValue(doc, 'accountDate') || findDeepFieldValue(doc, 'dealDate') || findDeepFieldValue(doc, 'quotationDate') || findDeepFieldValue(doc, 'quoteDate') || findDeepFieldValue(doc, 'convertedAt') || findDeepFieldValue(doc, 'date') || doc.createdAt;
+    } else if (canon.includes('updated') || canon.includes('lastupdate') || canon.includes('modified')) {
+      rawVal = findDeepFieldValue(doc, 'updatedAt') || findDeepFieldValue(doc, 'lastUpdated') || findDeepFieldValue(doc, 'lastUpdate') || doc.updatedAt || doc.createdAt;
     } else if (canon.includes('owner')) {
       rawVal = findDeepFieldValue(doc, 'accountOwner') || findDeepFieldValue(doc, 'dealOwner') || findDeepFieldValue(doc, 'quotationOwner') || findDeepFieldValue(doc, 'customerOwner') || findDeepFieldValue(doc, 'ownerName') || findDeepFieldValue(doc, 'owner') || findDeepFieldValue(doc, 'assignedTo') || findDeepFieldValue(doc, 'ownerCode');
     } else if (canon.includes('status') || canon.includes('stage')) {
@@ -165,9 +222,16 @@ function resolveDocumentField(doc, fieldIdentifier, usersLookupMap = {}) {
     return rawVal ? String(rawVal) : '-';
   }
 
-  if (canon.includes('date') || canon.includes('createdat') || canon.includes('updatedat') || canon.includes('addedon')) {
-    const isTime = canon.includes('createdat') || canon.includes('updatedat') || canon.includes('time');
+  if (canon.includes('date') || canon.includes('createdat') || canon.includes('updated') || canon.includes('lastupdate') || canon.includes('modified') || canon.includes('addedon') || canon.includes('validuntil') || canon.includes('closure')) {
+    const isTime = canon.includes('createdat') || canon.includes('updated') || canon.includes('lastupdate') || canon.includes('time') || canon.includes('modified');
     return formatDateDisplay(rawVal, isTime);
+  }
+
+  if (canon.includes('status') || canon.includes('stage')) {
+    const str = String(rawVal || '').replace(/_/g, ' ').trim();
+    if (str && str !== '-') {
+      return str.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
   }
 
   if (canon.includes('povalue') || canon.includes('dealvalue') || canon.includes('grandtotal') || canon.includes('amount')) {

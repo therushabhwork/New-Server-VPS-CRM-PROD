@@ -30,7 +30,23 @@ const resolveReportOwnerValues = async (ownerFilter, companyId) => {
   const requested = String(ownerFilter || '').trim();
   if (!requested || requested.toLowerCase() === 'all') return [];
 
+  // Decompose parenthetical format: e.g. "Naim Vhora (sales1@swatiswitchgears.com)" or "Krunal Patel (1002)"
+  let requestedName = requested;
+  let requestedEmail = '';
+  let requestedCode = '';
+  const inParens = requested.match(/^(.*?)\s*\(([^)]+)\)$/);
+  if (inParens) {
+    requestedName = inParens[1].trim();
+    const inside = inParens[2].trim();
+    if (inside.includes('@')) requestedEmail = inside.toLowerCase();
+    else if (/^\d+$/.test(inside)) requestedCode = inside;
+  }
+
   const values = new Set([requested]);
+  if (requestedName) values.add(requestedName);
+  if (requestedEmail) values.add(requestedEmail);
+  if (requestedCode) values.add(requestedCode);
+
   const usersCollection = mongoose.connection?.db?.collection('users');
   if (!usersCollection) return Array.from(values);
 
@@ -43,6 +59,8 @@ const resolveReportOwnerValues = async (ownerFilter, companyId) => {
   }).toArray();
 
   const normalized = requested.toLowerCase();
+  const normalizedName = requestedName.toLowerCase();
+  const matchedUsers = [];
   safeUsers.forEach((user) => {
     if (user.status && String(user.status).toLowerCase() !== 'approved') return;
     if (user.isApproved === false) return;
@@ -51,10 +69,63 @@ const resolveReportOwnerValues = async (ownerFilter, companyId) => {
       user.name, user.username, user.email, user.ownerCode,
       user.owner_code, user.employeeId, user.legacyId, user._id,
     ].filter((value) => value !== undefined && value !== null).map(String);
-    if (!identityValues.some((value) => value.toLowerCase() === normalized)) return;
 
-    identityValues.forEach((value) => values.add(value));
+    const isDirectMatch = identityValues.some((value) => {
+      const v = value.toLowerCase();
+      return v === normalized || v === normalizedName || (requestedEmail && v === requestedEmail) || (requestedCode && v === requestedCode);
+    });
+    const isFuzzyNaimMatch = (normalizedName === 'naim vhora' || normalizedName === 'naim vora' || normalizedName === 'naim') &&
+      (/naim(\s+vh?ora)?/i.test(String(user.name || '')) || /naim(\s+vh?ora)?/i.test(String(user.username || '')));
+    const isFuzzyKrunalMatch = (normalizedName === 'krunal patel' || normalizedName === 'krunal') &&
+      (/krunal(\s+patel)?/i.test(String(user.name || '')) || /krunal(\s+patel)?/i.test(String(user.username || '')));
+
+    if (isDirectMatch || isFuzzyNaimMatch || isFuzzyKrunalMatch) {
+      identityValues.forEach((value) => values.add(value));
+      matchedUsers.push(user);
+      if (isFuzzyNaimMatch) {
+        values.add('Naim Vhora');
+        values.add('Naim Vora');
+      }
+      if (isFuzzyKrunalMatch) {
+        values.add('Krunal Patel');
+      }
+    }
   });
+
+  // Dynamically resolve associated owner codes from MongoDB leads and deals collections for all matched users
+  if (matchedUsers.length > 0) {
+    try {
+      const leadsCol = mongoose.connection?.db?.collection('leads');
+      const dealsCol = mongoose.connection?.db?.collection('deals');
+      for (const u of matchedUsers) {
+        const uName = String(u.name || u.username || '').trim();
+        const nameRegex = uName ? new RegExp(uName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : null;
+
+        const orClauses = [];
+        if (nameRegex) {
+          orClauses.push({ ownerName: nameRegex }, { accountOwner: nameRegex }, { 'formData.accountOwner': nameRegex }, { 'data.accountOwner': nameRegex });
+        }
+        if (u.ownerCode) {
+          orClauses.push({ ownerCode: String(u.ownerCode) }, { accountOwnerCode: Number(u.ownerCode) || 0 });
+        }
+
+        if (leadsCol && orClauses.length > 0) {
+          const leadCodes = await leadsCol.distinct('ownerCode', { $or: orClauses });
+          leadCodes.filter(Boolean).forEach((c) => values.add(String(c)));
+
+          const accCodes = await leadsCol.distinct('accountOwnerCode', { $or: orClauses });
+          accCodes.filter(Boolean).forEach((c) => values.add(String(c)));
+        }
+
+        if (dealsCol && nameRegex) {
+          const dealCodes = await dealsCol.distinct('ownerCode', {
+            $or: [{ dealOwner: nameRegex }, { 'data.dealOwner': nameRegex }]
+          });
+          dealCodes.filter(Boolean).forEach((c) => values.add(String(c)));
+        }
+      }
+    } catch (_) {}
+  }
 
   return Array.from(values);
 };
@@ -685,13 +756,17 @@ const executeReportPayload = async ({
   rawDocs.forEach((doc) => {
     let uniqueKey = '';
     if (dataSource === 'account') {
-      uniqueKey = String(doc.accountNumber || doc.accountNo || doc.formData?.accountNumber || doc.formData?.accountNo || doc._id || '').trim();
+      const accNum = String(doc.accountNumber || doc.accountNo || doc.formData?.accountNumber || doc.formData?.accountNo || '').trim();
+      uniqueKey = (accNum && !/^\d{3,5}$/.test(accNum)) ? accNum : String(doc._id || '').trim();
     } else if (dataSource === 'deal') {
-      uniqueKey = String(doc.dealNumber || doc.data?.dealNumber || doc._id || '').trim();
+      const dNum = String(doc.dealNumber || doc.data?.dealNumber || '').trim();
+      uniqueKey = (dNum && !/^\d{3,5}$/.test(dNum)) ? dNum : String(doc._id || '').trim();
     } else if (dataSource === 'customer') {
-      uniqueKey = String(doc.customerNumber || doc.customerNo || doc.formData?.customerNumber || doc._id || '').trim();
+      const cNum = String(doc.customerNumber || doc.customerNo || doc.formData?.customerNumber || '').trim();
+      uniqueKey = (cNum && !/^\d{3,5}$/.test(cNum)) ? cNum : String(doc._id || '').trim();
     } else if (dataSource === 'quotation') {
-      uniqueKey = String(doc.quotationNumber || doc.quoteNumber || doc.data?.quotationNumber || doc._id || '').trim();
+      const qNum = String(doc.quotationNumber || doc.quoteNumber || doc.data?.quotationNumber || '').trim();
+      uniqueKey = (qNum && !/^\d{3,5}$/.test(qNum)) ? qNum : String(doc._id || '').trim();
     } else {
       uniqueKey = String(doc._id || '').trim();
     }

@@ -302,47 +302,22 @@ const AccountsLegacyBoard = ({
                   <th className="admin-accounts-select-col">
                     <span className="admin-accounts-filter-placeholder">Select</span>
                   </th>
-                  {columns.map((column) => {
-                    const isOwnerCol = column.key === 'accountOwner' || column.key === 'owner' || column.key === 'accountOwnerName'
-                    const hasOptions = Array.isArray(ownerOptions) && ownerOptions.length > 0
-
-                    if (isOwnerCol && hasOptions) {
-                      return (
-                        <th key={column.key} className="admin-accounts-filter-cell">
-                          <select
-                            value={filters[column.key] || ''}
-                            onChange={(event) => onFilterChange(column.key, event.target.value)}
-                            className="admin-accounts-filter-input crm-column-filter-input"
-                            style={{ padding: '2px 4px', fontSize: '0.82rem', height: '28px', cursor: 'pointer' }}
-                          >
-                            <option value="">All Owners</option>
-                            {ownerOptions.map((opt) => {
-                              const val = typeof opt === 'string' ? opt : (opt.value || opt.label)
-                              const lbl = typeof opt === 'string' ? opt : (opt.label || opt.value)
-                              return <option key={val} value={val}>{lbl}</option>
-                            })}
-                          </select>
-                        </th>
-                      )
-                    }
-
-                    return (
-                      <th key={column.key} className="admin-accounts-filter-cell">
-                        {column.searchable ? (
-                          <input
-                            type="text"
-                            className="admin-accounts-filter-input crm-column-filter-input"
-                            value={filters[column.key] || ''}
-                            onChange={(event) => onFilterChange(column.key, event.target.value)}
-                            placeholder={column.filterPlaceholder || `Search ${column.label}`}
-                            style={{ color: '#000000', WebkitTextFillColor: '#000000', textShadow: '0 0 0 #000000', caretColor: '#000000', fontWeight: 400 }}
-                          />
-                        ) : (
-                          <span className="admin-accounts-filter-placeholder">-</span>
-                        )}
-                      </th>
-                    )
-                  })}
+                  {columns.map((column) => (
+                    <th key={column.key} className="admin-accounts-filter-cell">
+                      {column.searchable ? (
+                        <input
+                          type="text"
+                          className="admin-accounts-filter-input crm-column-filter-input"
+                          value={filters[column.key] || ''}
+                          onChange={(event) => onFilterChange(column.key, event.target.value)}
+                          placeholder={column.filterPlaceholder || `Search ${column.label}`}
+                          style={{ color: '#000000', WebkitTextFillColor: '#000000', textShadow: '0 0 0 #000000', caretColor: '#000000', fontWeight: 400 }}
+                        />
+                      ) : (
+                        <span className="admin-accounts-filter-placeholder">-</span>
+                      )}
+                    </th>
+                  ))}
                 </tr>
               ) : (
                 <AccountsBoardFilters

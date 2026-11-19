@@ -1310,6 +1310,15 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
   }
 
   const dealFileInputRef = useRef(null)
+  const isAuthorizedForDelete = useMemo(() => {
+    const targetKeywords = ['keval', 'parth', 'rushabh', 'samir']
+    const currentUserEmail = String(user?.email || '').trim().toLowerCase()
+    const currentUserName = String(user?.name || user?.username || '').trim().toLowerCase()
+    return targetKeywords.some((k) => currentUserName.includes(k) || currentUserEmail.includes(k))
+  }, [user?.email, user?.name, user?.username])
+  const [selectedDealIds, setSelectedDealIds] = useState([])
+  const [deletedDealIds, setDeletedDealIds] = useState(new Set())
+  const [isDeletingDeals, setIsDeletingDeals] = useState(false)
   const [isImportingDeals, setIsImportingDeals] = useState(false)
   const [importPreviewDeals, setImportPreviewDeals] = useState(null)
   const [importExcelHeaders, setImportExcelHeaders] = useState([])
@@ -2812,12 +2821,17 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
     [ownerScopedCurrentPageSafe, ownerScopedTotalPages]
   )
 
-  const totalPages = Math.max(1, Math.ceil(sortedGridRows.length / ROWS_PER_PAGE))
+  const nonDeletedGridRows = useMemo(() => {
+    if (deletedDealIds.size === 0) return sortedGridRows
+    return sortedGridRows.filter((row) => !deletedDealIds.has(String(row.id)))
+  }, [sortedGridRows, deletedDealIds])
+
+  const totalPages = Math.max(1, Math.ceil(nonDeletedGridRows.length / ROWS_PER_PAGE))
   const currentPageSafe = Math.min(currentPage, totalPages)
   const paginatedGridRows = useMemo(() => {
     const startIndex = (currentPageSafe - 1) * ROWS_PER_PAGE
-    return sortedGridRows.slice(startIndex, startIndex + ROWS_PER_PAGE)
-  }, [currentPageSafe, sortedGridRows])
+    return nonDeletedGridRows.slice(startIndex, startIndex + ROWS_PER_PAGE)
+  }, [currentPageSafe, nonDeletedGridRows])
   const visiblePages = useMemo(() => buildVisiblePages(currentPageSafe, totalPages), [currentPageSafe, totalPages])
   const requiredVisibleFieldKeys = isSearchAdminView ? SEARCH_DEAL_REQUIRED_GRID_KEYS : ['dealNumber']
   const isRequiredVisibleFieldKey = (key) => requiredVisibleFieldKeys.includes(key)
@@ -4602,7 +4616,112 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
     return searchColumns
   }, [isNonAdminUser, searchColumns])
 
-  const columns = effectiveVariantKey === 'search' ? effectiveSearchColumns : defaultColumns
+  const isAllVisibleDealsSelected = displayedDeals.length > 0 && displayedDeals.every((d) => selectedDealIds.includes(String(d.id)))
+  const isPartiallyDealsSelected = displayedDeals.some((d) => selectedDealIds.includes(String(d.id))) && !isAllVisibleDealsSelected
+
+  const dealSelectionColumn = useMemo(() => ({
+    key: '__selection__',
+    label: (
+      <input
+        type="checkbox"
+        checked={isAllVisibleDealsSelected}
+        ref={(el) => {
+          if (el) el.indeterminate = isPartiallyDealsSelected
+        }}
+        onChange={(e) => {
+          if (e.target.checked) {
+            const allIds = displayedDeals.map((d) => String(d.id))
+            setSelectedDealIds(Array.from(new Set([...selectedDealIds, ...allIds])))
+          } else {
+            const pageIds = new Set(displayedDeals.map((d) => String(d.id)))
+            setSelectedDealIds(selectedDealIds.filter((id) => !pageIds.has(id)))
+          }
+        }}
+        aria-label="Select all deals"
+        style={{ cursor: 'pointer' }}
+      />
+    ),
+    width: '45px',
+    render: (_, row) => {
+      const dealId = String(row?.rawDeal?.id || row?.id || '')
+      return (
+        <input
+          type="checkbox"
+          checked={selectedDealIds.includes(dealId)}
+          onChange={(e) => {
+            setSelectedDealIds((prev) => e.target.checked ? [...prev, dealId] : prev.filter((id) => id !== dealId))
+          }}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Select deal ${row.dealNumber || row.name || dealId}`}
+          style={{ cursor: 'pointer' }}
+        />
+      )
+    },
+  }), [displayedDeals, isAllVisibleDealsSelected, isPartiallyDealsSelected, selectedDealIds])
+
+  const columns = useMemo(() => {
+    if (effectiveVariantKey === 'search') {
+      return [dealSelectionColumn, ...effectiveSearchColumns]
+    }
+    return defaultColumns
+  }, [effectiveVariantKey, effectiveSearchColumns, defaultColumns, dealSelectionColumn])
+
+  const handleBulkDeleteDeals = async () => {
+    if (!isAuthorizedForDelete) {
+      addNotification('warning', 'Permission Denied', 'Only authorized users can delete deals.')
+      return
+    }
+
+    if (selectedDealIds.length === 0) return
+
+    const confirmed = window.confirm(`Are you sure you want to delete ${selectedDealIds.length} selected Deal(s)?`)
+    if (!confirmed) return
+
+    const idsToDelete = [...selectedDealIds]
+    setDeletedDealIds((prev) => new Set([...prev, ...idsToDelete]))
+    setSelectedDealIds([])
+    setIsDeletingDeals(true)
+    try {
+      let count = 0
+      for (const id of idsToDelete) {
+        await dealApi.frontendDeleteDeal(id)
+        count++
+      }
+      addNotification('success', 'Deals deleted', `${count} deal(s) were removed from the list.`)
+      if (typeof refreshData === 'function') {
+        refreshData()
+      }
+    } catch (err) {
+      addNotification('error', 'Delete failed', err.message || 'Unable to delete deals.')
+    } finally {
+      setIsDeletingDeals(false)
+    }
+  }
+
+  const handleDeleteSingleDeal = async (activeDeal) => {
+    const dealId = activeDeal?.id
+    if (!dealId) return
+
+    if (!isAuthorizedForDelete) {
+      addNotification('warning', 'Permission Denied', 'Only authorized users can delete deals.')
+      return
+    }
+
+    const confirmed = window.confirm('Are you sure you want to delete this Deal?')
+    if (!confirmed) return
+
+    setDeletedDealIds((prev) => new Set([...prev, String(dealId)]))
+    setSelectedDealIds((prev) => prev.filter((id) => id !== String(dealId)))
+    try {
+      await dealApi.frontendDeleteDeal(dealId)
+      addNotification('success', 'Deal deleted', 'Deal was removed from the list.')
+      if (typeof refreshData === 'function') {
+        refreshData()
+      }
+    } catch (err) {
+      addNotification('error', 'Delete failed', err.message || 'Unable to delete deal.')
+    }
+  }
 
   const totalValue = displayedDeals.reduce((sum, deal) => sum + (deal.value || 0), 0)
 
@@ -4653,7 +4772,21 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
                 <FaUser />
                 <span>Re-Assign Deal</span>
               </button>
-
+              {isAuthorizedForDelete && !isConvertedDeal ? (
+                <button
+                  type="button"
+                  className="deals-board-card-action-item"
+                  onClick={() => {
+                    setOpenBoardActionMenuDealId('')
+                    setDealTableMenuPosition(null)
+                    handleDeleteSingleDeal(activeDeal)
+                  }}
+                  style={{ color: '#dc2626' }}
+                >
+                  <FaTrash />
+                  <span>Delete Deal</span>
+                </button>
+              ) : null}
             </div>
           ),
           document.body
@@ -6275,7 +6408,17 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
               {isAdmin ? (
                 <></>
               ) : null}
-              <></>
+              {isAuthorizedForDelete && selectedDealIds.length > 0 ? (
+                <Button
+                  variant="danger"
+                  size="small"
+                  onClick={handleBulkDeleteDeals}
+                  loading={isDeletingDeals}
+                  style={{ backgroundColor: '#dc2626', color: '#fff', borderColor: '#dc2626', marginRight: '8px' }}
+                >
+                  Delete Selected ({selectedDealIds.length})
+                </Button>
+              ) : null}
               <button
                 type="button"
                 className="deals-crm-toolbar-icon deals-crm-toolbar-icon-orange"
@@ -6388,6 +6531,32 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
                       </>
                     ) : (
                       <tr className="deals-crm-head-row">
+                        {isSearchAdminView ? (
+                          <th style={{ width: '45px', textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={paginatedGridRows.length > 0 && paginatedGridRows.every((r) => selectedDealIds.includes(String(r.id)))}
+                              ref={(el) => {
+                                if (el) {
+                                  const someSelected = paginatedGridRows.some((r) => selectedDealIds.includes(String(r.id)))
+                                  const allSelected = paginatedGridRows.length > 0 && paginatedGridRows.every((r) => selectedDealIds.includes(String(r.id)))
+                                  el.indeterminate = someSelected && !allSelected
+                                }
+                              }}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  const allIds = paginatedGridRows.map((r) => String(r.id))
+                                  setSelectedDealIds(Array.from(new Set([...selectedDealIds, ...allIds])))
+                                } else {
+                                  const pageIds = new Set(paginatedGridRows.map((r) => String(r.id)))
+                                  setSelectedDealIds(selectedDealIds.filter((id) => !pageIds.has(id)))
+                                }
+                              }}
+                              aria-label="Select all deals"
+                              style={{ cursor: 'pointer' }}
+                            />
+                          </th>
+                        ) : null}
                         {activeGridColumns.map((column) => {
                           if (column.key === 'actions') {
                             return (
@@ -6416,6 +6585,11 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
 
                     {showInlineGridFilters ? (
                       <tr className="deals-crm-filter-row">
+                        {isSearchAdminView ? (
+                          <th style={{ width: '45px', textAlign: 'center' }}>
+                            <span className="admin-accounts-filter-placeholder">-</span>
+                          </th>
+                        ) : null}
                         {activeGridColumns.map((column) => (
                           <th key={column.key}>
                             {column.key === 'actions' ? null : column.key === 'location' || column.key === 'city' ? (
@@ -6446,12 +6620,26 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
                   <tbody>
                     {paginatedGridRows.length === 0 ? (
                       <tr className="deals-crm-row">
-                        <td colSpan={activeGridColumns.length} className="deals-crm-empty-table-cell">
+                        <td colSpan={activeGridColumns.length + (isSearchAdminView ? 1 : 0)} className="deals-crm-empty-table-cell">
                           No Records Found
                         </td>
                       </tr>
                     ) : paginatedGridRows.map((row) => (
                       <tr key={row.id} className="deals-crm-row">
+                        {isSearchAdminView ? (
+                          <td style={{ width: '45px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={selectedDealIds.includes(String(row.id))}
+                              onChange={(e) => {
+                                const idStr = String(row.id)
+                                setSelectedDealIds((prev) => e.target.checked ? [...prev, idStr] : prev.filter((id) => id !== idStr))
+                              }}
+                              aria-label={`Select deal ${row.dealNumber || row.name || row.id}`}
+                              style={{ cursor: 'pointer' }}
+                            />
+                          </td>
+                        ) : null}
                         {activeGridColumns.map((column) => {
                           if (column.key === 'dealNumber') {
                             return (
@@ -6569,7 +6757,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
         subtitle={`${displayedDeals.length} deals | ${formatCurrency(totalValue)} total value. ${viewConfig.subtitle}`}
         actions={cardActions}
       >
-        <div className="deals-filters">
+        <div className="deals-filters" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <Input
             placeholder={viewConfig.searchPlaceholder}
             value={searchTerm}
@@ -6585,6 +6773,18 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
               ...DEAL_STATUS,
             ]}
           />
+
+          {isAuthorizedForDelete && selectedDealIds.length > 0 ? (
+            <Button
+              variant="danger"
+              size="small"
+              onClick={handleBulkDeleteDeals}
+              loading={isDeletingDeals}
+              style={{ backgroundColor: '#dc2626', color: '#fff', borderColor: '#dc2626' }}
+            >
+              Delete Selected ({selectedDealIds.length})
+            </Button>
+          ) : null}
         </div>
 
         <Table

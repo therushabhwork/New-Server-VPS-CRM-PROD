@@ -486,20 +486,20 @@ const AddAccountReportPage = () => {
           const accNo = String(
             row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
           ).trim().toUpperCase()
-          if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL') return `ACC:${accNo}`
+          if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL' && !/^\d{3,5}$/.test(accNo)) return `ACC:${accNo}`
           const id = String(row._id || row.id || '').trim()
           if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
         } else {
           const dealNo = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || '').trim().toUpperCase()
-          if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL') return `DEAL:${dealNo}`
+          if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL' && !/^\d{3,5}$/.test(dealNo)) return `DEAL:${dealNo}`
           const qNo = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNumber || row.quoteNumber || '').trim().toUpperCase()
           if (qNo && qNo !== '-' && qNo !== 'UNDEFINED' && qNo !== 'NULL') return `QUOTE:${qNo}`
           const custNo = String(row['Customer No.'] || row['Customer No'] || row.customerNumber || '').trim().toUpperCase()
-          if (custNo && custNo !== '-' && custNo !== 'UNDEFINED' && custNo !== 'NULL') return `CUST:${custNo}`
+          if (custNo && custNo !== '-' && custNo !== 'UNDEFINED' && custNo !== 'NULL' && !/^\d{3,5}$/.test(custNo)) return `CUST:${custNo}`
           const accNo = String(
             row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
           ).trim().toUpperCase()
-          if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL') return `ACC:${accNo}`
+          if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL' && !/^\d{3,5}$/.test(accNo)) return `ACC:${accNo}`
           const id = String(row._id || row.id || '').trim()
           if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
         }

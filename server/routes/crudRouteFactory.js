@@ -3,7 +3,7 @@ const { requireAuth } = require('../middleware/authMiddleware')
 const { validate } = require('../middleware/validate')
 const { idParam } = require('../validation/schemas')
 
-const createCrudRouter = (controller, { extraRoutes } = {}) => {
+const createCrudRouter = (controller, { extraRoutes, deleteMiddleware } = {}) => {
   const router = express.Router()
   const validation = controller.validation || {}
   router.use(requireAuth)
@@ -11,12 +11,13 @@ const createCrudRouter = (controller, { extraRoutes } = {}) => {
   if (typeof extraRoutes === 'function') {
     extraRoutes(router)
   }
-  router.patch('/:id/frontend-delete', validate({ params: idParam }), controller.frontendDelete)
+  const delGuards = deleteMiddleware ? [deleteMiddleware] : []
+  router.patch('/:id/frontend-delete', ...delGuards, validate({ params: idParam }), controller.frontendDelete)
   router.get('/:id', validate({ params: idParam }), controller.getById)
   router.post('/', validate({ body: validation.create }), controller.create)
   router.put('/:id', validate({ params: idParam, body: validation.update }), controller.update)
   router.patch('/:id', validate({ params: idParam, body: validation.update }), controller.update)
-  router.delete('/:id', validate({ params: idParam }), controller.remove)
+  router.delete('/:id', ...delGuards, validate({ params: idParam }), controller.remove)
   return router
 }
 

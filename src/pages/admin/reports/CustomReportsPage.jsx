@@ -1094,7 +1094,18 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     const finalCustomers = allCustomers.length > 0 ? allCustomers : customers
     const finalQuotations = allQuotations.length > 0 ? allQuotations : quotations
 
-    const reportOwner = String(report.accountOwner || report.owner || '').trim().toLowerCase()
+    const rawReportOwner = String(report.accountOwner || report.owner || '').trim()
+    let extractedOwnerName = rawReportOwner
+    let extractedOwnerEmail = ''
+    let extractedOwnerCode = ''
+    const inParens = rawReportOwner.match(/^(.*?)\s*\(([^)]+)\)$/)
+    if (inParens) {
+      extractedOwnerName = inParens[1].trim()
+      const inside = inParens[2].trim()
+      if (inside.includes('@')) extractedOwnerEmail = inside.toLowerCase()
+      else if (/^\d+$/.test(inside)) extractedOwnerCode = inside
+    }
+    const reportOwner = extractedOwnerName.toLowerCase()
     const rawFrom = report.recordDateFrom || report.generatedFrom || report.dateRange?.fromDate || report.fromDate
     const rawTo = report.recordDateTo || report.generatedTo || report.dateRange?.toDate || report.toDate
     const reportFrom = rawFrom ? new Date(`${rawFrom}T00:00:00`) : null
@@ -1142,7 +1153,12 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           item.customerOwner,
         ].filter(Boolean).map((o) => String(o).trim().toLowerCase())
 
-        const ownerMatched = itemOwners.some((o) => o === reportOwner || o.includes(reportOwner) || reportOwner.includes(o))
+        const ownerMatched = itemOwners.some((o) => {
+          if (o === reportOwner || o === rawReportOwner.toLowerCase()) return true
+          if (extractedOwnerEmail && (o === extractedOwnerEmail || o.includes(extractedOwnerEmail))) return true
+          if (extractedOwnerCode && o === extractedOwnerCode) return true
+          return o.includes(reportOwner) || reportOwner.includes(o)
+        })
         if (!ownerMatched) return false
       }
 
@@ -1259,8 +1275,8 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           phone: item.phone || item.mobile || '-',
           mobile: item.phone || item.mobile || '-',
           email: item.email || '-',
-          projectName: item.projectName || item.project || '-',
-          project: item.projectName || item.project || '-',
+          projectName: item.projectName || item.formData?.projectName || item.project || item.formData?.project || item.data?.projectName || (Array.isArray(item.formData?.projects) && item.formData.projects[0]?.projectName) || item.dealName || item.formData?.dealName || '-',
+          project: item.projectName || item.formData?.projectName || item.project || item.formData?.project || item.data?.projectName || (Array.isArray(item.formData?.projects) && item.formData.projects[0]?.projectName) || item.dealName || item.formData?.dealName || '-',
           location: item.location || item.city || '-',
           city: item.location || item.city || '-',
           reasonForLost: item.reasonForLost || '-',
@@ -1719,11 +1735,16 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         const fieldLabels = exportPayload.fieldLabels || selectedFieldKeys
         const rawFields = exportPayload.selectedFields || selectedFieldKeys
 
-        const columns = fieldLabels.map((lbl, idx) => ({
-          key: lbl,
-          label: lbl,
-          rawKey: rawFields[idx] || lbl,
-        }))
+        const columns = fieldLabels.map((lbl, idx) => {
+          const rawKey = rawFields[idx] || lbl
+          const isDate = /date|createdat|updatedat/i.test(String(lbl || rawKey))
+          return {
+            key: lbl,
+            label: lbl,
+            rawKey,
+            type: isDate ? 'date' : undefined,
+          }
+        })
 
         // Helper to resolve cell values case-insensitively and normalize dates & numbers
         const resolveExportCell = (row, col) => {
@@ -1739,17 +1760,38 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
             col.key ? row[String(col.key).toLowerCase().replace(/[^a-z0-9]/g, '')] : undefined,
             col.rawKey ? row[String(col.rawKey).toLowerCase().replace(/[^a-z0-9]/g, '')] : undefined,
           ]
+          const isUpdatedCol = /updated|lastupdate|modified/i.test(String(col.label || col.key || col.rawKey || ''))
+          if (isUpdatedCol) {
+            candidates.push(row.updatedAt, row.lastUpdated, row.lastUpdate, row['Updated At'], row['Last Updated'], row.formData?.updatedAt)
+          }
           const isOwnerCol = /owner|assigned|createdby|addedby/i.test(String(col.label || col.key || col.rawKey || ''))
+          const isStatusCol = /status|stage/i.test(String(col.label || col.key || col.rawKey || ''))
           for (const cand of candidates) {
             if (cand !== undefined && cand !== null && cand !== '') {
               // Normalize date if ISO format (YYYY-MM-DD -> DD/MM/YYYY)
               if (typeof cand === 'string' && /^\d{4}-\d{2}-\d{2}/.test(cand)) {
+                if (isUpdatedCol && cand.includes('T')) {
+                  const d = new Date(cand)
+                  if (!isNaN(d.getTime())) {
+                    const day = String(d.getDate()).padStart(2, '0')
+                    const month = String(d.getMonth() + 1).padStart(2, '0')
+                    const year = d.getFullYear()
+                    let hours = d.getHours()
+                    const minutes = String(d.getMinutes()).padStart(2, '0')
+                    const ampm = hours >= 12 ? 'PM' : 'AM'
+                    hours = hours % 12 || 12
+                    return `${day}/${month}/${year} ${String(hours).padStart(2, '0')}:${minutes} ${ampm}`
+                  }
+                }
                 const parts = cand.slice(0, 10).split('-')
                 if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`
               }
               const strVal = String(cand).trim()
               if (isOwnerCol && strVal && strVal !== '-' && strVal.toLowerCase() !== 'unassigned') {
                 return formatTitleCase(strVal)
+              }
+              if (isStatusCol && strVal && strVal !== '-') {
+                return formatTitleCase(strVal.replace(/_/g, ' '))
               }
               return strVal
             }
@@ -1779,20 +1821,20 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
             const accNo = String(
               row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
             ).trim().toUpperCase()
-            if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL') return `ACC:${accNo}`
+            if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL' && !/^\d{3,5}$/.test(accNo)) return `ACC:${accNo}`
             const id = String(row._id || row.id || '').trim()
             if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
           } else {
             const dealNo = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || '').trim().toUpperCase()
-            if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL') return `DEAL:${dealNo}`
+            if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL' && !/^\d{3,5}$/.test(dealNo)) return `DEAL:${dealNo}`
             const qNo = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNumber || row.quoteNumber || '').trim().toUpperCase()
             if (qNo && qNo !== '-' && qNo !== 'UNDEFINED' && qNo !== 'NULL') return `QUOTE:${qNo}`
             const custNo = String(row['Customer No.'] || row['Customer No'] || row.customerNumber || '').trim().toUpperCase()
-            if (custNo && custNo !== '-' && custNo !== 'UNDEFINED' && custNo !== 'NULL') return `CUST:${custNo}`
+            if (custNo && custNo !== '-' && custNo !== 'UNDEFINED' && custNo !== 'NULL' && !/^\d{3,5}$/.test(custNo)) return `CUST:${custNo}`
             const accNo = String(
               row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
             ).trim().toUpperCase()
-            if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL') return `ACC:${accNo}`
+            if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL' && !/^\d{3,5}$/.test(accNo)) return `ACC:${accNo}`
             const id = String(row._id || row.id || '').trim()
             if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
           }
@@ -1811,13 +1853,28 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           }
         })
 
+        // LIFO (Last-In, First-Out) Timestamp Helper
+        const getRecordTimestamp = (r) => {
+          const raw = r.updatedAt || r.formData?.updatedAt || r.accountDate || r.formData?.accountDate || r.dealDate || r.quotationDate || r.date || r.createdAt || r['Account Date'] || r['Last Updated'] || r['Updated At'] || r['Created At']
+          return parseToStandardDateTimestamp(raw) || 0
+        }
+        // Enforce LIFO sorting on entire dataset
+        dedupedDataSets.sort((a, b) => getRecordTimestamp(b) - getRecordTimestamp(a))
+
         // Account Owner resolver for grouping
         const resolveRowOwner = (row) => {
           const val = row['Account Owner'] || row.accountOwner || row.ownerName || row.owner || row._ownerName ||
             row['Deal Owner'] || row.dealOwner || row['Quotation Owner'] || row.quotationOwner ||
             row['Customer Owner'] || row.customerOwner || ''
-          const trimmed = String(val || 'Unassigned').trim() || 'Unassigned'
-          return trimmed.toLowerCase() === 'unassigned' ? 'Unassigned' : formatTitleCase(trimmed)
+          const trimmed = String(val || '').trim()
+          if (!trimmed || trimmed.toLowerCase() === 'unassigned') {
+            const fallbackOwner = report.accountOwner || report.owner || exportPayload.ownerName || ''
+            if (fallbackOwner && fallbackOwner.toLowerCase() !== 'all') {
+              return formatTitleCase(fallbackOwner)
+            }
+            return 'Unassigned'
+          }
+          return formatTitleCase(trimmed)
         }
 
         const reportGroups = (
@@ -2079,7 +2136,9 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           const excelRows = []
           if (isMultiOwner && sortedOwnerNames.length > 1) {
             sortedOwnerNames.forEach((ownerName) => {
-              const groupRows = ownerGroups[ownerName] || []
+              const groupRows = (ownerGroups[ownerName] || []).slice()
+              // Enforce LIFO (Last-In, First-Out) ordering within owner groups
+              groupRows.sort((a, b) => getRecordTimestamp(b) - getRecordTimestamp(a))
               const isReassigned = checkIsReassigned(ownerName)
 
               // Dynamically resolve "From" creator name as per MongoDB collections
@@ -2273,8 +2332,8 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           phone: item.phone || item.mobile || '-',
           mobile: item.phone || item.mobile || '-',
           email: item.email || '-',
-          projectName: item.projectName || item.project || '-',
-          project: item.projectName || item.project || '-',
+          projectName: item.projectName || item.formData?.projectName || item.project || item.formData?.project || item.data?.projectName || (Array.isArray(item.formData?.projects) && item.formData.projects[0]?.projectName) || item.dealName || item.formData?.dealName || '-',
+          project: item.projectName || item.formData?.projectName || item.project || item.formData?.project || item.data?.projectName || (Array.isArray(item.formData?.projects) && item.formData.projects[0]?.projectName) || item.dealName || item.formData?.dealName || '-',
           location: item.location || item.city || '-',
           city: item.location || item.city || '-',
           reasonForLost: item.reasonForLost || '-',
@@ -2445,7 +2504,18 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
       return mapped
     }
 
-    const reportOwner = String(report.accountOwner || report.owner || '').trim().toLowerCase()
+    const rawReportOwner = String(report.accountOwner || report.owner || '').trim()
+    let extractedOwnerName = rawReportOwner
+    let extractedOwnerEmail = ''
+    let extractedOwnerCode = ''
+    const inParens = rawReportOwner.match(/^(.*?)\s*\(([^)]+)\)$/)
+    if (inParens) {
+      extractedOwnerName = inParens[1].trim()
+      const inside = inParens[2].trim()
+      if (inside.includes('@')) extractedOwnerEmail = inside.toLowerCase()
+      else if (/^\d+$/.test(inside)) extractedOwnerCode = inside
+    }
+    const reportOwner = extractedOwnerName.toLowerCase()
     const reportOwnerEmail = String(report.accountOwnerEmail || '').trim().toLowerCase()
     const reportUserGroups = Array.isArray(report.userGroups) ? report.userGroups : (Array.isArray(report.selectedUserGroups) ? report.selectedUserGroups : [])
     const reportUserGroupMembers = Array.isArray(report.userGroupMembers) ? report.userGroupMembers : []
@@ -2474,6 +2544,24 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     const applyReportScope = (items, type) => items.filter((item) => {
       // 1. Owner & User Group Scope Filter
       if (reportOwner && reportOwner !== 'all') {
+        const itemExplicitOwner = String(
+          item.accountOwnerName || item.accountOwner || item.ownerName || item.owner ||
+          item.assignedToName || item.assignedTo || item.dealOwnerName || item.dealOwner ||
+          item.customerOwner || item.raw?.accountOwner || ''
+        ).trim().toLowerCase()
+
+        if (itemExplicitOwner && itemExplicitOwner !== '-' && itemExplicitOwner !== 'unassigned') {
+          const isTarget = itemExplicitOwner === reportOwner || itemExplicitOwner === extractedOwnerName.toLowerCase() ||
+            (extractedOwnerEmail && itemExplicitOwner.includes(extractedOwnerEmail))
+          if (!isTarget) {
+            const isOtherColleague = liveGroupMembers.some((m) => String(m.name || '').trim().toLowerCase() === itemExplicitOwner) ||
+              allowedMemberNames.has(itemExplicitOwner)
+            if (isOtherColleague) {
+              return false // Strictly reject documents explicitly owned by another colleague
+            }
+          }
+        }
+
         const itemOwners = [
           item.accountOwnerName,
           item.accountOwner,
@@ -2505,8 +2593,14 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         )
         const targetEmail = matchedMember ? String(matchedMember.email).trim().toLowerCase() : reportOwnerEmail
 
-        const ownerMatched = itemOwners.some((o) => o === reportOwner || o.includes(reportOwner) || reportOwner.includes(o)) ||
-          (targetEmail && itemEmails.some((e) => e === targetEmail || e.includes(targetEmail)))
+        const ownerMatched = itemOwners.some((o) => {
+          if (o === reportOwner || o === rawReportOwner.toLowerCase()) return true
+          if (extractedOwnerEmail && (o === extractedOwnerEmail || o.includes(extractedOwnerEmail))) return true
+          if (extractedOwnerCode && o === extractedOwnerCode) return true
+          return o.includes(reportOwner) || reportOwner.includes(o)
+        }) ||
+          (targetEmail && itemEmails.some((e) => e === targetEmail || e.includes(targetEmail))) ||
+          (extractedOwnerEmail && itemEmails.some((e) => e === extractedOwnerEmail || e.includes(extractedOwnerEmail)))
 
         if (!ownerMatched) return false
       } else if (allowedMemberNames.size > 0 || allowedMemberEmails.size > 0 || allowedGroupNames.size > 0) {
@@ -2746,6 +2840,13 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
 
       doc.save(`${slugify(displayReportTitle)}-${new Date().toISOString().slice(0, 10)}.pdf`)
     } else {
+      // Enforce LIFO (Last-In, First-Out) sorting on exported rows
+      const getRecordTimestamp = (r) => {
+        const raw = r.updatedAt || r.accountDate || r.dealDate || r.quotationDate || r.date || r.createdAt || r['Account Date'] || r['Last Updated'] || r['Updated At'] || r['Created At']
+        return parseToStandardDateTimestamp(raw) || 0
+      }
+      dedupedDataSets.sort((a, b) => getRecordTimestamp(b) - getRecordTimestamp(a))
+
       exportExcelWorkbook({
         filename: `${slugify(formatTitleCase(reportName))}-${activeFilter}-${new Date().toISOString().slice(0, 10)}.xlsx`,
         title: `${formatTitleCase(reportName)} - ${activeFilter.toUpperCase()}`,
