@@ -98,6 +98,9 @@ function findDeepFieldValue(doc, requestedKey) {
   const targetCanon = canonicalizeKey(requestedKey);
   if (!targetCanon) return undefined;
 
+  const strippedKey = typeof requestedKey === 'string' && requestedKey.startsWith('q_') ? requestedKey.slice(2) : null;
+  const strippedCanon = strippedKey ? canonicalizeKey(strippedKey) : null;
+
   const containers = [
     doc,
     doc.formData,
@@ -111,8 +114,12 @@ function findDeepFieldValue(doc, requestedKey) {
     if (container[requestedKey] !== undefined && container[requestedKey] !== null && container[requestedKey] !== '') {
       return container[requestedKey];
     }
+    if (strippedKey && container[strippedKey] !== undefined && container[strippedKey] !== null && container[strippedKey] !== '') {
+      return container[strippedKey];
+    }
     for (const [key, value] of Object.entries(container)) {
-      if (canonicalizeKey(key) === targetCanon) {
+      const cKey = canonicalizeKey(key);
+      if (cKey === targetCanon || (strippedCanon && cKey === strippedCanon)) {
         if (value !== undefined && value !== null && value !== '') {
           return value;
         }
@@ -128,14 +135,32 @@ function resolveDocumentField(doc, fieldIdentifier, usersLookupMap = {}) {
 
   let rawVal = findDeepFieldValue(doc, fieldIdentifier);
 
-  if (canon.includes('accountname') || canon.includes('customername') || canon === 'name' || canon === 'company' || canon === 'companyname') {
+  if (canon.includes('accountname') || canon.includes('customername') || canon.includes('company') || canon === 'name') {
     const pName = doc.projectName || doc.formData?.projectName || doc.data?.projectName || (doc.formData && doc.formData['Project Name']);
-    const accCandidate = doc.accountName || doc.formData?.accountName || (doc.formData && doc.formData['Account Name']) || doc.customerName || doc.formData?.customerName || doc.companyName || doc.formData?.companyName;
+    const accCandidate = doc.companyName || doc.data?.companyName || doc.formData?.companyName || doc.accountName || doc.data?.customerReference?.accountName || doc.formData?.accountName || (doc.formData && doc.formData['Account Name']) || doc.customerName || doc.formData?.customerName;
     if (accCandidate && pName && String(rawVal || doc.name || '').trim().toLowerCase() === String(pName).trim().toLowerCase()) {
       rawVal = accCandidate;
     } else if (rawVal === undefined || rawVal === null || rawVal === '') {
       rawVal = accCandidate || findDeepFieldValue(doc, 'name') || findDeepFieldValue(doc, 'company') || findDeepFieldValue(doc, 'title');
     }
+  } else if (canon.includes('revision')) {
+    rawVal = doc.revisionCode || doc.data?.revisionCode || (Array.isArray(doc.revisions) && doc.revisions.length > 0 ? doc.revisions[doc.revisions.length - 1]?.revisionCode : 'R0') || 'R0';
+  } else if (canon.includes('quotationdate') || canon === 'qdate' || (canon.includes('date') && (doc.data?.quotationDate || doc.quotationNumber))) {
+    const revs = doc.data?.revisions || doc.revisions;
+    const activeCode = doc.revisionCode || doc.data?.revisionCode;
+    let revMatchDate = null;
+    if (Array.isArray(revs) && activeCode) {
+      const match = revs.find((r) => r.revisionCode === activeCode);
+      if (match && match.date) revMatchDate = match.date;
+    }
+    const revisedQuoteDate = revMatchDate || doc.data?.quotationDate || doc.data?.customerReference?.date || doc.quotationDate || doc.date || doc.createdAt;
+    if (revisedQuoteDate) {
+      rawVal = revisedQuoteDate;
+    }
+  } else if (canon.includes('createdat') || canon.includes('creationdate') || canon.includes('createdon')) {
+    rawVal = doc.createdAt || doc.data?.createdAt || findDeepFieldValue(doc, 'createdAt') || '-';
+  } else if (canon.includes('updated') || canon.includes('lastupdate') || canon.includes('modified')) {
+    rawVal = doc.updatedAt || doc.data?.updatedAt || findDeepFieldValue(doc, 'updatedAt') || findDeepFieldValue(doc, 'lastUpdated') || '-';
   } else if (canon.includes('project')) {
     rawVal = findDeepFieldValue(doc, 'projectName') ||
       findDeepFieldValue(doc, 'project') ||

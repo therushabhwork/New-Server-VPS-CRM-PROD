@@ -75,6 +75,13 @@ const normalizeTemplate = (template = {}) => ({
   userGroups: Array.isArray(template.userGroups) ? template.userGroups.map(String) : (Array.isArray(template.selectedUserGroups) ? template.selectedUserGroups.map(String) : []),
   selectedUserGroups: Array.isArray(template.selectedUserGroups) ? template.selectedUserGroups.map(String) : (Array.isArray(template.userGroups) ? template.userGroups.map(String) : []),
   userGroupMembers: Array.isArray(template.userGroupMembers) ? template.userGroupMembers : [],
+  recordDateFrom: String(template.recordDateFrom || template.dateRange?.fromDate || '').trim(),
+  recordDateTo: String(template.recordDateTo || template.dateRange?.toDate || '').trim(),
+  dateFilterField: String(template.dateFilterField || template.dateRange?.dateFilterField || 'accountDate').trim(),
+  dateRange: template.dateRange || {
+    fromDate: String(template.recordDateFrom || '').trim(),
+    toDate: String(template.recordDateTo || '').trim(),
+  },
   generatedFrom: String(template.generatedFrom || '').trim(),
   generatedTo: String(template.generatedTo || '').trim(),
   createdBy: String(template.createdBy || 'System Administrator'),
@@ -217,9 +224,23 @@ export const saveAdminReportTemplate = (templateDefinition) => {
       groupBy: templateToSave.groupBy || '',
       orderBy: templateToSave.orderBy || '',
       aggregate: templateToSave.aggregate || '',
+      accountOwner: templateToSave.accountOwner || templateToSave.owner || '',
+      owner: templateToSave.owner || templateToSave.accountOwner || '',
+      accountOwnerEmail: templateToSave.accountOwnerEmail || '',
+      userGroups: templateToSave.userGroups || [],
+      selectedUserGroups: templateToSave.selectedUserGroups || [],
+      userGroupMembers: templateToSave.userGroupMembers || [],
+      recordDateFrom: templateToSave.recordDateFrom || '',
+      recordDateTo: templateToSave.recordDateTo || '',
+      dateFilterField: templateToSave.dateFilterField || 'accountDate',
+      dateRange: templateToSave.dateRange || {
+        fromDate: templateToSave.recordDateFrom || '',
+        toDate: templateToSave.recordDateTo || '',
+      },
       filters: Array.isArray(templateToSave.filters) ? templateToSave.filters : [],
       displayFields: normalizeTemplateFieldKeys(templateToSave),
       selectedFields: normalizeTemplateFieldKeys(templateToSave),
+      layoutOrder: templateToSave.layoutOrder || [],
     }
     reportApi.createReportTemplate(payload).catch((err) => {
       console.error('Failed to sync report template to MongoDB:', err)

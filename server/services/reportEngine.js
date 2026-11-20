@@ -724,6 +724,10 @@ const executeReportPayload = async ({
   projection.quotationDate = 1;
   projection.amount = 1;
   projection.dealValue = 1;
+  projection.value = 1;
+  projection.accountName = 1;
+  projection.dealType = 1;
+  projection.stage = 1;
   projection.totalAmount = 1;
   projection.title = 1;
   projection.projectName = 1;
@@ -826,6 +830,8 @@ const executeReportPayload = async ({
         rawVal = rawVal || doc.formData?.accountCategory || doc.accountCategory;
       } else if (key === 'accountSource') {
         rawVal = rawVal || doc.formData?.accountSource || doc.accountSource || doc.source;
+      } else if (key === 'accountName') {
+        rawVal = rawVal || doc.accountName || doc.formData?.accountName || doc.data?.accountName || doc.customerName || doc.name;
       } else if (key === 'addedBy') {
         rawVal = rawVal || doc.formData?.addedBy || doc.addedBy || doc.creatorName || doc.createdBy;
       } else if (key === 'customerName') {
@@ -851,7 +857,7 @@ const executeReportPayload = async ({
       } else if (key === 'quotationOwner') {
         rawVal = rawVal || doc.data?.selectedAccountOwner || doc.quotationOwner || doc.assignedTo || doc.createdBy;
       } else if (key === 'amount' || key === 'dealValue' || key === 'grandTotal' || key === 'value') {
-        rawVal = rawVal !== undefined && rawVal !== null && rawVal !== '' ? rawVal : (doc.data?.dealValue || doc.data?.amount || doc.dealValue || doc.amount || doc.totalAmount || 0);
+        rawVal = rawVal !== undefined && rawVal !== null && rawVal !== '' ? rawVal : (doc.data?.dealValue || doc.data?.amount || doc.dealValue || doc.value || doc.amount || doc.totalAmount || 0);
       } else if (key === 'expectedClosureDate' || key === 'expectedCloseDate') {
         rawVal = rawVal || doc.expectedCloseDate || doc.expectedClosureDate || doc.closeDate || doc.data?.expectedClosureDate;
       }

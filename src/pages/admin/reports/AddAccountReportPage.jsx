@@ -238,9 +238,9 @@ const AddAccountReportPage = () => {
           orderBy: data.orderBy || '',
           aggregate: data.aggregate || '',
           accountOwner: data.accountOwner || data.owner || '',
-          dateFilterField: data.dateFilterField || 'accountDate',
-          recordDateFrom: data.recordDateFrom || '',
-          recordDateTo: data.recordDateTo || '',
+          dateFilterField: data.dateFilterField || data.dateRange?.dateFilterField || 'accountDate',
+          recordDateFrom: data.recordDateFrom || data.dateRange?.fromDate || '',
+          recordDateTo: data.recordDateTo || data.dateRange?.toDate || '',
           selectedFields: Array.isArray(data.selectedFields) && data.selectedFields.length > 0
             ? data.selectedFields
             : (Array.isArray(data.displayFields) ? data.displayFields : []),
@@ -637,6 +637,10 @@ const AddAccountReportPage = () => {
       dateFilterField: formState.dateFilterField || (formState.entityType === 'Deal' ? 'dealDate' : formState.entityType === 'Quotation' ? 'quotationDate' : formState.entityType === 'Customer' ? 'createdAt' : 'accountDate'),
       recordDateFrom: formState.recordDateFrom,
       recordDateTo: formState.recordDateTo,
+      dateRange: {
+        fromDate: formState.recordDateFrom || '',
+        toDate: formState.recordDateTo || '',
+      },
       filters: cleanedFilters,
       displayFields: displayFieldKeys,
       selectedFields: displayFieldKeys,

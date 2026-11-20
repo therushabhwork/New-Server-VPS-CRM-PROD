@@ -68,6 +68,7 @@ const ACCOUNT_FIELD_LABELS = {
 const DEAL_FIELD_LABELS = {
   dealNumber: 'Deal No.',
   id: 'Deal No.',
+  accountName: 'Account Name',
   dealName: 'Deal Name',
   name: 'Deal Name',
   title: 'Deal Name',
@@ -131,23 +132,37 @@ const CUSTOMER_FIELD_LABELS = {
 const QUOTATION_FIELD_LABELS = {
   quotationNo: 'Quotation No.',
   quotationNumber: 'Quotation No.',
+  q_quotation_number: 'Quotation No.',
   id: 'Quotation No.',
   date: 'Quotation Date',
   quotationDate: 'Quotation Date',
+  q_quotation_date: 'Quotation Date',
   accountName: 'Account Name',
   customerName: 'Customer Name',
+  company: 'Company Name',
+  companyName: 'Company Name',
+  q_company_name: 'Company Name',
   dealName: 'Deal Name',
+  q_deal_name: 'Deal Name',
   title: 'Quotation Title',
   quotationTitle: 'Quotation Title',
   grandTotal: 'Grand Total',
   total: 'Grand Total',
+  q_quotation_total: 'Grand Total',
   amount: 'Quotation Amount',
   status: 'Status',
   quotationStatus: 'Status',
+  q_status: 'Status',
+  revisionCode: 'Revision',
+  revisionNo: 'Revision',
+  revision: 'Revision',
+  q_revision: 'Revision',
   quotationOwner: 'Quotation Owner',
   ownerCode: 'Owner Code',
   projectName: 'Project Name',
   validUntil: 'Valid Until',
+  contactPerson: 'Contact Person',
+  q_contact_person: 'Contact Person',
   createdAt: 'Created At',
   updatedAt: 'Last Updated',
   lastUpdated: 'Last Updated',
@@ -156,7 +171,7 @@ const QUOTATION_FIELD_LABELS = {
 
 const DEFAULT_FIELDS = {
   account: ['accountNumber', 'accountDate', 'name', 'accountOwner', 'status', 'projectName', 'phone', 'email', 'updatedAt'],
-  deal: ['dealNumber', 'dealName', 'dealDate', 'dealOwner', 'dealType', 'status', 'dealValue', 'projectName', 'updatedAt'],
+  deal: ['dealNumber', 'accountName', 'dealName', 'dealDate', 'dealOwner', 'dealType', 'status', 'dealValue', 'projectName', 'updatedAt'],
   customer: ['customerNumber', 'customerName', 'companyName', 'city', 'phone', 'email', 'status', 'updatedAt'],
   quotation: ['quotationNo', 'date', 'accountName', 'dealName', 'grandTotal', 'status', 'updatedAt'],
 };
@@ -197,24 +212,23 @@ const parseDateTimestamp = (value) => {
   const str = String(value).trim();
   if (!str) return null;
 
-  // ISO or YYYY-MM-DD
-  const isoMatch = str.match(/^(\d{2,4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (isoMatch) {
-    let y = parseInt(isoMatch[1], 10);
-    if (y < 100) y += 2000;
-    const m = parseInt(isoMatch[2], 10) - 1;
-    const d = parseInt(isoMatch[3], 10);
-    const dateObj = new Date(y, m, d, 0, 0, 0, 0);
-    return Number.isNaN(dateObj.getTime()) ? null : dateObj.getTime();
-  }
-
-  // DD-MM-YYYY or DD/MM/YYYY
+  // 1. DD-MM-YYYY or DD/MM/YYYY (e.g. 06-10-2026 or 06/10/2026)
   const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/);
   if (dmyMatch) {
     const d = parseInt(dmyMatch[1], 10);
     const m = parseInt(dmyMatch[2], 10) - 1;
     let y = parseInt(dmyMatch[3], 10);
     if (y < 100) y += 2000;
+    const dateObj = new Date(y, m, d, 0, 0, 0, 0);
+    return Number.isNaN(dateObj.getTime()) ? null : dateObj.getTime();
+  }
+
+  // 2. Strict YYYY-MM-DD or YYYY/MM/DD (e.g. 2026-10-06)
+  const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (isoMatch) {
+    const y = parseInt(isoMatch[1], 10);
+    const m = parseInt(isoMatch[2], 10) - 1;
+    const d = parseInt(isoMatch[3], 10);
     const dateObj = new Date(y, m, d, 0, 0, 0, 0);
     return Number.isNaN(dateObj.getTime()) ? null : dateObj.getTime();
   }
@@ -264,7 +278,7 @@ const mapAccountDoc = (doc) => {
   const rawNo = doc.accountNumber || doc.accountNo || doc.id || '-';
   const rawName = doc.name || doc.companyName || doc.customerName || doc.accountName || '-';
   const rawOwner = doc.accountOwnerName || doc.accountOwner || doc.ownerName || doc.owner || doc.ownerCode || '-';
-  const rawDate = formatDate(doc.accountDate || doc.date || doc.createdAt);
+  const rawDate = formatDate(doc.accountDate || doc.formData?.accountDate || doc.formData?.formData?.accountDate || doc.dealDate || doc.date || doc.createdAt);
   const rawStatus = doc.status || doc.accountStatus || '-';
 
   return {
@@ -387,13 +401,34 @@ const mapCustomerDoc = (doc, usersMap = {}) => {
   };
 };
 
-const mapQuotationDoc = (doc, usersMap = {}) => {
+const resolveQuotationDisplayDate = (doc) => {
+  if (!doc || typeof doc !== 'object') return '-';
+  const revs = doc.data?.revisions || doc.revisions;
+  const activeCode = doc.revisionCode || doc.data?.revisionCode;
+  if (Array.isArray(revs) && activeCode) {
+    const match = revs.find((r) => r.revisionCode === activeCode);
+    if (match && match.date) return formatDate(match.date);
+  }
+  if (doc.data?.quotationDate) return formatDate(doc.data.quotationDate);
+  if (doc.data?.customerReference?.date) return formatDate(doc.data.customerReference.date);
+  const bestDate = doc.quotationDate || doc.date || doc.createdAt;
+  return formatDate(bestDate);
+};
+
+const resolveQuotationRevisionCode = (doc) => {
+  if (!doc || typeof doc !== 'object') return 'R0';
+  return doc.revisionCode || doc.data?.revisionCode || (Array.isArray(doc.revisions) && doc.revisions.length > 0 ? doc.revisions[doc.revisions.length - 1]?.revisionCode : 'R0') || 'R0';
+};
+
+const mapQuotationDoc = (doc, usersMap = {}, fromMs = null, toMs = null) => {
   const rawNo = doc.quotationNo || doc.quotationNumber || doc.id || doc.data?.quotationNumber || '-';
-  const rawDate = formatDate(doc.date || doc.quotationDate || doc.data?.quotationDate || doc.data?.customerReference?.date || doc.createdAt);
-  const rawAccount = doc.accountName || doc.customerName || doc.name || doc.data?.customerReference?.accountName || '-';
-  const rawDeal = doc.dealName || doc.title || doc.data?.dealName || '-';
-  const rawTotal = doc.grandTotal || doc.total || doc.amount || doc.data?.grandTotal || '-';
-  const rawOwner = doc.quotationOwner || doc.owner || doc.data?.quotationOwner || doc.data?.owner || '-';
+  const rawDate = resolveQuotationDisplayDate(doc);
+  const rawRev = resolveQuotationRevisionCode(doc);
+  const rawCompany = doc.companyName || doc.data?.companyName || doc.company || doc.data?.company || doc.accountName || doc.data?.customerReference?.accountName || doc.customerName || doc.name || '-';
+  const rawAccount = rawCompany;
+  const rawDeal = doc.dealName || doc.data?.dealName || doc.title || doc.data?.title || '-';
+  const rawTotal = doc.grandTotal || doc.data?.grandTotal || doc.total || doc.data?.total || doc.amount || '-';
+  const rawOwner = doc.quotationOwner || doc.data?.quotationOwner || doc.owner || doc.ownerName || doc.assignedTo || doc.data?.owner || '-';
   const resolvedOwner = (usersMap && usersMap[String(rawOwner).trim().toLowerCase()]) || rawOwner;
   const ownerEmail = (usersMap._emails && usersMap._emails[String(resolvedOwner).trim().toLowerCase()]) ||
     (usersMap._emails && usersMap._emails[String(rawOwner).trim().toLowerCase()]) || '-';
@@ -402,26 +437,45 @@ const mapQuotationDoc = (doc, usersMap = {}) => {
     ...doc,
     quotationNo: rawNo,
     quotationNumber: rawNo,
+    q_quotation_number: rawNo,
     id: rawNo,
     date: rawDate,
     quotationDate: rawDate,
+    q_quotation_date: rawDate,
+    revision: rawRev,
+    revisionCode: rawRev,
+    revisionNo: rawRev,
+    q_revision: rawRev,
+    'Revision': rawRev,
+    companyName: rawCompany,
+    company: rawCompany,
+    'Company Name': rawCompany,
+    q_company_name: rawCompany,
     accountName: rawAccount,
     customerName: rawAccount,
+    'Account Name': rawAccount,
     dealName: rawDeal,
+    q_deal_name: rawDeal,
     title: rawDeal,
     quotationTitle: rawDeal,
     grandTotal: rawTotal,
     total: rawTotal,
     amount: rawTotal,
+    q_quotation_total: rawTotal,
     status: doc.status || doc.data?.status || '-',
     quotationStatus: doc.status || doc.data?.status || '-',
+    q_status: doc.status || doc.data?.status || '-',
     quotationOwner: resolvedOwner,
     owner: resolvedOwner,
+    ownerName: resolvedOwner,
     email: ownerEmail,
     ownerEmail: ownerEmail,
     projectName: doc.projectName || doc.project || doc.data?.projectName || '-',
     validUntil: formatDate(doc.validUntil || doc.data?.validUntil),
+    contactPerson: doc.contactPerson || doc.data?.contactPerson || '-',
+    q_contact_person: doc.contactPerson || doc.data?.contactPerson || '-',
     createdAt: formatDate(doc.createdAt),
+    updatedAt: formatDate(doc.updatedAt),
   };
 };
 
@@ -541,31 +595,37 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
 
   // Canonical deduplication ensuring 100% zero repeated rows matching CustomReportsPage.jsx
   const getCanonicalRecordKey = (row) => {
+    // 1. Primary ground-truth unique key: MongoDB ObjectId
+    const id = String(row._id || row.id || '').trim();
+    if (id && id !== '-' && id !== 'UNDEFINED' && id !== 'NULL') return `ID:${id}`;
+
+    // 2. Fallbacks if _id is missing
     if (entityType === 'deal') {
       const dealNo = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || '').trim().toUpperCase();
-      if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL') return `DEAL:${dealNo}`;
-      const id = String(row._id || row.id || '').trim();
-      if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`;
+      const pName = String(row['Project Name'] || row.projectName || row['Deal Name'] || row.dealName || row.name || '').trim().toUpperCase();
+      if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL') {
+        return pName ? `DEAL:${dealNo}:${pName}` : `DEAL:${dealNo}`;
+      }
     } else if (entityType === 'quotation') {
       const qNo = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNumber || row.quoteNumber || '').trim().toUpperCase();
-      if (qNo && qNo !== '-' && qNo !== 'UNDEFINED' && qNo !== 'NULL') return `QUOTE:${qNo}`;
-      const id = String(row._id || row.id || '').trim();
-      if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`;
+      const compName = String(row['Company Name'] || row.companyName || row.accountName || '').trim().toUpperCase();
+      if (qNo && qNo !== '-' && qNo !== 'UNDEFINED' && qNo !== 'NULL') {
+        return compName ? `QUOTE:${qNo}:${compName}` : `QUOTE:${qNo}`;
+      }
     } else if (entityType === 'customer') {
       const custNo = String(row['Customer No.'] || row['Customer No'] || row.customerNumber || '').trim().toUpperCase();
       if (custNo && custNo !== '-' && custNo !== 'UNDEFINED' && custNo !== 'NULL') return `CUST:${custNo}`;
-      const id = String(row._id || row.id || '').trim();
-      if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`;
     } else if (entityType === 'account') {
       const accNo = String(
         row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
       ).trim().toUpperCase();
-      if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL') return `ACC:${accNo}`;
-      const id = String(row._id || row.id || '').trim();
-      if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`;
+      if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL' && !/^\d{3,5}$/.test(accNo)) return `ACC:${accNo}`;
     } else {
       const dealNo = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || '').trim().toUpperCase();
-      if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL') return `DEAL:${dealNo}`;
+      const pName = String(row['Project Name'] || row.projectName || row['Deal Name'] || row.dealName || row.name || '').trim().toUpperCase();
+      if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL') {
+        return pName ? `DEAL:${dealNo}:${pName}` : `DEAL:${dealNo}`;
+      }
       const qNo = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNumber || row.quoteNumber || '').trim().toUpperCase();
       if (qNo && qNo !== '-' && qNo !== 'UNDEFINED' && qNo !== 'NULL') return `QUOTE:${qNo}`;
       const custNo = String(row['Customer No.'] || row['Customer No'] || row.customerNumber || '').trim().toUpperCase();
@@ -573,9 +633,7 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
       const accNo = String(
         row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
       ).trim().toUpperCase();
-      if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL') return `ACC:${accNo}`;
-      const id = String(row._id || row.id || '').trim();
-      if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`;
+      if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL' && !/^\d{3,5}$/.test(accNo)) return `ACC:${accNo}`;
     }
     return JSON.stringify(row);
   };
@@ -601,18 +659,29 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
 
   // 7. Group rows owner-wise
   const targetOwner = String(fullTemplate.accountOwner || 'all').trim().toLowerCase();
-  const ownerGroups = {};
-  dedupedDataSets.forEach((r) => {
-    const o = resolveRowOwner(r);
-    if (!ownerGroups[o]) ownerGroups[o] = [];
-    ownerGroups[o].push(r);
-  });
+  const primaryTargetOwner = targetOwner && targetOwner !== 'all' ? targetOwner : '';
 
   const reportGroups = (
     Array.isArray(fullTemplate.userGroups) && fullTemplate.userGroups.length > 0
       ? fullTemplate.userGroups
       : (Array.isArray(fullTemplate.selectedUserGroups) ? fullTemplate.selectedUserGroups : [])
   ).filter(Boolean);
+
+  const ownerGroups = {};
+  dedupedDataSets.forEach((r) => {
+    const o = resolveRowOwner(r);
+    // If single owner report is requested, enforce strict owner scoping:
+    if (primaryTargetOwner && reportGroups.length === 0) {
+      const oLower = o.toLowerCase();
+      const isMatch = oLower === primaryTargetOwner ||
+        (fullTemplate.accountOwnerEmail && String(r.accountOwnerEmail || r.ownerEmail || '').toLowerCase() === String(fullTemplate.accountOwnerEmail).toLowerCase());
+      if (!isMatch) {
+        return;
+      }
+    }
+    if (!ownerGroups[o]) ownerGroups[o] = [];
+    ownerGroups[o].push(r);
+  });
 
   let groupMemberNamesLower = new Set();
   if (reportGroups.length > 0) {
@@ -627,14 +696,32 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
     } catch (_) {}
   }
 
-  const primaryTargetOwner = targetOwner && targetOwner !== 'all' ? targetOwner : '';
-
   const checkIsReassigned = (ownerName) => {
     const lower = String(ownerName || '').toLowerCase().trim();
     if (reportGroups.length > 0 && groupMemberNamesLower.size > 0) {
       return !groupMemberNamesLower.has(lower);
     }
     return Boolean(primaryTargetOwner && primaryTargetOwner !== 'all' && lower !== primaryTargetOwner);
+  };
+
+  const isRowReassigned = (row, ownerName) => {
+    if (!row) return false;
+    if (row.reassignDate || row.reassignedDate || row.lastReassignedAt || row.formData?.reassignDate || row.formData?.reassignedDate) {
+      return true;
+    }
+    if (Array.isArray(row.ownershipHistory) && row.ownershipHistory.length > 0) {
+      return true;
+    }
+    const remark = String(row.latestRemark || row.formData?.latestRemark || row.remark || '').trim();
+    if (/re-?assign/i.test(remark)) {
+      return true;
+    }
+    const creator = String(row._createdByUserName || row.createdByUserName || row.formData?.createdByUserName || row.addedBy || row.formData?.addedBy || '').trim().toLowerCase();
+    const owner = String(ownerName || row['Account Owner'] || row.accountOwner || row.formData?.accountOwner || '').trim().toLowerCase();
+    if (creator && creator !== '-' && creator !== 'system administrator' && creator !== 'admin' && creator !== '3' && creator !== owner) {
+      return true;
+    }
+    return false;
   };
 
   let usersLookup = null;
@@ -765,65 +852,88 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
     const colLabels = columns.map(c => c.label);
 
     sortedOwnerNames.forEach((ownerName) => {
-      const groupRows = ownerGroups[ownerName] || [];
-      const isReassigned = checkIsReassigned(ownerName);
+      const allRowsForOwner = (ownerGroups[ownerName] || []).slice();
+      const ownerLevelReassigned = checkIsReassigned(ownerName);
 
-      const distinctFromNames = Array.from(
-        new Set(
-          groupRows
-            .map((r) => resolveRowCreator(r))
-            .filter((n) => n && n.toLowerCase() !== ownerName.toLowerCase())
-        )
-      );
+      const directRows = [];
+      const reassignedRows = [];
+      allRowsForOwner.forEach((row) => {
+        if (ownerLevelReassigned || isRowReassigned(row, ownerName)) {
+          reassignedRows.push(row);
+        } else {
+          directRows.push(row);
+        }
+      });
 
-      const fromSuffix = isReassigned
-        ? (distinctFromNames.length > 0
+      const sectionsToRender = [];
+      // 1. FIRST: Owner's own direct accounts
+      if (directRows.length > 0) {
+        sectionsToRender.push({
+          isReassigned: false,
+          rows: directRows,
+          title: `${entityName} Owner: ${ownerName} (${directRows.length} ${entityPlural})`,
+        });
+      }
+      // 2. AFTER: Re-assigned accounts (only if reassignedRows exist)
+      if (reassignedRows.length > 0) {
+        const distinctFromNames = Array.from(
+          new Set(
+            reassignedRows
+              .map((r) => resolveRowCreator(r))
+              .filter((n) => n && n !== '-' && n !== 'System Administrator' && n !== 'admin' && n !== '3' && n.toLowerCase() !== ownerName.toLowerCase())
+          )
+        );
+        const fromSuffix = distinctFromNames.length > 0
           ? ` From ${distinctFromNames.join(', ')}`
           : (primaryTargetOwner && primaryTargetOwner !== 'all' && primaryTargetOwner !== ownerName.toLowerCase()
             ? ` From ${formatTitleCase(primaryTargetOwner)}`
-            : ''))
-        : '';
+            : '');
 
-      const headerLabel = isReassigned
-        ? `Re-assigned ${entityName} Owner: ${ownerName} (${groupRows.length} ${entityPlural})${fromSuffix}`
-        : `${entityName} Owner: ${ownerName} (${groupRows.length} ${entityPlural})`;
-
-      if (currentY > 185) {
-        doc.addPage();
-        currentY = 16;
+        sectionsToRender.push({
+          isReassigned: true,
+          rows: reassignedRows,
+          title: `Re-assigned ${entityName} Owner: ${ownerName} (${reassignedRows.length} ${entityPlural})${fromSuffix}`,
+        });
       }
 
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      if (isReassigned) {
-        doc.setTextColor(180, 83, 9);
-      } else {
-        doc.setTextColor(198, 0, 22);
-      }
-      doc.text(headerLabel, 14, currentY);
-      currentY += 4;
+      sectionsToRender.forEach((sec) => {
+        if (currentY > 185) {
+          doc.addPage();
+          currentY = 16;
+        }
 
-      const tableHead = [columns.map((c) => c.label)];
-      const tableBody = groupRows.map((row) =>
-        columns.map((c) => resolveExportCell(row, c))
-      );
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        if (sec.isReassigned) {
+          doc.setTextColor(180, 83, 9);
+        } else {
+          doc.setTextColor(198, 0, 22);
+        }
+        doc.text(sec.title, 14, currentY);
+        currentY += 4;
 
-      autoTable(doc, {
-        head: tableHead,
-        body: tableBody,
-        startY: currentY,
-        theme: 'grid',
-        styles: { fontSize: 7.5, cellPadding: 2, overflow: 'linebreak' },
-        headStyles: {
-          fillColor: isReassigned ? [71, 85, 105] : [45, 55, 72],
-          textColor: 255,
-          fontStyle: 'bold',
-        },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        margin: { left: 14, right: 14 },
+        const tableHead = [columns.map((c) => c.label)];
+        const tableBody = sec.rows.map((row) =>
+          columns.map((c) => resolveExportCell(row, c))
+        );
+
+        autoTable(doc, {
+          head: tableHead,
+          body: tableBody,
+          startY: currentY,
+          theme: 'grid',
+          styles: { fontSize: 7.5, cellPadding: 2, overflow: 'linebreak' },
+          headStyles: {
+            fillColor: sec.isReassigned ? [71, 85, 105] : [45, 55, 72],
+            textColor: 255,
+            fontStyle: 'bold',
+          },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          margin: { left: 14, right: 14 },
+        });
+
+        currentY = (doc.lastAutoTable?.finalY || currentY + 25) + 8;
       });
-
-      currentY = (doc.lastAutoTable?.finalY || currentY + 25) + 8;
     });
 
     const totalPages = doc.internal.getNumberOfPages();
@@ -849,58 +959,83 @@ async function generateCustomReportExcelBuffer({ scheduledReport }) {
 
   const excelRows = [];
   sortedOwnerNames.forEach((ownerName) => {
-    const groupRows = (ownerGroups[ownerName] || []).slice();
+    const allRowsForOwner = (ownerGroups[ownerName] || []).slice();
     // Enforce LIFO (Last-In, First-Out) sorting: most recent records first
-    groupRows.sort((a, b) => getRecordTimestamp(b) - getRecordTimestamp(a));
-    const isReassigned = checkIsReassigned(ownerName);
+    allRowsForOwner.sort((a, b) => getRecordTimestamp(b) - getRecordTimestamp(a));
+    const ownerLevelReassigned = checkIsReassigned(ownerName);
 
-    const distinctFromNames = Array.from(
-      new Set(
-        groupRows
-          .map((r) => resolveRowCreator(r))
-          .filter((n) => n && n.toLowerCase() !== ownerName.toLowerCase())
-      )
-    );
+    const directRows = [];
+    const reassignedRows = [];
+    allRowsForOwner.forEach((row) => {
+      if (ownerLevelReassigned || isRowReassigned(row, ownerName)) {
+        reassignedRows.push(row);
+      } else {
+        directRows.push(row);
+      }
+    });
 
-    const fromSuffix = isReassigned
-      ? (distinctFromNames.length > 0
+    const sectionsToRender = [];
+    // 1. FIRST: Owner's own direct accounts
+    if (directRows.length > 0) {
+      sectionsToRender.push({
+        isReassigned: false,
+        rows: directRows,
+        headerText: `▶ ${entityName} Owner: ${ownerName} (${directRows.length} ${entityPlural})`,
+      });
+    }
+    // 2. AFTER: Re-assigned accounts (only if reassignedRows exist)
+    if (reassignedRows.length > 0) {
+      const distinctFromNames = Array.from(
+        new Set(
+          reassignedRows
+            .map((r) => resolveRowCreator(r))
+            .filter((n) => n && n !== '-' && n !== 'System Administrator' && n !== 'admin' && n !== '3' && n.toLowerCase() !== ownerName.toLowerCase())
+        )
+      );
+      const fromSuffix = distinctFromNames.length > 0
         ? ` From ${distinctFromNames.join(', ')}`
         : (primaryTargetOwner && primaryTargetOwner !== 'all' && primaryTargetOwner !== ownerName.toLowerCase()
           ? ` From ${formatTitleCase(primaryTargetOwner)}`
-          : ''))
-      : '';
+          : '');
 
-    // Insert empty spacer row before subsequent owner sections
-    if (excelRows.length > 0) {
-      const spacerRow = {};
-      columns.forEach((c) => {
-        spacerRow[c.key] = '';
-        spacerRow[c.label] = '';
+      sectionsToRender.push({
+        isReassigned: true,
+        rows: reassignedRows,
+        headerText: `▶ Re-assigned ${entityName} Owner: ${ownerName} (${reassignedRows.length} ${entityPlural})${fromSuffix}`,
       });
-      excelRows.push(spacerRow);
     }
 
-    const ownerHeaderRow = {};
-    columns.forEach((c, idx) => {
-      if (idx === 0) {
-        ownerHeaderRow[c.key] = isReassigned
-          ? `▶ Re-assigned ${entityName} Owner: ${ownerName} (${groupRows.length} ${entityPlural})${fromSuffix}`
-          : `▶ ${entityName} Owner: ${ownerName} (${groupRows.length} ${entityPlural})`;
-        ownerHeaderRow[c.label] = ownerHeaderRow[c.key];
-      } else {
-        ownerHeaderRow[c.key] = '';
-        ownerHeaderRow[c.label] = '';
+    sectionsToRender.forEach((sec) => {
+      // Insert empty spacer row before subsequent owner sections
+      if (excelRows.length > 0) {
+        const spacerRow = {};
+        columns.forEach((c) => {
+          spacerRow[c.key] = '';
+          spacerRow[c.label] = '';
+        });
+        excelRows.push(spacerRow);
       }
-    });
-    excelRows.push(ownerHeaderRow);
 
-    groupRows.forEach((r) => {
-      const excelRow = { ...r };
-      columns.forEach((c) => {
-        excelRow[c.key] = resolveExportCell(r, c);
-        excelRow[c.label] = excelRow[c.key];
+      const ownerHeaderRow = {};
+      columns.forEach((c, idx) => {
+        if (idx === 0) {
+          ownerHeaderRow[c.key] = sec.headerText;
+          ownerHeaderRow[c.label] = ownerHeaderRow[c.key];
+        } else {
+          ownerHeaderRow[c.key] = '';
+          ownerHeaderRow[c.label] = '';
+        }
       });
-      excelRows.push(excelRow);
+      excelRows.push(ownerHeaderRow);
+
+      sec.rows.forEach((r) => {
+        const excelRow = { ...r };
+        columns.forEach((c) => {
+          excelRow[c.key] = resolveExportCell(r, c);
+          excelRow[c.label] = excelRow[c.key];
+        });
+        excelRows.push(excelRow);
+      });
     });
   });
 
@@ -1236,6 +1371,9 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
   } else {
     fields = DEFAULT_FIELDS[entityType] || DEFAULT_FIELDS.account;
   }
+  if (entityType === 'deal' && !fields.includes('accountName') && !fields.includes('customerName')) {
+    fields = ['accountName', ...fields];
+  }
 
   const usersMap = await getUsersLookupMap();
   const col = mongoose.connection.db.collection(collectionName);
@@ -1354,6 +1492,10 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
       targetOwnerExactIdentities.add(String(usersMap._codes[targetOwnerName.toLowerCase().trim()]).toLowerCase().trim());
     }
 
+    const targetProfile = (usersMap._profiles && (usersMap._profiles[ownerFilter] || usersMap._profiles[targetOwnerName?.toLowerCase()?.trim()])) || null;
+    const targetLegacyId = targetProfile?.legacyId ? String(targetProfile.legacyId).trim() : null;
+    const targetOwnerCode = targetProfile?.ownerCode ? String(targetProfile.ownerCode).trim().toLowerCase() : (extractedCode || (usersMap._codes && usersMap._codes[targetOwnerName?.toLowerCase()?.trim()] ? String(usersMap._codes[targetOwnerName?.toLowerCase()?.trim()]).toLowerCase().trim() : null));
+
     filteredDocs = filteredDocs.filter((doc) => {
       // 1. Direct Mail-wise match: check if document email or creator email matches target email from users collection
       const docEmailCandidates = [
@@ -1365,11 +1507,62 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
         doc.formData?.accountOwnerEmail,
         doc.ownerEmail,
         doc.formData?.ownerEmail,
+        doc.data?.userEmail,
+        doc.data?.createdUserBy,
+        doc.data?.accountOwnerEmail,
+        doc.data?.ownerEmail,
       ].filter(Boolean).map(e => String(e).trim().toLowerCase());
 
       if (targetOwnerEmails.size > 0 && docEmailCandidates.some(e => targetOwnerEmails.has(e))) {
         return true;
       }
+
+      // Check if doc matches target owner through re-assignment (as creator, original owner, or transfer participant)
+      const isReassignedMatch = (function() {
+        if (entityType === 'deal' || entityType === 'quotation') {
+          // A. Creator ID match (e.g. createdBy: 3 for Naim Vhora)
+          const creatorId = String(doc.createdBy || doc.data?.createdBy || '').trim();
+          if (targetLegacyId && creatorId === targetLegacyId) return true;
+
+          // B. Owner Code match (e.g. 1003 in doc.ownerCode or quotationNumber)
+          const docCodes = [doc.ownerCode, doc.data?.ownerCode].filter(Boolean).map(c => String(c).trim().toLowerCase());
+          if (targetOwnerCode && docCodes.includes(targetOwnerCode)) return true;
+
+          // For quotation, check quotationNumber for -<ownerCode>- (e.g. -1003-)
+          const qNum = String(doc.quotationNumber || doc.data?.quotationNumber || '');
+          if (targetOwnerCode && qNum.includes(`-${targetOwnerCode}-`)) return true;
+        } else if (entityType === 'account') {
+          const topCode = String(doc.accountOwnerCode || doc.ownerCode || '').trim().toLowerCase();
+          if (targetOwnerCode && topCode === targetOwnerCode) return true;
+        }
+
+        // C. Creator Email / Name match
+        const cEmail = String(doc.userEmail || doc.createdUserBy || doc.formData?.userEmail || doc.formData?.createdUserBy || doc.data?.userEmail || '').trim().toLowerCase();
+        if (cEmail && targetOwnerEmails.has(cEmail)) return true;
+
+        const cName = String(doc.createdByUserName || doc.formData?.createdByUserName || doc.addedBy || doc.formData?.addedBy || '').trim().toLowerCase();
+        if (cName && (cName === targetOwnerName.toLowerCase() || targetOwnerExactIdentities.has(cName))) return true;
+
+        // D. Ownership history check
+        const history = doc.ownershipHistory || doc.data?.ownershipHistory || doc.formData?.ownershipHistory || [];
+        if (Array.isArray(history)) {
+          const matched = history.some(h => {
+            const f = String(h.fromOwner || h.from || '').toLowerCase().trim();
+            const t = String(h.toOwner || h.to || '').toLowerCase().trim();
+            return targetOwnerExactIdentities.has(f) || targetOwnerExactIdentities.has(t) ||
+                   f === targetOwnerName.toLowerCase() || t === targetOwnerName.toLowerCase();
+          });
+          if (matched) return true;
+        }
+
+        // E. Latest remark check for "Re-assign ... from/to [targetOwner]"
+        const remark = String(doc.latestRemark || doc.data?.latestRemark || doc.formData?.latestRemark || '').toLowerCase();
+        if (/re-?assign/i.test(remark) && (remark.includes(targetOwnerName.toLowerCase()) || (targetOwnerCode && remark.includes(targetOwnerCode)))) {
+          return true;
+        }
+
+        return false;
+      })();
 
       // 2. Strict Explicit Owner Match (Current active owner has highest authority)
       const effectiveDealOwner = (doc.dealOwner && String(doc.dealOwner).trim() !== '')
@@ -1395,10 +1588,18 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
           const resolvedDocEmail = String(usersMap._emails[lowerCurrent]).toLowerCase().trim();
           if (targetOwnerEmails.has(resolvedDocEmail)) return true;
         }
+        // If current explicit owner belongs to another colleague, but record matches target owner through re-assignment, KEEP IT!
+        if (isReassignedMatch) {
+          return true;
+        }
         // If current explicit owner belongs to another recognized colleague in usersMap, REJECT!
         if (usersMap[lowerCurrent] || usersMap._names?.[lowerCurrent] || usersMap._profiles?.[lowerCurrent] || (usersMap._emails && usersMap._emails[lowerCurrent])) {
           return false;
         }
+      }
+
+      if (isReassignedMatch) {
+        return true;
       }
 
       // 3. Resolve document's owner code via users collection lookup to obtain canonical mail (ONLY if no conflicting explicit owner)
@@ -1408,6 +1609,7 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
         doc.accountOwnerCode,
         doc.formData?.accountOwnerCode,
         doc.data?.ownerCode,
+        doc.data?.accountOwnerCode,
       ].filter(Boolean).map(c => String(c).trim().toLowerCase());
 
       for (const code of docCodes) {
@@ -1514,9 +1716,16 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
   // Universal Date Range Filtering (Using parseDateTimestamp for ISO, YYYY-MM-DD, and DD/MM/YYYY)
   const rawFrom = tpl?.recordDateFrom || tpl?.dateRange?.fromDate || tpl?.fromDate || tpl?.dateFrom || tpl?.customStartDate || tpl?.startDate || '';
   const rawTo = tpl?.recordDateTo || tpl?.dateRange?.toDate || tpl?.toDate || tpl?.dateTo || tpl?.customEndDate || tpl?.endDate || '';
+  let fromTime = null;
+  let toTime = null;
   if (rawFrom || rawTo) {
-    const fromTime = rawFrom ? parseDateTimestamp(rawFrom) : null;
-    let toTime = rawTo ? parseDateTimestamp(rawTo) : null;
+    fromTime = rawFrom ? parseDateTimestamp(rawFrom) : null;
+    if (fromTime !== null) {
+      const fromObj = new Date(fromTime);
+      fromObj.setHours(0, 0, 0, 0);
+      fromTime = fromObj.getTime();
+    }
+    toTime = rawTo ? parseDateTimestamp(rawTo) : null;
     if (toTime !== null) {
       const toObj = new Date(toTime);
       toObj.setHours(23, 59, 59, 999);
@@ -1533,17 +1742,45 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
         } else if (targetDateField === 'createdAt') {
           dateCandidates = [doc.createdAt, doc.formData?.createdAt];
         } else {
-          const accDate = doc.accountDate || doc.formData?.accountDate || doc.formData?.formData?.accountDate || doc.date;
-          dateCandidates = accDate ? [accDate] : [doc.createdAt, doc.updatedAt];
+          const accDate = doc.accountDate || doc.formData?.accountDate || doc.formData?.formData?.accountDate || doc.dealDate || doc.date;
+          dateCandidates = accDate ? [accDate, doc.createdAt, doc.updatedAt] : [doc.createdAt, doc.updatedAt];
         }
       } else if (entityType === 'deal') {
-        dateCandidates = [doc.dealDate, doc.data?.dealDate, doc.data?.data?.dealDate, doc.data?.convertedAt, doc.formData?.dealDate, doc.quotationDate, doc.createdAt, doc.updatedAt];
+        dateCandidates = [
+          doc.dealDate,
+          doc.data?.dealDate,
+          doc.data?.data?.dealDate,
+          doc.data?.convertedAt,
+          doc.formData?.dealDate,
+          doc.date,
+          doc.dateOfDeal,
+          doc.dealNumber,
+          doc.quotationDate,
+          doc.createdAt,
+          doc.updatedAt,
+          doc.lastUpdated,
+        ];
       } else if (entityType === 'customer') {
-        dateCandidates = [doc.createdAt, doc.addedDate, doc.date, doc.updatedAt];
+        dateCandidates = [doc.createdAt, doc.addedDate, doc.date, doc.updatedAt, doc.lastUpdated];
       } else if (entityType === 'quotation') {
-        dateCandidates = [doc.quotationDate, doc.data?.quotationDate, doc.data?.customerReference?.date, doc.date, doc.createdAt, doc.updatedAt];
+        const revDates = (Array.isArray(doc.data?.revisions) ? doc.data.revisions : (Array.isArray(doc.revisions) ? doc.revisions : [])).map((r) => r.date).filter(Boolean);
+        dateCandidates = [
+          ...revDates,
+          doc.quotationDate,
+          doc.data?.quotationDate,
+          doc.data?.customerReference?.date,
+          doc.date,
+          doc.createdAt,
+          doc.updatedAt,
+          doc.lastUpdated,
+          doc.lastUpdate,
+          doc.formData?.quotationDate,
+          doc.formData?.date,
+          doc.formData?.updatedAt,
+          doc.formData?.createdAt
+        ];
       } else {
-        dateCandidates = [doc.date, doc.createdAt, doc.updatedAt];
+        dateCandidates = [doc.date, doc.createdAt, doc.updatedAt, doc.lastUpdated];
       }
 
       return dateCandidates.filter(Boolean).some((rawDateVal) => {
@@ -1575,7 +1812,7 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
   const fieldLabels = fields.map((f, idx) => {
     if (typeof f === 'object' && (f.label || f.key)) return f.label || f.key;
     const strKey = String(f);
-    if (Array.isArray(tpl?.layoutOrder) && tpl.layoutOrder[idx]) {
+    if (Array.isArray(tpl?.layoutOrder) && tpl.layoutOrder.length === fields.length && tpl.layoutOrder[idx]) {
       return tpl.layoutOrder[idx];
     }
     return labelDict[strKey] || strKey;
@@ -1595,7 +1832,16 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
     fields.forEach((fieldIdentifier, idx) => {
       const rawKey = typeof fieldIdentifier === 'object' ? (fieldIdentifier.key || fieldIdentifier.label) : String(fieldIdentifier);
       const displayLabel = fieldLabels[idx] || rawKey;
-      const resolvedVal = resolveDocumentField(doc, fieldIdentifier, usersMap);
+      let resolvedVal = resolveDocumentField(doc, fieldIdentifier, usersMap);
+      if (entityType === 'quotation' && (String(rawKey).toLowerCase().includes('date') || String(displayLabel).toLowerCase().includes('date'))) {
+        if (String(rawKey).toLowerCase().includes('created') || String(displayLabel).toLowerCase().includes('created')) {
+          resolvedVal = formatDate(doc.createdAt);
+        } else if (String(rawKey).toLowerCase().includes('updated') || String(displayLabel).toLowerCase().includes('updated')) {
+          resolvedVal = formatDate(doc.updatedAt);
+        } else {
+          resolvedVal = resolveQuotationDisplayDate(doc);
+        }
+      }
       const finalVal = resolvedVal !== undefined && resolvedVal !== null ? resolvedVal : '-';
 
       // Set both the human label and the raw key so whatever key is requested, it matches!
@@ -1608,7 +1854,14 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
     rowObj['Account No.'] = rowObj['Account No.'] || rowObj['Account No'] || doc.accountNumber || doc.accountNo || doc.formData?.accountNumber || doc.formData?.accountNo;
     rowObj['Deal No.'] = rowObj['Deal No.'] || rowObj['Deal No'] || doc.dealNumber || doc.data?.dealNumber;
     rowObj['Quotation No.'] = rowObj['Quotation No.'] || rowObj['Quotation No'] || doc.quotationNumber || doc.data?.quotationNumber;
+    rowObj['Company Name'] = rowObj['Company Name'] || rowObj['q_company_name'] || doc.companyName || doc.data?.companyName || doc.accountName || doc.data?.customerReference?.accountName;
     rowObj['Customer No.'] = rowObj['Customer No.'] || rowObj['Customer No'] || doc.customerNumber || doc.formData?.customerNumber;
+    const rawRev = resolveQuotationRevisionCode(doc);
+    rowObj['Revision'] = rowObj['Revision'] || rawRev;
+    rowObj.revisionCode = rowObj.revisionCode || rawRev;
+    rowObj.revision = rowObj.revision || rawRev;
+    rowObj['Created At'] = rowObj['Created At'] || formatDate(doc.createdAt);
+    rowObj['Last Updated'] = rowObj['Last Updated'] || formatDate(doc.updatedAt);
 
     // Always attach resolved owner metadata to rowObj for grouping in Excel and PDF exports
     const resolvedDocOwner = (function() {
@@ -1624,14 +1877,24 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
     rowObj.owner = rowObj.owner || resolvedDocOwner;
     rowObj.ownerName = rowObj.ownerName || resolvedDocOwner;
 
-    // Dynamic creator / original owner for Reassigned Accounts
-    const rawCreatorName = doc.createdByUserName || doc.formData?.createdByUserName || doc.addedBy || doc.formData?.addedBy || doc.formData?.formData?.addedBy || '';
-    const rawCreatorEmail = String(doc.createdUserBy || doc.formData?.createdUserBy || doc.userEmail || '').trim().toLowerCase();
+    // Dynamic creator / original owner for Reassigned Accounts, Deals, Quotations
+    const rawCreatorId = String(doc.createdBy || doc.data?.createdBy || '').trim();
+    const resolvedFromId = rawCreatorId && usersMap[rawCreatorId] ? usersMap[rawCreatorId] : '';
+    const rawCreatorName = doc.createdByUserName || doc.formData?.createdByUserName || doc.addedBy || doc.formData?.addedBy || doc.formData?.formData?.addedBy || resolvedFromId || '';
+    const rawCreatorEmail = String(doc.createdUserBy || doc.formData?.createdUserBy || doc.userEmail || doc.data?.userEmail || '').trim().toLowerCase();
     const resolvedCreatorName = rawCreatorName || (rawCreatorEmail && usersMap._emails && Object.keys(usersMap._emails).find(n => usersMap._emails[n] === rawCreatorEmail)) || '';
     rowObj._createdByUserName = resolvedCreatorName
       ? String(resolvedCreatorName).toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
       : '';
     rowObj._createdUserBy = rawCreatorEmail;
+
+    // Preserve re-assignment and remark metadata for strict frontend & backend export parity
+    rowObj.reassignDate = doc.reassignDate || doc.data?.reassignDate || doc.formData?.reassignDate || doc.formData?.formData?.reassignDate || null;
+    rowObj.reassignedDate = doc.reassignedDate || doc.data?.reassignedDate || doc.formData?.reassignedDate || doc.formData?.formData?.reassignedDate || null;
+    rowObj.lastReassignedAt = doc.lastReassignedAt || doc.data?.lastReassignedAt || doc.formData?.lastReassignedAt || doc.formData?.formData?.lastReassignedAt || null;
+    rowObj.ownershipHistory = doc.ownershipHistory || doc.data?.ownershipHistory || doc.formData?.ownershipHistory || doc.formData?.formData?.ownershipHistory || null;
+    rowObj.latestRemark = doc.latestRemark || doc.data?.latestRemark || doc.formData?.latestRemark || doc.formData?.formData?.latestRemark || null;
+    rowObj.accountOwnerEmail = doc.accountOwnerEmail || doc.data?.accountOwnerEmail || doc.formData?.accountOwnerEmail || doc.ownerEmail || null;
 
     return rowObj;
   });
@@ -1656,25 +1919,192 @@ async function executeTemplateReport({ template, templateId, filters = [] }) {
   };
 }
 
+function resolveReassignmentDetails(row, currentOwner) {
+  if (!row) return { isReassigned: false };
+  const normCurrentOwner = String(currentOwner || row['Account Owner'] || row.accountOwner || row['Deal Owner'] || row.dealOwner || row['Quotation Owner'] || row.quotationOwner || row.ownerName || row.owner || '').trim();
+  const lowerOwner = normCurrentOwner.toLowerCase();
+
+  const creator = String(
+    row._createdByUserName ||
+    row.createdByUserName ||
+    row.formData?.createdByUserName ||
+    row.addedBy ||
+    row.formData?.addedBy ||
+    row.createdUserBy ||
+    row.formData?.createdUserBy ||
+    ''
+  ).trim();
+  const lowerCreator = creator.toLowerCase();
+
+  const activeRowOwner = String(
+    row['Account Owner'] || row.accountOwner ||
+    row['Deal Owner'] || row.dealOwner ||
+    row['Quotation Owner'] || row.quotationOwner ||
+    row.ownerName || row.owner || ''
+  ).trim();
+  const lowerActiveRowOwner = activeRowOwner.toLowerCase();
+
+  let fromOwner = null;
+  let toOwner = normCurrentOwner;
+
+  // 1. Check explicit ownershipHistory for transfer from or to current owner
+  if (Array.isArray(row.ownershipHistory) && row.ownershipHistory.length > 0) {
+    const lastTransfer = [...row.ownershipHistory].reverse().find(h => {
+      const f = String(h.fromOwner || h.from || '').trim();
+      const t = String(h.toOwner || h.to || '').trim();
+      return (t.toLowerCase() === lowerOwner && f && f.toLowerCase() !== lowerOwner) ||
+             (f.toLowerCase() === lowerOwner && t && t.toLowerCase() !== lowerOwner);
+    });
+    if (lastTransfer) {
+      fromOwner = lastTransfer.fromOwner || lastTransfer.from;
+      toOwner = lastTransfer.toOwner || lastTransfer.to;
+    }
+  }
+
+  // 2. Fallback from latestRemark: "Re-assign ... from [From] to [To]"
+  if (!fromOwner && (row.latestRemark || row.formData?.latestRemark)) {
+    const remark = String(row.latestRemark || row.formData?.latestRemark || '').trim();
+    const match = remark.match(/Re-?assign.*?from ([^to]+) to (.+?)(?:\.|$)/i);
+    if (match) {
+      fromOwner = match[1].trim();
+      toOwner = match[2].trim();
+    }
+  }
+
+  // 3. If active row owner differs from the target report owner
+  if (!fromOwner && lowerActiveRowOwner && lowerActiveRowOwner !== lowerOwner) {
+    fromOwner = normCurrentOwner;
+    toOwner = activeRowOwner;
+  }
+
+  // 4. Fallback from creator if creator differs from currentOwner
+  if (!fromOwner && creator && lowerCreator !== lowerOwner && !['admin', 'system', 'system administrator', '3', '-'].includes(lowerCreator)) {
+    fromOwner = creator;
+    toOwner = normCurrentOwner;
+  }
+
+  // 5. Check reassign timestamp if creator differs
+  if (!fromOwner && (row.reassignDate || row.reassignedDate || row.lastReassignedAt) && lowerCreator !== lowerOwner && creator) {
+    fromOwner = creator;
+    toOwner = normCurrentOwner;
+  }
+
+  // 6. If fromOwner and toOwner are identical, it is NOT reassigned
+  if (fromOwner && toOwner && fromOwner.toLowerCase() === toOwner.toLowerCase()) {
+    return { isReassigned: false };
+  }
+
+  if (fromOwner && toOwner) {
+    return {
+      isReassigned: true,
+      fromOwner,
+      toOwner,
+      pairKey: `${fromOwner} to ${toOwner}`
+    };
+  }
+
+  return { isReassigned: false };
+}
+
 function generateTemplateExcelBuffer({ reportTitle, fieldLabels, rows }) {
   const workbook = XLSX.utils.book_new();
   const rowsForSheet = rows.length > 0 ? rows : [{ 'Report Status': 'No records found matching report criteria' }];
   let keys = fieldLabels && fieldLabels.length > 0 ? fieldLabels : Object.keys(rowsForSheet[0] || {});
   keys = keys.filter(k => k && !String(k).startsWith('_'));
 
-  const cleanExportRows = rowsForSheet.map((r) => {
-    const cleanRow = {};
-    keys.forEach((k) => {
-      cleanRow[k] = r[k] !== undefined && r[k] !== null ? r[k] : (r[String(k).toLowerCase()] ?? '-');
-    });
-    return cleanRow;
+  const isDeal = Boolean(keys.some(k => /deal/i.test(k)) || String(reportTitle).toLowerCase().includes('deal'));
+  const isQuotation = Boolean(keys.some(k => /quotation|quote/i.test(k)) || String(reportTitle).toLowerCase().includes('quotation'));
+  const isCustomer = Boolean(keys.some(k => /customer/i.test(k)) && !keys.some(k => /account/i.test(k)));
+  const entityLabel = isDeal ? 'Deal' : isQuotation ? 'Quotation' : isCustomer ? 'Customer' : 'Account';
+  const entityPlural = isDeal ? 'Deals' : isQuotation ? 'Quotations' : isCustomer ? 'Customers' : 'Accounts';
+
+  // Group rows by Owner if owner field exists
+  const ownerGroups = {};
+  rowsForSheet.forEach((r) => {
+    const oName = String(
+      r['Account Owner'] || r.accountOwner ||
+      r['Deal Owner'] || r.dealOwner ||
+      r['Quotation Owner'] || r.quotationOwner ||
+      r.ownerName || r.owner || 'All Records'
+    ).trim();
+    if (!ownerGroups[oName]) ownerGroups[oName] = [];
+    ownerGroups[oName].push(r);
   });
 
-  const worksheet = XLSX.utils.json_to_sheet(cleanExportRows, { header: keys });
+  const formattedRows = [];
+  const ownerNames = Object.keys(ownerGroups);
+
+  if (ownerNames.length > 0 && rows.length > 0) {
+    ownerNames.forEach((ownerName) => {
+      const ownerRows = ownerGroups[ownerName];
+      const directRows = [];
+      const reassignedByPair = {};
+
+      ownerRows.forEach((r) => {
+        const details = resolveReassignmentDetails(r, ownerName);
+        if (details.isReassigned) {
+          const pair = details.pairKey || `${details.fromOwner} to ${details.toOwner}`;
+          if (!reassignedByPair[pair]) reassignedByPair[pair] = [];
+          reassignedByPair[pair].push(r);
+        } else {
+          directRows.push(r);
+        }
+      });
+
+      const sections = [];
+      // 1. FIRST: Owner's own direct records
+      if (directRows.length > 0) {
+        sections.push({
+          headerText: `▶ ${entityLabel} Owner: ${ownerName} (${directRows.length} ${entityPlural})`,
+          rows: directRows,
+        });
+      }
+      // 2. AFTER: Re-assigned records grouped strictly by "From Who to Whom"
+      Object.keys(reassignedByPair).forEach((pairKey) => {
+        const pRows = reassignedByPair[pairKey];
+        sections.push({
+          headerText: `▶ Re-assigned ${entityLabel}: ${pairKey} (${pRows.length} ${entityPlural})`,
+          rows: pRows,
+        });
+      });
+
+      sections.forEach((sec) => {
+        if (formattedRows.length > 0) {
+          const spacerRow = {};
+          keys.forEach(k => { spacerRow[k] = ''; });
+          formattedRows.push(spacerRow);
+        }
+
+        const headerRow = {};
+        keys.forEach((k, idx) => {
+          headerRow[k] = idx === 0 ? sec.headerText : '';
+        });
+        formattedRows.push(headerRow);
+
+        sec.rows.forEach((r) => {
+          const cleanRow = {};
+          keys.forEach((k) => {
+            cleanRow[k] = r[k] !== undefined && r[k] !== null ? r[k] : (r[String(k).toLowerCase()] ?? '-');
+          });
+          formattedRows.push(cleanRow);
+        });
+      });
+    });
+  } else {
+    rowsForSheet.forEach((r) => {
+      const cleanRow = {};
+      keys.forEach((k) => {
+        cleanRow[k] = r[k] !== undefined && r[k] !== null ? r[k] : (r[String(k).toLowerCase()] ?? '-');
+      });
+      formattedRows.push(cleanRow);
+    });
+  }
+
+  const worksheet = XLSX.utils.json_to_sheet(formattedRows, { header: keys });
 
   worksheet['!cols'] = keys.map(key => {
     let maxLen = key.length;
-    cleanExportRows.slice(0, 100).forEach(r => {
+    formattedRows.slice(0, 100).forEach(r => {
       const v = String(r[key] ?? '');
       if (v.length > maxLen) maxLen = v.length;
     });

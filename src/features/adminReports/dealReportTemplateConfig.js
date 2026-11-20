@@ -13,6 +13,7 @@ export const DEAL_REPORT_FIELD_GROUPS = [
     title: 'Deal Attributes',
     fields: [
       { key: 'dealNumber', label: 'Deal No.' },
+      { key: 'accountName', label: 'Account Name' },
       { key: 'dealDate', label: 'Deal Date' },
       { key: 'name', label: 'Deal Name' },
       { key: 'dealOwner', label: 'Deal Owner' },

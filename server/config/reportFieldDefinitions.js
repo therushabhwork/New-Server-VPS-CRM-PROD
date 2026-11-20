@@ -48,6 +48,7 @@ module.exports = {
   // 2. DEALS (Collection: 'deals')
   deal: {
     dealNumber:      { key: 'dealNumber',      label: 'Deal No.',          dbField: 'dealNumber',    type: 'string' },
+    accountName:     { key: 'accountName',     label: 'Account Name',      dbField: 'accountName',   type: 'string' },
     dealName:        { key: 'dealName',        label: 'Deal Name',         dbField: 'name',          type: 'string' },
     name:            { key: 'name',            label: 'Deal Name',         dbField: 'name',          type: 'string' },
     dealOwner:       { key: 'dealOwner',       label: 'Deal Owner',        dbField: 'dealOwner',     type: 'string' },

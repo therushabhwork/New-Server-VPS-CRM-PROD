@@ -135,6 +135,36 @@ export const isDateInRange = (dateVal, fromStr, toStr) => {
   return true
 }
 
+export const resolveQuotationDisplayDate = (item) => {
+  if (!item || typeof item !== 'object') return '-'
+  const revs = item.data?.revisions || item.revisions
+  const activeCode = item.revisionCode || item.data?.revisionCode
+  if (Array.isArray(revs) && activeCode) {
+    const match = revs.find((r) => r.revisionCode === activeCode)
+    if (match && match.date) {
+      const d = new Date(match.date)
+      return !isNaN(d.getTime()) ? d.toLocaleDateString('en-GB') : String(match.date)
+    }
+  }
+  if (item.data?.quotationDate) {
+    const d = new Date(item.data.quotationDate)
+    return !isNaN(d.getTime()) ? d.toLocaleDateString('en-GB') : String(item.data.quotationDate)
+  }
+  if (item.data?.customerReference?.date) {
+    const d = new Date(item.data.customerReference.date)
+    return !isNaN(d.getTime()) ? d.toLocaleDateString('en-GB') : String(item.data.customerReference.date)
+  }
+  const bestDate = item.quotationDate || item.date || item.createdAt
+  if (!bestDate) return '-'
+  const d = new Date(bestDate)
+  return !isNaN(d.getTime()) ? d.toLocaleDateString('en-GB') : String(bestDate)
+}
+
+export const resolveQuotationRevisionCode = (item) => {
+  if (!item || typeof item !== 'object') return 'R0'
+  return item.revisionCode || item.data?.revisionCode || (Array.isArray(item.revisions) && item.revisions.length > 0 ? item.revisions[item.revisions.length - 1]?.revisionCode : 'R0') || 'R0'
+}
+
 const resolveLabel = (type, key) => {
   const customLabel = getCustomReportFieldLabel(type, key)
   if (customLabel) return customLabel
@@ -442,10 +472,15 @@ const getReportFilters = (report) => {
     parts.push(`Groups: ${groups.join(', ')}`)
   }
 
+  const formatRangeDate = (dStr) => {
+    if (!dStr) return ''
+    const parts = String(dStr).slice(0, 10).split('-')
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dStr
+  }
   const fromDate = report.recordDateFrom || report.dateRange?.fromDate || report.fromDate || ''
   const toDate = report.recordDateTo || report.dateRange?.toDate || report.toDate || ''
   if (fromDate || toDate) {
-    parts.push(`Date: ${fromDate || 'Start'} to ${toDate || 'Present'}`)
+    parts.push(`Date: ${formatRangeDate(fromDate) || 'Start'} to ${formatRangeDate(toDate) || 'Present'}`)
   }
 
   const filters = Array.isArray(report.filters) ? report.filters : []
@@ -1108,20 +1143,32 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     const reportOwner = extractedOwnerName.toLowerCase()
     const rawFrom = report.recordDateFrom || report.generatedFrom || report.dateRange?.fromDate || report.fromDate
     const rawTo = report.recordDateTo || report.generatedTo || report.dateRange?.toDate || report.toDate
-    const reportFrom = rawFrom ? new Date(`${rawFrom}T00:00:00`) : null
-    const reportTo = rawTo ? new Date(`${rawTo}T23:59:59`) : null
+    const fromMs = rawFrom ? parseToStandardDateTimestamp(rawFrom) : null
+    const toMs = rawTo ? parseToStandardDateTimestamp(rawTo) : null
+    const reportFrom = fromMs !== null ? new Date(fromMs) : null
+    const reportTo = toMs !== null ? new Date(toMs + 86399999) : null
     const reportDateFilterField = report.dateFilterField || report.dateRange?.dateFilterField || 'accountDate'
 
     // Pre-calculate quotation matches within [reportFrom, reportTo]
-    const quotesInRange = (reportFrom || reportTo)
+    const quotesInRange = (fromMs !== null || toMs !== null)
       ? finalQuotations.filter((q) => {
-        const qDateStr = q.quotationDate || q.date || q.createdAt
-        if (!qDateStr) return false
-        const qDate = new Date(qDateStr)
-        if (isNaN(qDate.getTime())) return false
-        if (reportFrom && qDate < reportFrom) return false
-        if (reportTo && qDate > reportTo) return false
-        return true
+        const revDates = (Array.isArray(q.data?.revisions) ? q.data.revisions : (Array.isArray(q.revisions) ? q.revisions : [])).map((r) => r.date).filter(Boolean)
+        const qDateCandidates = [
+          ...revDates,
+          q.quotationDate,
+          q.date,
+          q.data?.quotationDate,
+          q.data?.customerReference?.date,
+          q.createdAt,
+          q.updatedAt
+        ].filter(Boolean)
+        return qDateCandidates.some((dStr) => {
+          const qMs = parseToStandardDateTimestamp(dStr)
+          if (qMs === null) return false
+          if (fromMs !== null && qMs < fromMs) return false
+          if (toMs !== null && qMs > (toMs + 86399999)) return false
+          return true
+        })
       })
       : []
 
@@ -1140,6 +1187,8 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
       // 1. Owner Filter
       if (reportOwner && reportOwner !== 'all') {
         const itemOwners = [
+          item.quotationOwner,
+          item.raw?.quotationOwner,
           item.accountOwnerName,
           item.accountOwner,
           item.ownerName,
@@ -1151,6 +1200,8 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           item.raw?.accountOwner,
           item.ownerCode,
           item.customerOwner,
+          item.data?.quotationOwner,
+          item.data?.dealOwner,
         ].filter(Boolean).map((o) => String(o).trim().toLowerCase())
 
         const ownerMatched = itemOwners.some((o) => {
@@ -1170,56 +1221,90 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           const hasQuoteInRange = quoteAccountKeys.has(itemAccId) || quoteAccountKeys.has(itemAccName)
           if (hasQuoteInRange) return true
 
-          let dVal = null
+          let accDates = []
           if (reportDateFilterField === 'updatedAt') {
-            dVal = item.updatedAt || item.formData?.updatedAt || item.createdAt
+            accDates = [item.updatedAt, item.formData?.updatedAt, item.createdAt]
           } else if (reportDateFilterField === 'createdAt') {
-            dVal = item.createdAt || item.formData?.createdAt
+            accDates = [item.createdAt, item.formData?.createdAt]
           } else {
-            dVal = item.formData?.accountDate || item.accountDate || item.date || item.createdAt
+            accDates = [item.formData?.accountDate, item.accountDate, item.date, item.createdAt, item.updatedAt, item.formData?.updatedAt]
           }
 
-          if (dVal) {
-            const d = new Date(dVal)
-            if (!isNaN(d.getTime())) {
-              if (reportFrom && d < reportFrom) return false
-              if (reportTo && d > reportTo) return false
-              return true
-            }
-          }
-          return false
+          const inRange = accDates.filter(Boolean).some((d) => {
+            const dMs = parseToStandardDateTimestamp(d)
+            if (dMs === null) return false
+            if (fromMs !== null && dMs < fromMs) return false
+            if (toMs !== null && dMs > (toMs + 86399999)) return false
+            return true
+          })
+          if (!inRange) return false
         } else if (type === 'deal') {
           const itemDealId = String(item.id || item.dealNumber || '').toLowerCase()
           const itemDealName = String(item.name || item.dealName || item.title || '').toLowerCase().trim()
           const hasQuoteInRange = quoteDealKeys.has(itemDealId) || quoteDealKeys.has(itemDealName)
           if (hasQuoteInRange) return true
 
-          const dVal = item.dealDate || item.quotationDate || item.addedOn || item.createdAt
-          if (dVal) {
-            const d = new Date(dVal)
-            if (!isNaN(d.getTime())) {
-              if (reportFrom && d < reportFrom) return false
-              if (reportTo && d > reportTo) return false
-              return true
-            }
-          }
-          return false
+          const dDates = [
+            item.dealDate,
+            item.date,
+            item.dateOfDeal,
+            item.dealNumber,
+            item.quotationDate,
+            item.addedOn,
+            item.createdAt,
+            item.updatedAt,
+            item.lastUpdated,
+            item.formData?.dealDate,
+            item.data?.dealDate,
+          ].filter(Boolean)
+
+          const inRange = dDates.some((d) => {
+            const dMs = parseToStandardDateTimestamp(d)
+            if (dMs === null) return false
+            if (fromMs !== null && dMs < fromMs) return false
+            if (toMs !== null && dMs > (toMs + 86399999)) return false
+            return true
+          })
+          if (!inRange) return false
         } else if (type === 'quotation') {
-          const dVal = item.quotationDate || item.date || item.createdAt
-          if (!dVal) return false
-          const d = new Date(dVal)
-          if (isNaN(d.getTime())) return false
-          if (reportFrom && d < reportFrom) return false
-          if (reportTo && d > reportTo) return false
-          return true
+          const revDates = (Array.isArray(item.data?.revisions) ? item.data.revisions : (Array.isArray(item.revisions) ? item.revisions : [])).map((r) => r.date).filter(Boolean)
+          const qDates = [
+            ...revDates,
+            item.quotationDate,
+            item.date,
+            item.updatedAt,
+            item.createdAt,
+            item.lastUpdated,
+            item.lastUpdate,
+            item.data?.quotationDate,
+            item.data?.date,
+            item.data?.customerReference?.date,
+            item.data?.createdAt,
+            item.data?.updatedAt,
+            item.formData?.quotationDate,
+            item.formData?.date,
+            item.formData?.updatedAt,
+            item.formData?.createdAt,
+          ].filter(Boolean)
+
+          const inRange = qDates.some((d) => {
+            const dMs = parseToStandardDateTimestamp(d)
+            if (dMs === null) return false
+            if (fromMs !== null && dMs < fromMs) return false
+            if (toMs !== null && dMs > (toMs + 86399999)) return false
+            return true
+          })
+          if (!inRange) return false
         } else if (type === 'customer') {
-          const dVal = item.createdAt || item.addedDate || item.updatedAt
-          if (!dVal) return false
-          const d = new Date(dVal)
-          if (isNaN(d.getTime())) return false
-          if (reportFrom && d < reportFrom) return false
-          if (reportTo && d > reportTo) return false
-          return true
+          const cDates = [item.createdAt, item.addedDate, item.date, item.updatedAt, item.lastUpdated].filter(Boolean)
+          const inRange = cDates.some((d) => {
+            const dMs = parseToStandardDateTimestamp(d)
+            if (dMs === null) return false
+            if (fromMs !== null && dMs < fromMs) return false
+            if (toMs !== null && dMs > (toMs + 86399999)) return false
+            return true
+          })
+          if (!inRange) return false
         }
       }
 
@@ -1320,6 +1405,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
 
       if (type === 'deal') {
         const rawNo = item.dealNumber || item.id || '-'
+        const rawAccount = item.accountName || item.customerName || item.data?.accountName || '-'
         const rawName = item.dealName || item.name || item.title || '-'
         const rawOwner = item.dealOwnerName || item.dealOwner || item.ownerName || item.owner || '-'
         const rawDate = dateStr(item.dealDate || item.quotationDate || item.createdAt)
@@ -1329,6 +1415,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           ...item,
           dealNumber: rawNo,
           id: rawNo,
+          accountName: rawAccount,
           dealName: rawName,
           name: rawName,
           title: rawName,
@@ -1354,25 +1441,50 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
       }
 
       if (type === 'quotation') {
-        const rawNo = item.quotationNo || item.quotationNumber || item.id || '-'
-        const rawDate = dateStr(item.date || item.quotationDate || item.createdAt)
-        const rawAccount = item.accountName || item.customerName || item.name || '-'
-        const rawDeal = item.dealName || item.title || '-'
-        const rawTotal = item.grandTotal || item.total || item.amount || '-'
+        const rawNo = item.quotationNo || item.quotationNumber || item.id || item.data?.quotationNumber || '-'
+        const rawDate = resolveQuotationDisplayDate(item)
+        const rawRev = resolveQuotationRevisionCode(item)
+        const rawCompany = item.companyName || item.data?.companyName || item.company || item.data?.company || item.accountName || item.data?.customerReference?.accountName || item.customerName || item.name || '-'
+        const rawAccount = rawCompany
+        const rawDeal = item.dealName || item.data?.dealName || item.title || item.data?.title || '-'
+        const rawTotal = item.grandTotal || item.data?.grandTotal || item.total || item.data?.total || item.amount || '-'
+        const rawOwner = item.quotationOwner || item.data?.quotationOwner || item.owner || item.ownerName || item.assignedTo || item.data?.owner || '-'
 
         return {
           ...item,
           quotationNo: rawNo,
           quotationNumber: rawNo,
+          q_quotation_number: rawNo,
           id: rawNo,
           date: rawDate,
+          quotationDate: rawDate,
+          q_quotation_date: rawDate,
+          revision: rawRev,
+          revisionCode: rawRev,
+          revisionNo: rawRev,
+          q_revision: rawRev,
+          'Revision': rawRev,
+          companyName: rawCompany,
+          company: rawCompany,
+          'Company Name': rawCompany,
+          q_company_name: rawCompany,
           accountName: rawAccount,
+          customerName: rawAccount,
+          'Account Name': rawAccount,
           dealName: rawDeal,
+          q_deal_name: rawDeal,
+          title: rawDeal,
           grandTotal: rawTotal,
           total: rawTotal,
           amount: rawTotal,
+          q_quotation_total: rawTotal,
           status: item.status || '-',
+          q_status: item.status || '-',
+          quotationOwner: rawOwner,
+          owner: rawOwner,
+          ownerName: rawOwner,
           createdAt: dateStr(item.createdAt),
+          updatedAt: dateStr(item.updatedAt),
         }
       }
 
@@ -1433,6 +1545,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
       } else {
         columns = [
           { key: 'dealNumber', label: 'Deal No.' },
+          { key: 'accountName', label: 'Account Name' },
           { key: 'dealName', label: 'Deal Name' },
           { key: 'dealDate', label: 'Deal Date' },
           { key: 'dealOwner', label: 'Deal Owner' },
@@ -1677,11 +1790,15 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
 
     if (isCustomTemplate) {
       try {
-        const selectedFieldKeys = getReportDisplayFieldKeys(report)
+        let selectedFieldKeys = getReportDisplayFieldKeys(report)
         const ctx = getCustomReportContext(report.reportContext) || {}
         const reportCat = normalizeEntityKey(report.categoryKey || report.entityType || ctx.categoryKey || 'account')
         const targetCategory = reportCat || 'account'
         const templateId = report._id || report.id
+
+        if (targetCategory === 'deal' && !selectedFieldKeys.includes('accountName') && !selectedFieldKeys.includes('customerName')) {
+          selectedFieldKeys = ['accountName', ...selectedFieldKeys]
+        }
 
         const hasDateFilter = Boolean(report.recordDateFrom || report.dateRange?.fromDate || report.recordDateTo || report.dateRange?.toDate)
         const reportUserGroups = Array.isArray(report.userGroups) ? report.userGroups : (Array.isArray(report.selectedUserGroups) ? report.selectedUserGroups : [])
@@ -1760,11 +1877,27 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
             col.key ? row[String(col.key).toLowerCase().replace(/[^a-z0-9]/g, '')] : undefined,
             col.rawKey ? row[String(col.rawKey).toLowerCase().replace(/[^a-z0-9]/g, '')] : undefined,
           ]
+          const isCreatedCol = /createdat|createdon|creationdate/i.test(String(col.label || col.key || col.rawKey || ''))
+          if (isCreatedCol) {
+            candidates.push(row['Created At'], row['Created On'], row.createdAt, row.data?.createdAt, row.formData?.createdAt)
+          }
           const isUpdatedCol = /updated|lastupdate|modified/i.test(String(col.label || col.key || col.rawKey || ''))
           if (isUpdatedCol) {
             candidates.push(row.updatedAt, row.lastUpdated, row.lastUpdate, row['Updated At'], row['Last Updated'], row.formData?.updatedAt)
           }
+          const isRevCol = /revision/i.test(String(col.label || col.key || col.rawKey || ''))
+          if (isRevCol) {
+            candidates.push(row.revisionCode, row.revision, row.revisionNo, row['Revision'], row.data?.revisionCode, 'R0')
+          }
+          const isDateCol = /date|closure/i.test(String(col.label || col.key || col.rawKey || '')) && !isCreatedCol && !isUpdatedCol
+          if (isDateCol) {
+            candidates.push(row['Quotation Date'], row.q_quotation_date, row['Account Date'], row.accountDate, row['Deal Date'], row.dealDate, row.quotationDate, row.date, row.createdAt)
+          }
           const isOwnerCol = /owner|assigned|createdby|addedby/i.test(String(col.label || col.key || col.rawKey || ''))
+          const isCompanyCol = /company|account|customer/i.test(String(col.label || col.key || col.rawKey || ''))
+          if (isCompanyCol) {
+            candidates.push(row.companyName, row.company, row.accountName, row['Company Name'], row['Account Name'], row.customerName, row.name)
+          }
           const isStatusCol = /status|stage/i.test(String(col.label || col.key || col.rawKey || ''))
           for (const cand of candidates) {
             if (cand !== undefined && cand !== null && cand !== '') {
@@ -1793,6 +1926,9 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
               if (isStatusCol && strVal && strVal !== '-') {
                 return formatTitleCase(strVal.replace(/_/g, ' '))
               }
+              if (isRevCol && strVal && strVal !== '-') {
+                return strVal.toUpperCase()
+              }
               return strVal
             }
           }
@@ -1802,31 +1938,34 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         // Helper to canonically identify unique records to guarantee 100% zero repeated rows
         // For deals, quotations, and customers, never deduplicate by Account No. because multiple records can share an account
         const getCanonicalRecordKey = (row) => {
+          // 1. Primary ground-truth unique key: MongoDB ObjectId
+          const id = String(row._id || row.id || '').trim()
+          if (id && id !== '-' && id !== 'UNDEFINED' && id !== 'NULL') return `ID:${id}`
+
+          // 2. Fallbacks if _id is missing
           if (targetCategory === 'deal') {
             const dealNo = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || '').trim().toUpperCase()
-            if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL') return `DEAL:${dealNo}`
-            const id = String(row._id || row.id || '').trim()
-            if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
+            const pName = String(row['Project Name'] || row.projectName || row['Deal Name'] || row.dealName || row.name || '').trim().toUpperCase()
+            if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL') {
+              return pName ? `DEAL:${dealNo}:${pName}` : `DEAL:${dealNo}`
+            }
           } else if (targetCategory === 'quotation') {
             const qNo = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNumber || row.quoteNumber || '').trim().toUpperCase()
             if (qNo && qNo !== '-' && qNo !== 'UNDEFINED' && qNo !== 'NULL') return `QUOTE:${qNo}`
-            const id = String(row._id || row.id || '').trim()
-            if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
           } else if (targetCategory === 'customer') {
             const custNo = String(row['Customer No.'] || row['Customer No'] || row.customerNumber || '').trim().toUpperCase()
             if (custNo && custNo !== '-' && custNo !== 'UNDEFINED' && custNo !== 'NULL') return `CUST:${custNo}`
-            const id = String(row._id || row.id || '').trim()
-            if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
           } else if (targetCategory === 'account') {
             const accNo = String(
               row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
             ).trim().toUpperCase()
             if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL' && !/^\d{3,5}$/.test(accNo)) return `ACC:${accNo}`
-            const id = String(row._id || row.id || '').trim()
-            if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
           } else {
             const dealNo = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || '').trim().toUpperCase()
-            if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL' && !/^\d{3,5}$/.test(dealNo)) return `DEAL:${dealNo}`
+            const pName = String(row['Project Name'] || row.projectName || row['Deal Name'] || row.dealName || row.name || '').trim().toUpperCase()
+            if (dealNo && dealNo !== '-' && dealNo !== 'UNDEFINED' && dealNo !== 'NULL' && !/^\d{3,5}$/.test(dealNo)) {
+              return pName ? `DEAL:${dealNo}:${pName}` : `DEAL:${dealNo}`
+            }
             const qNo = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNumber || row.quoteNumber || '').trim().toUpperCase()
             if (qNo && qNo !== '-' && qNo !== 'UNDEFINED' && qNo !== 'NULL') return `QUOTE:${qNo}`
             const custNo = String(row['Customer No.'] || row['Customer No'] || row.customerNumber || '').trim().toUpperCase()
@@ -1835,8 +1974,6 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
               row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || ''
             ).trim().toUpperCase()
             if (accNo && accNo !== '-' && accNo !== 'UNDEFINED' && accNo !== 'NULL' && !/^\d{3,5}$/.test(accNo)) return `ACC:${accNo}`
-            const id = String(row._id || row.id || '').trim()
-            if (id && id !== '-' && id !== 'UNDEFINED') return `ID:${id}`
           }
 
           return JSON.stringify(row)
@@ -1914,10 +2051,116 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           return Boolean(primaryTargetOwner && primaryTargetOwner !== 'all' && lower !== primaryTargetOwner)
         }
 
+        const resolveReassignmentDetails = (row, currentOwner) => {
+          if (!row) return { isReassigned: false }
+          const normCurrentOwner = String(currentOwner || row['Account Owner'] || row.accountOwner || row['Deal Owner'] || row.dealOwner || row['Quotation Owner'] || row.quotationOwner || row.ownerName || row.owner || '').trim()
+          const lowerOwner = normCurrentOwner.toLowerCase()
+
+          const creator = String(
+            row._createdByUserName ||
+            row.createdByUserName ||
+            row.formData?.createdByUserName ||
+            row.addedBy ||
+            row.formData?.addedBy ||
+            row.createdUserBy ||
+            row.formData?.createdUserBy ||
+            ''
+          ).trim()
+          const lowerCreator = creator.toLowerCase()
+
+          const activeRowOwner = String(
+            row['Account Owner'] || row.accountOwner ||
+            row['Deal Owner'] || row.dealOwner ||
+            row['Quotation Owner'] || row.quotationOwner ||
+            row.ownerName || row.owner || ''
+          ).trim()
+          const lowerActiveRowOwner = activeRowOwner.toLowerCase()
+
+          let fromOwner = null
+          let toOwner = normCurrentOwner
+
+          // 1. Check explicit ownershipHistory for transfer from or to current owner
+          if (Array.isArray(row.ownershipHistory) && row.ownershipHistory.length > 0) {
+            const lastTransfer = [...row.ownershipHistory].reverse().find(h => {
+              const f = String(h.fromOwner || h.from || '').trim()
+              const t = String(h.toOwner || h.to || '').trim()
+              return (t.toLowerCase() === lowerOwner && f && f.toLowerCase() !== lowerOwner) ||
+                     (f.toLowerCase() === lowerOwner && t && t.toLowerCase() !== lowerOwner)
+            })
+            if (lastTransfer) {
+              fromOwner = lastTransfer.fromOwner || lastTransfer.from
+              toOwner = lastTransfer.toOwner || lastTransfer.to
+            }
+          }
+
+          // 2. Fallback from latestRemark: "Re-assign ... from [From] to [To]"
+          if (!fromOwner && (row.latestRemark || row.formData?.latestRemark)) {
+            const remark = String(row.latestRemark || row.formData?.latestRemark || row.remark || '').trim()
+            const match = remark.match(/Re-?assign.*?from ([^to]+) to (.+?)(?:\.|$)/i)
+            if (match) {
+              fromOwner = match[1].trim()
+              toOwner = match[2].trim()
+            }
+          }
+
+          // 3. If active row owner differs from the target report owner
+          if (!fromOwner && lowerActiveRowOwner && lowerActiveRowOwner !== lowerOwner) {
+            fromOwner = normCurrentOwner
+            toOwner = activeRowOwner
+          }
+
+          // 4. Fallback from creator if creator differs from currentOwner
+          if (!fromOwner && creator && lowerCreator !== lowerOwner && !['admin', 'system', 'system administrator', '3', '-'].includes(lowerCreator)) {
+            fromOwner = creator
+            toOwner = normCurrentOwner
+          }
+
+          // 5. Check reassign timestamp if creator differs
+          if (!fromOwner && (row.reassignDate || row.reassignedDate || row.lastReassignedAt) && lowerCreator !== lowerOwner && creator) {
+            fromOwner = creator
+            toOwner = normCurrentOwner
+          }
+
+          // 6. If fromOwner and toOwner are identical, it is NOT reassigned
+          if (fromOwner && toOwner && fromOwner.toLowerCase() === toOwner.toLowerCase()) {
+            return { isReassigned: false }
+          }
+
+          if (fromOwner && toOwner) {
+            return {
+              isReassigned: true,
+              fromOwner,
+              toOwner,
+              pairKey: `${fromOwner} to ${toOwner}`
+            }
+          }
+
+          return { isReassigned: false }
+        }
+
         // Group unique records by Account Owner
         const ownerGroups = {}
         dedupedDataSets.forEach((row) => {
           const ownerName = resolveRowOwner(row)
+          // If single owner report is requested, enforce strict owner scoping:
+          // do not include records belonging to other users, but include records related via re-assignment!
+          if (primaryTargetOwner && reportGroups.length === 0) {
+            const ownerLower = ownerName.toLowerCase()
+            const details = resolveReassignmentDetails(row, primaryTargetOwner)
+            const isMatch = ownerLower === primaryTargetOwner ||
+              details.isReassigned ||
+              (rawOwnerEmail && (String(row.accountOwnerEmail || row.ownerEmail || '').toLowerCase() === rawOwnerEmail.toLowerCase()))
+            if (!isMatch) {
+              return
+            }
+            // Group under target owner's key so direct records are first and reassigned records are second
+            const targetOwnerGroupKey = formatTitleCase(primaryTargetOwner)
+            if (!ownerGroups[targetOwnerGroupKey]) {
+              ownerGroups[targetOwnerGroupKey] = []
+            }
+            ownerGroups[targetOwnerGroupKey].push(row)
+            return
+          }
           if (!ownerGroups[ownerName]) {
             ownerGroups[ownerName] = []
           }
@@ -1945,7 +2188,12 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
 
         const rawFrom = report.recordDateFrom || report.dateRange?.fromDate || report.fromDate || ''
         const rawTo = report.recordDateTo || report.dateRange?.toDate || report.toDate || ''
-        const dateRangeText = (rawFrom || rawTo) ? `Date Range: ${rawFrom || 'Start'} to ${rawTo || 'Present'}` : 'Date Range: All Dates'
+        const formatRangeDate = (dStr) => {
+          if (!dStr) return ''
+          const parts = String(dStr).slice(0, 10).split('-')
+          return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dStr
+        }
+        const dateRangeText = (rawFrom || rawTo) ? `Date Range: ${formatRangeDate(rawFrom) || 'Start'} to ${formatRangeDate(rawTo) || 'Present'}` : 'Date Range: All Dates'
 
         const criteriaList = Array.isArray(report.filters) && report.filters.length > 0
           ? report.filters.filter(f => f && (f.field || f.label)).map(f => `${f.field || f.label} ${f.operator || '='} ${f.value}`).join('; ')
@@ -2038,72 +2286,86 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
 
           let currentY = dividerY + 5.5
 
-          if (isMultiOwner && sortedOwnerNames.length > 1) {
-            // Multi-Owner: Render styled Owner-Wise grouped sections in PDF
+          if (sortedOwnerNames.length > 0) {
             sortedOwnerNames.forEach((ownerName) => {
-              const groupRows = ownerGroups[ownerName] || []
-              if (currentY > 165) {
-                doc.addPage()
-                currentY = 16
-              }
+              const allRowsForOwner = (ownerGroups[ownerName] || []).slice()
+              const ownerLevelReassigned = checkIsReassigned(ownerName)
 
-              const isReassigned = checkIsReassigned(ownerName)
-
-              // Dynamically resolve "From" creator name as per MongoDB collections
-              const distinctFromNames = Array.from(
-                new Set(
-                  groupRows
-                    .map((r) => r._createdByUserName || r.createdByUserName || r.addedBy || '')
-                    .filter((n) => n && n.toLowerCase() !== ownerName.toLowerCase())
-                )
-              )
-
-              const fromSuffix = isReassigned
-                ? (distinctFromNames.length > 0
-                  ? ` From ${distinctFromNames.join(', ')}`
-                  : (primaryTargetOwner && primaryTargetOwner !== 'all' && primaryTargetOwner !== ownerName.toLowerCase()
-                    ? ` From ${formatTitleCase(primaryTargetOwner)}`
-                    : ''))
-                : ''
+              const directRows = []
+              const reassignedByPair = {}
+              allRowsForOwner.forEach((row) => {
+                const details = resolveReassignmentDetails(row, ownerName)
+                if (details.isReassigned || ownerLevelReassigned) {
+                  const pair = details.pairKey || (details.fromOwner ? `${details.fromOwner} to ${ownerName}` : `${ownerName}`)
+                  if (!reassignedByPair[pair]) reassignedByPair[pair] = []
+                  reassignedByPair[pair].push(row)
+                } else {
+                  directRows.push(row)
+                }
+              })
 
               const entityName = formatTitleCase(targetCategory || report.entityType || 'Account')
               const entityPlural = entityName === 'Customer' ? 'Customers' : entityName === 'Deal' ? 'Deals' : entityName === 'Quotation' ? 'Quotations' : 'Accounts'
 
-              doc.setFontSize(10)
-              doc.setFont('helvetica', 'bold')
-
-              if (isReassigned) {
-                doc.setTextColor(180, 83, 9) // Amber / Orange for Re-assigned
-                doc.text(`Re-assigned ${entityName} Owner: ${ownerName} (${groupRows.length} ${entityPlural})${fromSuffix}`, 14, currentY)
-              } else {
-                doc.setTextColor(198, 0, 22) // Swati Brand Red for Primary Owner
-                doc.text(`${entityName} Owner: ${ownerName} (${groupRows.length} ${entityPlural})`, 14, currentY)
+              const sectionsToRender = []
+              // 1. FIRST: Owner's own direct accounts
+              if (directRows.length > 0) {
+                sectionsToRender.push({
+                  isReassigned: false,
+                  rows: directRows,
+                  title: `${entityName} Owner: ${ownerName} (${directRows.length} ${entityPlural})`,
+                })
               }
-
-              currentY += 4
-
-              const tableHead = [columns.map((c) => c.label)]
-              const tableBody = groupRows.map((row) => columns.map((c) => resolveExportCell(row, c)))
-
-              autoTable(doc, {
-                head: tableHead,
-                body: tableBody,
-                startY: currentY,
-                theme: 'grid',
-                styles: { fontSize: 7.5, cellPadding: 2, overflow: 'linebreak' },
-                headStyles: {
-                  fillColor: isReassigned ? [71, 85, 105] : [45, 55, 72],
-                  textColor: 255,
-                  fontStyle: 'bold',
-                },
-                alternateRowStyles: { fillColor: [248, 250, 252] },
-                margin: { left: 14, right: 14 },
+              // 2. AFTER: Re-assigned accounts grouped strictly by "From Who to Whom"
+              Object.keys(reassignedByPair).forEach((pairKey) => {
+                const rRows = reassignedByPair[pairKey]
+                sectionsToRender.push({
+                  isReassigned: true,
+                  rows: rRows,
+                  title: `Re-assigned ${entityName}: ${pairKey} (${rRows.length} ${entityPlural})`,
+                })
               })
 
-              currentY = doc.lastAutoTable.finalY + 8
+              sectionsToRender.forEach((sec) => {
+                if (currentY > 165) {
+                  doc.addPage()
+                  currentY = 16
+                }
+
+                doc.setFontSize(10)
+                doc.setFont('helvetica', 'bold')
+
+                if (sec.isReassigned) {
+                  doc.setTextColor(180, 83, 9) // Amber / Orange for Re-assigned
+                } else {
+                  doc.setTextColor(198, 0, 22) // Swati Brand Red for Primary Owner
+                }
+                doc.text(sec.title, 14, currentY)
+                currentY += 4
+
+                const tableHead = [columns.map((c) => c.label)]
+                const tableBody = sec.rows.map((row) => columns.map((c) => resolveExportCell(row, c)))
+
+                autoTable(doc, {
+                  head: tableHead,
+                  body: tableBody,
+                  startY: currentY,
+                  theme: 'grid',
+                  styles: { fontSize: 7.5, cellPadding: 2, overflow: 'linebreak' },
+                  headStyles: {
+                    fillColor: sec.isReassigned ? [71, 85, 105] : [45, 55, 72],
+                    textColor: 255,
+                    fontStyle: 'bold',
+                  },
+                  alternateRowStyles: { fillColor: [248, 250, 252] },
+                  margin: { left: 14, right: 14 },
+                })
+
+                currentY = (doc.lastAutoTable?.finalY || currentY + 25) + 8
+              })
             })
           } else {
-            // Single Owner or default single table
+            // Default single table if no owner groups
             const tableHead = [columns.map((c) => c.label)]
             const tableBody = dedupedDataSets.map((row) => columns.map((c) => resolveExportCell(row, c)))
 
@@ -2134,64 +2396,79 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         } else {
           // Format rows for Excel: Owner-Wise grouped with styled section divider rows
           const excelRows = []
-          if (isMultiOwner && sortedOwnerNames.length > 1) {
+          if (sortedOwnerNames.length > 0) {
             sortedOwnerNames.forEach((ownerName) => {
-              const groupRows = (ownerGroups[ownerName] || []).slice()
+              const allRowsForOwner = (ownerGroups[ownerName] || []).slice()
               // Enforce LIFO (Last-In, First-Out) ordering within owner groups
-              groupRows.sort((a, b) => getRecordTimestamp(b) - getRecordTimestamp(a))
-              const isReassigned = checkIsReassigned(ownerName)
+              allRowsForOwner.sort((a, b) => getRecordTimestamp(b) - getRecordTimestamp(a))
+              const ownerLevelReassigned = checkIsReassigned(ownerName)
 
-              // Dynamically resolve "From" creator name as per MongoDB collections
-              const distinctFromNames = Array.from(
-                new Set(
-                  groupRows
-                    .map((r) => r._createdByUserName || r.createdByUserName || r.addedBy || '')
-                    .filter((n) => n && n.toLowerCase() !== ownerName.toLowerCase())
-                )
-              )
-
-              const fromSuffix = isReassigned
-                ? (distinctFromNames.length > 0
-                  ? ` From ${distinctFromNames.join(', ')}`
-                  : (primaryTargetOwner && primaryTargetOwner !== 'all' && primaryTargetOwner !== ownerName.toLowerCase()
-                    ? ` From ${formatTitleCase(primaryTargetOwner)}`
-                    : ''))
-                : ''
-
-              // Insert empty spacer row before each owner section header
-              if (excelRows.length > 0) {
-                const spacerRow = {}
-                columns.forEach((c) => {
-                  spacerRow[c.key] = ''
-                  spacerRow[c.label] = ''
-                })
-                excelRows.push(spacerRow)
-              }
+              const directRows = []
+              const reassignedByPair = {}
+              allRowsForOwner.forEach((row) => {
+                const details = resolveReassignmentDetails(row, ownerName)
+                if (details.isReassigned || ownerLevelReassigned) {
+                  const pair = details.pairKey || (details.fromOwner ? `${details.fromOwner} to ${ownerName}` : `${ownerName}`)
+                  if (!reassignedByPair[pair]) reassignedByPair[pair] = []
+                  reassignedByPair[pair].push(row)
+                } else {
+                  directRows.push(row)
+                }
+              })
 
               const entityName = formatTitleCase(targetCategory || report.entityType || 'Account')
               const entityPlural = entityName === 'Customer' ? 'Customers' : entityName === 'Deal' ? 'Deals' : entityName === 'Quotation' ? 'Quotations' : 'Accounts'
 
-              const ownerHeaderRow = {}
-              columns.forEach((c, idx) => {
-                if (idx === 0) {
-                  ownerHeaderRow[c.key] = isReassigned
-                    ? `▶ Re-assigned ${entityName} Owner: ${ownerName} (${groupRows.length} ${entityPlural})${fromSuffix}`
-                    : `▶ ${entityName} Owner: ${ownerName} (${groupRows.length} ${entityPlural})`
-                  ownerHeaderRow[c.label] = ownerHeaderRow[c.key]
-                } else {
-                  ownerHeaderRow[c.key] = ''
-                  ownerHeaderRow[c.label] = ''
-                }
-              })
-              excelRows.push(ownerHeaderRow)
-
-              groupRows.forEach((row) => {
-                const excelRow = { ...row }
-                columns.forEach((c) => {
-                  excelRow[c.key] = resolveExportCell(row, c)
-                  excelRow[c.label] = excelRow[c.key]
+              const sectionsToRender = []
+              // 1. FIRST: Owner's own direct accounts
+              if (directRows.length > 0) {
+                sectionsToRender.push({
+                  isReassigned: false,
+                  rows: directRows,
+                  headerText: `▶ ${entityName} Owner: ${ownerName} (${directRows.length} ${entityPlural})`,
                 })
-                excelRows.push(excelRow)
+              }
+              // 2. AFTER: Re-assigned accounts grouped strictly by "From Who to Whom"
+              Object.keys(reassignedByPair).forEach((pairKey) => {
+                const rRows = reassignedByPair[pairKey]
+                sectionsToRender.push({
+                  isReassigned: true,
+                  rows: rRows,
+                  headerText: `▶ Re-assigned ${entityName}: ${pairKey} (${rRows.length} ${entityPlural})`,
+                })
+              })
+
+              sectionsToRender.forEach((sec) => {
+                // Insert empty spacer row before each section header
+                if (excelRows.length > 0) {
+                  const spacerRow = {}
+                  columns.forEach((c) => {
+                    spacerRow[c.key] = ''
+                    spacerRow[c.label] = ''
+                  })
+                  excelRows.push(spacerRow)
+                }
+
+                const ownerHeaderRow = {}
+                columns.forEach((c, idx) => {
+                  if (idx === 0) {
+                    ownerHeaderRow[c.key] = sec.headerText
+                    ownerHeaderRow[c.label] = ownerHeaderRow[c.key]
+                  } else {
+                    ownerHeaderRow[c.key] = ''
+                    ownerHeaderRow[c.label] = ''
+                  }
+                })
+                excelRows.push(ownerHeaderRow)
+
+                sec.rows.forEach((row) => {
+                  const excelRow = { ...row }
+                  columns.forEach((c) => {
+                    excelRow[c.key] = resolveExportCell(row, c)
+                    excelRow[c.label] = excelRow[c.key]
+                  })
+                  excelRows.push(excelRow)
+                })
               })
             })
           } else {
@@ -2291,6 +2568,11 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     const finalQuotations = allQuotations.length > 0 ? allQuotations : quotations
 
     let dataSets = []
+    const expFromStr = String(report.recordDateFrom || report.generatedFrom || report.dateRange?.fromDate || report.fromDate || '').trim()
+    const expToStr = String(report.recordDateTo || report.generatedTo || report.dateRange?.toDate || report.toDate || '').trim()
+    const fromMs = expFromStr ? parseToStandardDateTimestamp(expFromStr) : null
+    const toMs = expToStr ? parseToStandardDateTimestamp(expToStr) : null
+
     const mapItem = (item, type) => {
       const dateStr = (val) => {
         if (!val) return '-'
@@ -2377,6 +2659,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
 
       if (type === 'deal') {
         const rawNo = item.dealNumber || item.id || '-'
+        const rawAccount = item.accountName || item.customerName || item.data?.accountName || '-'
         const rawName = item.dealName || item.name || item.title || '-'
         const rawOwner = item.dealOwnerName || item.dealOwner || item.ownerName || item.owner || '-'
         const rawDate = dateStr(item.dealDate || item.quotationDate || item.createdAt)
@@ -2386,6 +2669,7 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           ...item,
           dealNumber: rawNo,
           id: rawNo,
+          accountName: rawAccount,
           dealName: rawName,
           name: rawName,
           title: rawName,
@@ -2411,25 +2695,50 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
       }
 
       if (type === 'quotation') {
-        const rawNo = item.quotationNo || item.quotationNumber || item.id || '-'
-        const rawDate = dateStr(item.date || item.quotationDate || item.createdAt)
-        const rawAccount = item.accountName || item.customerName || item.name || '-'
-        const rawDeal = item.dealName || item.title || '-'
-        const rawTotal = item.grandTotal || item.total || item.amount || '-'
+        const rawNo = item.quotationNo || item.quotationNumber || item.id || item.data?.quotationNumber || '-'
+        const rawDate = resolveQuotationDisplayDate(item)
+        const rawRev = resolveQuotationRevisionCode(item)
+        const rawCompany = item.companyName || item.data?.companyName || item.company || item.data?.company || item.accountName || item.data?.customerReference?.accountName || item.customerName || item.name || '-'
+        const rawAccount = rawCompany
+        const rawDeal = item.dealName || item.data?.dealName || item.title || item.data?.title || '-'
+        const rawTotal = item.grandTotal || item.data?.grandTotal || item.total || item.data?.total || item.amount || '-'
+        const rawOwner = item.quotationOwner || item.data?.quotationOwner || item.owner || item.ownerName || item.assignedTo || item.data?.owner || '-'
 
         return {
           ...item,
           quotationNo: rawNo,
           quotationNumber: rawNo,
+          q_quotation_number: rawNo,
           id: rawNo,
           date: rawDate,
+          quotationDate: rawDate,
+          q_quotation_date: rawDate,
+          revision: rawRev,
+          revisionCode: rawRev,
+          revisionNo: rawRev,
+          q_revision: rawRev,
+          'Revision': rawRev,
+          companyName: rawCompany,
+          company: rawCompany,
+          'Company Name': rawCompany,
+          q_company_name: rawCompany,
           accountName: rawAccount,
+          customerName: rawAccount,
+          'Account Name': rawAccount,
           dealName: rawDeal,
+          q_deal_name: rawDeal,
+          title: rawDeal,
           grandTotal: rawTotal,
           total: rawTotal,
           amount: rawTotal,
+          q_quotation_total: rawTotal,
           status: item.status || '-',
+          q_status: item.status || '-',
+          quotationOwner: rawOwner,
+          owner: rawOwner,
+          ownerName: rawOwner,
           createdAt: dateStr(item.createdAt),
+          updatedAt: dateStr(item.updatedAt),
         }
       }
 
@@ -2563,6 +2872,8 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         }
 
         const itemOwners = [
+          item.quotationOwner,
+          item.raw?.quotationOwner,
           item.accountOwnerName,
           item.accountOwner,
           item.ownerName,
@@ -2574,6 +2885,8 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           item.raw?.accountOwner,
           item.ownerCode,
           item.customerOwner,
+          item.data?.quotationOwner,
+          item.data?.dealOwner,
         ].filter(Boolean).map((o) => String(o).trim().toLowerCase())
 
         const itemEmails = [
@@ -2605,6 +2918,8 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
         if (!ownerMatched) return false
       } else if (allowedMemberNames.size > 0 || allowedMemberEmails.size > 0 || allowedGroupNames.size > 0) {
         const itemOwners = [
+          item.quotationOwner,
+          item.raw?.quotationOwner,
           item.accountOwnerName,
           item.accountOwner,
           item.ownerName,
@@ -2616,6 +2931,8 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           item.raw?.accountOwner,
           item.ownerCode,
           item.customerOwner,
+          item.data?.quotationOwner,
+          item.data?.dealOwner,
         ].filter(Boolean).map((o) => String(o).trim().toLowerCase())
 
         const itemEmails = [
@@ -2660,6 +2977,9 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
               item.date,
               item.formData?.date,
               item.createdAt,
+              item.updatedAt,
+              item.formData?.updatedAt,
+              item.lastUpdated,
             ].filter(Boolean)
           }
 
@@ -2669,9 +2989,15 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           const dateCandidates = [
             item.dealDate,
             item.quotationDate,
+            item.date,
+            item.dateOfDeal,
+            item.dealNumber,
             item.addedOn,
             item.createdAt,
+            item.updatedAt,
+            item.lastUpdated,
             item.formData?.dealDate,
+            item.data?.dealDate,
           ].filter(Boolean)
 
           const inRange = dateCandidates.some((d) => isDateInRange(d, reportFromStr, reportToStr))
@@ -2680,7 +3006,19 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           const dateCandidates = [
             item.quotationDate,
             item.date,
+            item.updatedAt,
             item.createdAt,
+            item.lastUpdated,
+            item.lastUpdate,
+            item.data?.quotationDate,
+            item.data?.date,
+            item.data?.customerReference?.date,
+            item.data?.createdAt,
+            item.data?.updatedAt,
+            item.formData?.quotationDate,
+            item.formData?.date,
+            item.formData?.updatedAt,
+            item.formData?.createdAt,
           ].filter(Boolean)
 
           const inRange = dateCandidates.some((d) => isDateInRange(d, reportFromStr, reportToStr))
@@ -2689,7 +3027,9 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
           const dateCandidates = [
             item.createdAt,
             item.addedDate,
+            item.date,
             item.updatedAt,
+            item.lastUpdated,
           ].filter(Boolean)
 
           const inRange = dateCandidates.some((d) => isDateInRange(d, reportFromStr, reportToStr))
@@ -2748,16 +3088,22 @@ const CustomReportsPage = ({ basePath = '/admin/reports' }) => {
     const dedupedDataSets = []
     for (const row of dataSets) {
       let rowKey = ''
-      if (targetCategory === 'account') {
-        rowKey = String(row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || row.id || row._id || '').trim()
+      if (row._id) {
+        rowKey = `ID:${row._id}`
+      } else if (targetCategory === 'account') {
+        rowKey = String(row['Account No.'] || row['Account No'] || row.accountNumber || row.accountNo || row.id || '').trim()
       } else if (targetCategory === 'deal') {
-        rowKey = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || row.id || row._id || '').trim()
+        const dealNo = String(row['Deal No.'] || row['Deal No'] || row.dealNumber || row.id || '').trim()
+        const pName = String(row['Project Name'] || row.projectName || row['Deal Name'] || row.dealName || row.name || '').trim()
+        rowKey = pName ? `DEAL:${dealNo}:${pName}` : `DEAL:${dealNo}`
       } else if (targetCategory === 'customer') {
-        rowKey = String(row['Customer No.'] || row['Customer No'] || row.customerNumber || row.customerNo || row.id || row._id || '').trim()
+        rowKey = String(row['Customer No.'] || row['Customer No'] || row.customerNumber || row.customerNo || row.id || '').trim()
       } else if (targetCategory === 'quotation') {
-        rowKey = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNo || row.quotationNumber || row.id || row._id || '').trim()
+        const qNo = String(row['Quotation No.'] || row['Quotation No'] || row.quotationNo || row.quotationNumber || row.id || '').trim()
+        const compName = String(row['Company Name'] || row.companyName || row.accountName || '').trim()
+        rowKey = compName ? `QUOTE:${qNo}:${compName}` : `QUOTE:${qNo}`
       } else {
-        rowKey = String(row._id || row.id || '').trim()
+        rowKey = String(row.id || '').trim()
       }
       if (!rowKey) {
         rowKey = JSON.stringify(row)

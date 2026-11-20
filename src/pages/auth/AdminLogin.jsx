@@ -213,7 +213,7 @@ const AdminLogin = () => {
       && fromLocation.pathname !== '/login'
       && fromLocation.pathname !== '/admin/login'
 
-    navigate(canReturnToFromPath ? fromPath : (isAdminUser && isKevalVShah ? '/admin/launchpad' : fallbackRoute), { replace: true })
+    navigate(canReturnToFromPath ? fromPath : (isAdminUser && isKevalVShah ? '/admin/monitoring' : fallbackRoute), { replace: true })
   }
 
   const handleSubmit = async (event) => {
