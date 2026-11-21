@@ -89,7 +89,7 @@ const errorHandler = (error, req, res, _next) => {
       ? 409
       : invalidInputSyntaxError || foreignKeyError || notNullViolationError
         ? 400
-        : (error instanceof AppError ? error.statusCode : (error?.status || 500))
+        : (error instanceof AppError ? error.statusCode : (error?.statusCode || error?.status || 500))
   const requestId = req?.id || req?.headers?.['x-request-id'] || null
 
   if (statusCode >= 500) {

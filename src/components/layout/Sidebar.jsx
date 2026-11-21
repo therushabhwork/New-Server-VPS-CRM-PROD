@@ -19,6 +19,7 @@ import {
   FaTasks,
   FaComments,
   FaEnvelope,
+  FaFileExport,
 } from 'react-icons/fa'
 import { FiChevronDown, FiChevronRight, FiChevronUp } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
@@ -151,6 +152,7 @@ const Sidebar = ({ isAdmin = false }) => {
   )
   const isCommunicationActivitiesRoute = location.pathname.startsWith('/admin/communication-activities') || location.pathname.startsWith('/communication-activities')
   const isChartsRoute = location.pathname.startsWith('/admin/charts') || location.pathname.startsWith('/charts')
+  const isDataExportRoute = location.pathname.startsWith('/admin/data-export')
 
   const isUserAccountsRoute = !isAdmin && (
     location.pathname.startsWith('/accounts')
@@ -240,6 +242,21 @@ const Sidebar = ({ isAdmin = false }) => {
     || value === 'keval v. shah'
     || value.startsWith('keval.v.shah@')
     || value.startsWith('kevalvshah@')
+  ))
+  const canAccessDataExport = normalizedIdentity.some((value) => (
+    value === 'keval v shah'
+    || value === 'keval v. shah'
+    || value === 'kevalvshah'
+    || value.startsWith('keval@')
+    || value === 'samir sheth'
+    || value === 'samir-sheth'
+    || value.startsWith('samirsheth@')
+    || value === 'parth crm support'
+    || value === 'parth-crm-support'
+    || value.startsWith('parth@')
+    || value === 'rushabh crm support'
+    || value === 'rushabh-crm-support'
+    || value.startsWith('rushabh@')
   ))
 
   const accountMenuItems = useMemo(() => ([
@@ -639,6 +656,17 @@ const Sidebar = ({ isAdmin = false }) => {
             <span className="sb-link-icon"><FaChartPie /></span>
             <span>Charts</span>
           </NavLink>
+
+          {canAccessDataExport && (
+            <NavLink
+              to="/admin/data-export"
+              className={({ isActive }) => `sb-link sb-link--team sb-workspace-tool-link ${isActive || isDataExportRoute ? 'sb-link--active' : ''}`}
+              title="Data Export"
+            >
+              <span className="sb-link-icon"><FaFileExport /></span>
+              <span>Data Export</span>
+            </NavLink>
+          )}
 
           <SidebarGroup
             icon={<FaEnvelope />}

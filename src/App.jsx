@@ -68,6 +68,7 @@ import AdminAdvancedSearchPage from './pages/admin/search/AdminAdvancedSearchPag
 import ProjectDetailsPage from './pages/admin/projects/ProjectDetailsPage'
 import AdminLaunchpad from './pages/admin/launchpad/AdminLaunchpad'
 import DataManagerPage from './pages/admin/data-manager/DataManagerPage'
+import DataExportPage from './pages/admin/data-export/DataExportPage'
 import EmailTemplatesPage from './pages/admin/email-templates/EmailTemplatesPage'
 import EmailTemplatesAllPage from './pages/admin/email-templates/EmailTemplatesAllPage'
 import EmailSchedulerPage from './pages/admin/email-scheduler/EmailSchedulerPage'
@@ -443,6 +444,7 @@ function App() {
                 <Route path="email/compose/:targetType/:targetId" element={<OutlookEmailComposePage />} />
                 <Route path="settings" element={<AdminSettingsPage />} />
                 <Route path="data-manager" element={<DataManagerPage />} />
+                <Route path="data-export" element={<DataExportPage />} />
 
                 <Route path="data-manager/image-gallery" element={<ImageGalleryPage />} />
                 <Route path="data-manager/document-base" element={<DocumentBasePage />} />

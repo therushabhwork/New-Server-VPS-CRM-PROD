@@ -1,4 +1,5 @@
 const crypto = require('crypto')
+const mongoose = require('mongoose')
 const { getMongoModel } = require('../models/mongoModels')
 
 const UserSession = getMongoModel('user_sessions')
@@ -146,8 +147,20 @@ const verifyRememberedDevice = async (rawToken) => {
   if (!device) return null
 
   // Cross-verify with users collection
+  const orConditions = [
+    { legacyId: Number(device.userId) || -1 },
+    { email: device.userEmail },
+  ]
+  if (device.userId && /^[a-f\d]{24}$/i.test(String(device.userId))) {
+    try {
+      orConditions.unshift({ _id: new mongoose.Types.ObjectId(String(device.userId)) })
+    } catch {
+      // ignore
+    }
+  }
+
   const user = await User.findOne({
-    $or: [{ _id: device.userId }, { legacyId: Number(device.userId) || -1 }, { email: device.userEmail }],
+    $or: orConditions,
     status: 'approved',
   }).lean()
 
