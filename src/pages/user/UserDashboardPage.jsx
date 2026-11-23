@@ -60,7 +60,36 @@ const UserDashboardPage = () => {
   } = useData()
   const [todoReplies, setTodoReplies] = useState([])
   const [communicationRemarks, setCommunicationRemarks] = useState([])
-  const customers = useMemo(() => customerService.getCustomers(), [])
+  const [customers, setCustomers] = useState(() => customerService.getCustomers())
+  const [isCustomersLoading, setIsCustomersLoading] = useState(false)
+
+  useEffect(() => {
+    let isMounted = true
+    const unsubscribe = customerService.subscribe((nextCustomers) => {
+      if (isMounted) {
+        setCustomers(Array.isArray(nextCustomers) ? [...nextCustomers] : [])
+      }
+    })
+
+    setIsCustomersLoading(true)
+    customerService.loadCustomers()
+      .then((nextCustomers) => {
+        if (isMounted && Array.isArray(nextCustomers)) {
+          setCustomers([...nextCustomers])
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load customers for User Dashboard KPI:', err)
+      })
+      .finally(() => {
+        if (isMounted) setIsCustomersLoading(false)
+      })
+
+    return () => {
+      isMounted = false
+      unsubscribe()
+    }
+  }, [])
 
   const fetchTodoReplies = useCallback(async () => {
     try {
@@ -351,7 +380,7 @@ const UserDashboardPage = () => {
           </div>
           <div className="ud-stat-content">
             <div className="ud-stat-num-row">
-              <span className="ud-stat-number">{stats.accounts || 14}</span>
+              <span className="ud-stat-number">{stats.accounts ?? 0}</span>
               <span className="ud-stat-badge ud-stat-badge--green">↗ +12%</span>
             </div>
             <span className="ud-stat-title">Accounts</span>
@@ -366,8 +395,12 @@ const UserDashboardPage = () => {
           </div>
           <div className="ud-stat-content">
             <div className="ud-stat-num-row">
-              <span className="ud-stat-number">0</span>
-              <span className="ud-stat-badge ud-stat-badge--gray">0%</span>
+              <span className="ud-stat-number">
+                {isCustomersLoading && (!customers || customers.length === 0) ? '...' : (customers?.length ?? 0)}
+              </span>
+              <span className="ud-stat-badge ud-stat-badge--gray">
+                {customers?.length > 0 ? `${customers.length} Active` : '0%'}
+              </span>
             </div>
             <span className="ud-stat-title">Customers</span>
           </div>
@@ -381,7 +414,7 @@ const UserDashboardPage = () => {
           </div>
           <div className="ud-stat-content">
             <div className="ud-stat-num-row">
-              <span className="ud-stat-number">{stats.openDeals || 18}</span>
+              <span className="ud-stat-number">{stats.openDeals ?? 0}</span>
               <span className="ud-stat-badge ud-stat-badge--green">↗ +8%</span>
             </div>
             <span className="ud-stat-title">Deals</span>
@@ -396,7 +429,7 @@ const UserDashboardPage = () => {
           </div>
           <div className="ud-stat-content">
             <div className="ud-stat-num-row">
-              <span className="ud-stat-number">{stats.quotations || 23}</span>
+              <span className="ud-stat-number">{stats.quotations ?? 0}</span>
             </div>
             <span className="ud-stat-title">Quotation Manager</span>
           </div>

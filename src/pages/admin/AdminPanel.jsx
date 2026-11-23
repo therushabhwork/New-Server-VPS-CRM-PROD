@@ -239,7 +239,37 @@ const AdminPanel = () => {
   const [todoFilter, setTodoFilter] = useState('all')
   const [reminderStatesById, setReminderStatesById] = useState(() => getAdminReminderStates())
   const menuRef = useClickOutside(() => setOpenMenuState(null))
-  const customers = useMemo(() => customerService.getCustomers(), [])
+  const [customers, setCustomers] = useState(() => customerService.getCustomers())
+  const [isCustomersLoading, setIsCustomersLoading] = useState(false)
+
+  useEffect(() => {
+    let isMounted = true
+
+    const unsubscribe = customerService.subscribe((nextCustomers) => {
+      if (isMounted) {
+        setCustomers(Array.isArray(nextCustomers) ? [...nextCustomers] : [])
+      }
+    })
+
+    setIsCustomersLoading(true)
+    customerService.loadCustomers()
+      .then((nextCustomers) => {
+        if (isMounted && Array.isArray(nextCustomers)) {
+          setCustomers([...nextCustomers])
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load customers for Admin Monitoring KPI:', err)
+      })
+      .finally(() => {
+        if (isMounted) setIsCustomersLoading(false)
+      })
+
+    return () => {
+      isMounted = false
+      unsubscribe()
+    }
+  }, [])
   const isAdmin = user?.role === 'admin'
 
   const [analyticsData, setAnalyticsData] = useState(null)
@@ -997,7 +1027,7 @@ const AdminPanel = () => {
             </div>
             <div className="ap-kpi-main">
               <div className="ap-kpi-val-row">
-                <span className="ap-kpi-value">{accounts?.length || 14}</span>
+                <span className="ap-kpi-value">{accounts?.length ?? 0}</span>
                 <span className="ap-kpi-trend ap-kpi-trend--up">↗ +12%</span>
               </div>
               <div className="ap-kpi-title">Accounts</div>
@@ -1018,8 +1048,12 @@ const AdminPanel = () => {
             </div>
             <div className="ap-kpi-main">
               <div className="ap-kpi-val-row">
-                <span className="ap-kpi-value">{customers?.length || 0}</span>
-                <span className="ap-kpi-trend ap-kpi-trend--neutral">0%</span>
+                <span className="ap-kpi-value">
+                  {isCustomersLoading && (!customers || customers.length === 0) ? '...' : (customers?.length ?? 0)}
+                </span>
+                <span className="ap-kpi-trend ap-kpi-trend--neutral">
+                  {customers?.length > 0 ? `${customers.length} Active` : '0%'}
+                </span>
               </div>
               <div className="ap-kpi-title">Customers</div>
             </div>
@@ -1039,7 +1073,7 @@ const AdminPanel = () => {
             </div>
             <div className="ap-kpi-main">
               <div className="ap-kpi-val-row">
-                <span className="ap-kpi-value">{deals?.length || 18}</span>
+                <span className="ap-kpi-value">{deals?.length ?? 0}</span>
                 <span className="ap-kpi-trend ap-kpi-trend--up">↗ +8%</span>
               </div>
               <div className="ap-kpi-title">Deals</div>
@@ -1060,7 +1094,7 @@ const AdminPanel = () => {
             </div>
             <div className="ap-kpi-main">
               <div className="ap-kpi-val-row">
-                <span className="ap-kpi-value">{quotations.length}</span>
+                <span className="ap-kpi-value">{quotations?.length ?? 0}</span>
               </div>
               <div className="ap-kpi-title">Quotation Manager</div>
             </div>
