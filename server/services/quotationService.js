@@ -1344,7 +1344,11 @@ module.exports = {
     return result
   },
   update: async (actor, id, payload) => {
-    if ((payload?.selectedAccountOwner !== undefined || payload?.accountOwner !== undefined || payload?.['data.selectedAccountOwner'] !== undefined) && !isSalesExecutiveEditAuthorized(actor)) {
+    const isAddingRevision = Boolean(payload?.revisionCode && payload.revisionCode !== 'R0')
+    const isOwnerSelfUpdate = Boolean(actor?.name && (payload?.selectedAccountOwner === actor.name || payload?.accountOwner === actor.name))
+    const isAuthorized = isSalesExecutiveEditAuthorized(actor) || isAddingRevision || isOwnerSelfUpdate
+
+    if ((payload?.selectedAccountOwner !== undefined || payload?.accountOwner !== undefined || payload?.['data.selectedAccountOwner'] !== undefined) && !isAuthorized) {
       throw new AppError('Only Keval V Shah, Parth, and Rushabh are authorized to edit the Sales Executive.', 403)
     }
     const result = await quotationService.update(actor, id, payload)

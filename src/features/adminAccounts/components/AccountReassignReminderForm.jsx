@@ -50,7 +50,7 @@ const AccountReassignReminderForm = ({
   onSaved,
 }) => {
   const { user } = useAuth()
-  const { updateAccount, addNotification } = useData()
+  const { updateAccount, addNotification, quotations, updateQuotation } = useData()
 
   const [newOwnerId, setNewOwnerId] = useState('')
   const [description, setDescription] = useState('')
@@ -128,6 +128,23 @@ const AccountReassignReminderForm = ({
       const reassignMessage = `Re-assign Account from ${oldOwnerName} to ${newOwnerName}.`
       const reassignTimestamp = new Date().toISOString()
 
+      // Calculate dynamic reassignedDateX
+      const allAccountKeys = [
+        ...Object.keys(account || {}),
+        ...Object.keys(account?.raw || {}),
+        ...Object.keys(account?.data || {}),
+        ...Object.keys(account?.formData || {}),
+      ]
+      let maxReassignedIdx = 0
+      for (const k of allAccountKeys) {
+        const match = k.match(/^reassignedDate(\d+)$/i)
+        if (match) {
+          const num = parseInt(match[1], 10)
+          if (num > maxReassignedIdx) maxReassignedIdx = num
+        }
+      }
+      const nextReassignedKey = `reassignedDate${maxReassignedIdx + 1}`
+
       const newOwnershipEntry = {
         id: `reassign-${Date.now()}`,
         title: 'Account Reassigned',
@@ -141,15 +158,25 @@ const AccountReassignReminderForm = ({
       }
 
       const updates = {
-        owner: selectedOwner?.name || newOwnerName,
+        [nextReassignedKey]: reassignTimestamp,
+        reassignedDate: reassignTimestamp,
+        reassignDate: reassignTimestamp,
+        lastReassignedAt: reassignTimestamp,
+        accountDate: reassignTimestamp,
+        updatedAt: reassignTimestamp,
+        accountOwner: newOwnerName,
+        accountOwnerName: newOwnerName,
+        accountOwnerDisplay: newOwnerName,
+        ownerName: newOwnerName,
+        owner: newOwnerName,
+        assignedUserName: newOwnerName,
         ownerId: selectedOwner?.id || null,
         ownerUserId: selectedOwner?.id || null,
-        assignedUserId: selectedOwner?.id || account.raw?.assignedUserId || null,
+        assignedTo: selectedOwner?.id || null,
+        assignedUserId: selectedOwner?.id || null,
+        userId: selectedOwner?.id || null,
         accountOwnerCode: selectedOwner?.ownerCode || '',
         company: selectedOwner?.company || selectedOwner?.companyName || account.accountCategory || '',
-        accountDate: reassignTimestamp,
-        lastReassignedAt: reassignTimestamp,
-        updatedAt: reassignTimestamp,
         latestRemark: reassignMessage,
         quotationNumber: account.quotationNumber || account.raw?.quotationNumber || account.formData?.quotationNumber || '',
         quotationOwnerName: account.quotationOwnerName || account.raw?.quotationOwnerName || account.formData?.quotationOwnerName || '',
@@ -161,6 +188,37 @@ const AccountReassignReminderForm = ({
 
       if (typeof updateAccount === 'function') {
         await updateAccount(account.id, updates)
+      }
+
+      // Strict Account-level Quotation synchronization (Deal-wise and Account-wise isolation kept)
+      try {
+        const accIdStr = String(account.raw?.id || account.id || '')
+        const accNoStr = String(account.accountNumber || account.accountNo || '')
+        const linkedQuotes = (quotations || []).filter((q) => {
+          // Strict Isolation: Do NOT touch deal quotations!
+          const qContext = String(q.quotationContext || q.data?.quotationContext || '').toLowerCase()
+          const qDealId = String(q.dealId || q.data?.dealId || q.sourceDealId || q.data?.sourceDealId || q.dealNumber || q.data?.dealNumber || '')
+          if (qContext === 'deal' || qDealId) return false
+
+          const qCustId = String(q.selectedAccountId || q.customerId || q.data?.selectedAccountId || q.data?.customerId || '')
+          const qAccNo = String(q.clientAccountNumber || q.accountNumber || q.data?.clientAccountNumber || '')
+          return (accIdStr && qCustId === accIdStr) || (accNoStr && qAccNo === accNoStr)
+        })
+        for (const lq of linkedQuotes) {
+          if (lq.id && updateQuotation) {
+            await updateQuotation(lq.id, {
+              selectedAccountOwner: newOwnerName,
+              accountOwner: newOwnerName,
+              quotationOwner: newOwnerName,
+              quotationOwnerName: newOwnerName,
+              dealOwner: newOwnerName,
+              assignedTo: selectedOwner?.id || null,
+              userId: selectedOwner?.id || null,
+            }).catch(() => {})
+          }
+        }
+      } catch (e) {
+        // ignore
       }
 
       // Add system update remark

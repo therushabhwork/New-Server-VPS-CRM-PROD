@@ -1008,6 +1008,82 @@ const updateLead = async (actor, leadId, payload) => {
       directSet.architectName = payload.architectName
       directSet['formData.architectName'] = payload.architectName
     }
+
+    const reassignedKeysInPayload = Object.keys(payload || {}).filter((k) => /^reassignedDate\d+$/i.test(k))
+    const isAccountReassignment = Boolean(
+      payload.accountOwner !== undefined ||
+      payload.accountOwnerName !== undefined ||
+      payload.owner !== undefined ||
+      payload.assignedTo !== undefined ||
+      payload.assignedUserId !== undefined ||
+      payload.ownerUserId !== undefined ||
+      reassignedKeysInPayload.length > 0
+    )
+
+    let targetReassignedVal = new Date().toISOString()
+    let targetOwnerName = ''
+    let targetOwnerId = null
+
+    if (isAccountReassignment) {
+      let maxReassignedIdx = 0
+      const docKeys = [
+        ...Object.keys(existingLead || {}),
+        ...Object.keys(existingLead?.formData || {}),
+        ...Object.keys(existingLead?.data || {}),
+        ...reassignedKeysInPayload,
+      ]
+      for (const k of docKeys) {
+        const m = k.match(/^reassignedDate(\d+)$/i)
+        if (m) {
+          const num = parseInt(m[1], 10)
+          if (num > maxReassignedIdx) maxReassignedIdx = num
+        }
+      }
+      const targetReassignedKey = reassignedKeysInPayload[0] || `reassignedDate${maxReassignedIdx + 1}`
+      targetReassignedVal = payload[targetReassignedKey] || targetReassignedVal
+      targetOwnerName = payload.accountOwner || payload.accountOwnerName || payload.ownerName || payload.owner || ''
+      targetOwnerId = payload.assignedTo || payload.assignedUserId || payload.ownerUserId || payload.ownerId || null
+
+      directSet.reassignedDate = targetReassignedVal
+      directSet.reassignDate = targetReassignedVal
+      directSet[targetReassignedKey] = targetReassignedVal
+      directSet['formData.reassignedDate'] = targetReassignedVal
+      directSet['formData.reassignDate'] = targetReassignedVal
+      directSet[`formData.${targetReassignedKey}`] = targetReassignedVal
+      directSet.lastReassignedAt = targetReassignedVal
+      directSet['formData.lastReassignedAt'] = targetReassignedVal
+
+      if (targetOwnerName) {
+        directSet.accountOwner = targetOwnerName
+        directSet.accountOwnerName = targetOwnerName
+        directSet.accountOwnerDisplay = targetOwnerName
+        directSet.ownerName = targetOwnerName
+        directSet.owner = targetOwnerName
+        directSet.assignedUserName = targetOwnerName
+        directSet['formData.accountOwner'] = targetOwnerName
+        directSet['formData.accountOwnerName'] = targetOwnerName
+        directSet['formData.ownerName'] = targetOwnerName
+      }
+      if (targetOwnerId) {
+        directSet.assignedTo = targetOwnerId
+        directSet.assignedUserId = targetOwnerId
+        directSet.ownerUserId = targetOwnerId
+        directSet.ownerId = targetOwnerId
+        directSet['formData.assignedTo'] = targetOwnerId
+        directSet['formData.assignedUserId'] = targetOwnerId
+        directSet['formData.ownerUserId'] = targetOwnerId
+        directSet['formData.ownerId'] = targetOwnerId
+      }
+      if (payload.accountOwnerCode) {
+        directSet.accountOwnerCode = payload.accountOwnerCode
+        directSet['formData.accountOwnerCode'] = payload.accountOwnerCode
+      }
+      if (payload.ownershipHistory) {
+        directSet.ownershipHistory = payload.ownershipHistory
+        directSet['formData.ownershipHistory'] = payload.ownershipHistory
+      }
+    }
+
     if (Object.keys(directSet).length > 0) {
       directSet.updatedAt = new Date().toISOString()
       await Lead.updateMany(
@@ -1016,6 +1092,83 @@ const updateLead = async (actor, leadId, payload) => {
       ).catch(() => {})
       const refreshed = await leadRepository.findLeadById(normalizeLeadId(leadId))
       if (refreshed) updatedLead = refreshed
+    }
+
+    const Quotation = getMongoModel('quotations')
+    if (Quotation && isAccountReassignment) {
+      const leadIdStr = String(leadId)
+      const leadIdNum = Number(leadId)
+      const accountNo = existingLead?.accountNo || existingLead?.accountNumber || updatedLead?.accountNo || updatedLead?.accountNumber || ''
+      
+      // Account-level matching filter
+      const accountMatchConditions = [
+        ...(leadIdStr ? [{ selectedAccountId: leadIdStr }, { 'data.selectedAccountId': leadIdStr }, { customerId: leadIdStr }, { 'data.customerId': leadIdStr }, { accountId: leadIdStr }] : []),
+        ...(Number.isInteger(leadIdNum) ? [{ selectedAccountId: leadIdNum }, { 'data.selectedAccountId': leadIdNum }, { customerId: leadIdNum }, { 'data.customerId': leadIdNum }] : []),
+        ...(accountNo ? [{ clientAccountNumber: accountNo }, { 'data.clientAccountNumber': accountNo }, { accountNumber: accountNo }] : []),
+      ]
+
+      // Strict isolation: Account-level quotes ONLY; do NOT touch deal quotes
+      const isolationConditions = [
+        { quotationContext: 'account' },
+        { 'data.quotationContext': 'account' },
+        {
+          $and: [
+            { quotationContext: { $ne: 'deal' } },
+            { 'data.quotationContext': { $ne: 'deal' } },
+            { dealId: { $in: [null, '', 0, undefined] } },
+            { 'data.dealId': { $in: [null, '', 0, undefined] } },
+            { sourceDealId: { $in: [null, '', 0, undefined] } },
+            { 'data.sourceDealId': { $in: [null, '', 0, undefined] } },
+            { dealNumber: { $in: [null, '', undefined] } },
+            { 'data.dealNumber': { $in: [null, '', undefined] } },
+          ],
+        },
+      ]
+
+      if (accountMatchConditions.length > 0) {
+        // 1. Preserve originalOwner for R0 history on account quotes
+        const uninitializedQuotes = await Quotation.find({
+          $and: [
+            { $or: accountMatchConditions },
+            { $or: isolationConditions },
+            { $or: [{ originalOwner: { $exists: false } }, { originalOwner: null }, { originalOwner: '' }] },
+          ],
+        }).lean().catch(() => [])
+        if (Array.isArray(uninitializedQuotes) && uninitializedQuotes.length > 0) {
+          for (const q of uninitializedQuotes) {
+            const prevOwner = q.originalOwner || q.createdByName || q.selectedAccountOwner || q.quotationOwner || 'Keval V Shah'
+            await Quotation.updateOne(
+              { _id: q._id },
+              { $set: { originalOwner: prevOwner, 'data.originalOwner': prevOwner } }
+            ).catch(() => {})
+          }
+        }
+
+        // 2. Cascade updated ownership to linked account-level quotations only
+        const quoteUpdateSet = {
+          ...(targetOwnerName ? {
+            selectedAccountOwner: targetOwnerName,
+            accountOwner: targetOwnerName,
+            quotationOwner: targetOwnerName,
+            quotationOwnerName: targetOwnerName,
+            dealOwner: targetOwnerName,
+            'data.selectedAccountOwner': targetOwnerName,
+            'data.accountOwner': targetOwnerName,
+            'data.quotationOwner': targetOwnerName,
+            'data.quotationOwnerName': targetOwnerName,
+            'data.dealOwner': targetOwnerName,
+          } : {}),
+          ...(targetOwnerId ? {
+            assignedTo: targetOwnerId,
+            userId: targetOwnerId,
+            'data.assignedTo': targetOwnerId,
+            'data.userId': targetOwnerId,
+          } : {}),
+          updatedAt: targetReassignedVal,
+          'data.updatedAt': targetReassignedVal,
+        }
+        await Quotation.updateMany({ $and: [{ $or: accountMatchConditions }, { $or: isolationConditions }] }, { $set: quoteUpdateSet }).catch(() => {})
+      }
     }
   }
 

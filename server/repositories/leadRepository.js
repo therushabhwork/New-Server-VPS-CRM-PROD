@@ -358,20 +358,74 @@ const listCreatedLeadsForActor = async (actor, filters = {}) => {
   const limit = shouldReturnAll ? 0 : Math.min(5000, Math.max(1, Number.parseInt(rawLimit, 10) || 5000))
 
   const ownerCodeStr = String(actor.ownerCode || actor.employeeId || '').trim()
-  const actorName = String(actor.name || actor.username || '').trim()
+  const actorNames = [actor.name, actor.username, actor.email].filter(Boolean).map((v) => String(v).trim())
+
+  const actorIds = [actor.id, actor.legacyId, actor._id].filter(Boolean)
+  const actorIdConditions = actorIds.flatMap((id) => {
+    const num = Number(id)
+    const str = String(id)
+    return [
+      { createdBy: str },
+      { createdByUserId: str },
+      { assignedTo: str },
+      { ownerUserId: str },
+      { userId: str },
+      { 'formData.userId': str },
+      { 'formData.createdByUserId': str },
+      { 'formData.createdBy': str },
+      { 'formData.assignedTo': str },
+      { 'formData.ownerId': str },
+      ...(Number.isInteger(num) ? [
+        { createdBy: num },
+        { createdByUserId: num },
+        { assignedTo: num },
+        { ownerUserId: num },
+        { userId: num },
+        { 'formData.userId': num },
+        { 'formData.createdByUserId': num },
+        { 'formData.createdBy': num },
+        { 'formData.assignedTo': num },
+        { 'formData.ownerId': num },
+      ] : []),
+    ]
+  })
+
+  const actorNameConditions = actorNames.flatMap((name) => [
+    { accountOwner: name },
+    { accountOwnerName: name },
+    { accountOwnerDisplay: name },
+    { ownerName: name },
+    { owner: name },
+    { assignedUserName: name },
+    { createdByUserName: name },
+    { createdUserBy: name },
+    { addedBy: name },
+    { addedByName: name },
+    { 'formData.accountOwner': name },
+    { 'formData.accountOwnerName': name },
+    { 'formData.accountOwnerDisplay': name },
+    { 'formData.ownerName': name },
+    { 'formData.owner': name },
+    { 'formData.assignedUserName': name },
+    { 'formData.createdByUserName': name },
+    { 'formData.createdUserBy': name },
+    { 'formData.addedBy': name },
+  ])
+
+  const companyCondition = actor.companyId ? {
+    $or: [
+      { companyId: actor.companyId },
+      { companyId: { $exists: false } },
+      { companyId: null },
+      { companyId: 1 },
+    ],
+  } : {}
 
   const filter = mergeFilters(
+    companyCondition,
     {
-      companyId: actor.companyId,
       $or: [
-        { createdBy: actor.id },
-        { createdByUserId: actor.id },
-        { assignedTo: actor.id },
-        { ownerUserId: actor.id },
-        { 'formData.userId': actor.id },
-        { 'formData.createdByUserId': actor.id },
-        { 'formData.assignedTo': actor.id },
-        { 'formData.ownerId': actor.id },
+        ...actorIdConditions,
         ...(ownerCodeStr ? [
           { ownerCode: ownerCodeStr },
           { accountOwnerCode: ownerCodeStr },
@@ -380,14 +434,7 @@ const listCreatedLeadsForActor = async (actor, filters = {}) => {
           { 'formData.ownerCode': ownerCodeStr },
           { 'formData.accountOwnerCode': ownerCodeStr },
         ] : []),
-        ...(actorName ? [
-          { accountOwner: actorName },
-          { accountOwnerName: actorName },
-          { ownerName: actorName },
-          { 'formData.accountOwner': actorName },
-          { 'formData.accountOwnerName': actorName },
-          { 'formData.ownerName': actorName },
-        ] : []),
+        ...actorNameConditions,
       ],
     },
     buildAccountSearchFilter(filters),
