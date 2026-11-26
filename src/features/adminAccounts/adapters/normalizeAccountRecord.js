@@ -158,17 +158,31 @@ export const normalizeAccountRecord = (account = {}, index = 0, options = {}) =>
 
   const isNotQuotedStage = stage === 'not_quoted' || normalizeStageKey(account.status || account.accountStatus) === 'not_quoted'
   const isPoConvertedStage = stage === 'convert_to_po' || normalizeStageKey(account.status || account.accountStatus) === 'convert_to_po' || normalizeStageKey(account.status || account.accountStatus) === 'po_converted'
-  const isQuotationSentStage = stage === 'quotation_sent' || normalizeStageKey(account.status || account.accountStatus || account.accountState) === 'quotation_sent' || normalizeStageKey(account.stage) === 'quotation_sent'
+  const isQuoteRevisionStage =
+    stage === 'quote_revision' ||
+    normalizeStageKey(account.stage) === 'quote_revision' ||
+    normalizeStageKey(account.status) === 'quote_revision' ||
+    normalizeStageKey(account.status) === 'quotation_revision' ||
+    normalizeStageKey(account.accountStatus) === 'quote_revision' ||
+    normalizeStageKey(account.accountStatus) === 'quotation_revision' ||
+    normalizeStageKey(account.accountState) === 'quote_revision' ||
+    normalizeStageKey(account.accountState) === 'quotation_revision' ||
+    normalizeStageKey(account.raw?.stage) === 'quote_revision' ||
+    normalizeStageKey(account.raw?.status) === 'quote_revision' ||
+    normalizeStageKey(account.raw?.status) === 'quotation_revision' ||
+    normalizeStageKey(account.raw?.accountStatus) === 'quote_revision' ||
+    normalizeStageKey(account.raw?.accountStatus) === 'quotation_revision'
+  const isQuotationSentStage = !isQuoteRevisionStage && (stage === 'quotation_sent' || normalizeStageKey(account.status || account.accountStatus || account.accountState) === 'quotation_sent' || normalizeStageKey(account.stage) === 'quotation_sent')
 
   const status = isNotQuotedStage
     ? 'Not Quoted'
-    : (isPoConvertedStage ? 'PO Converted' : (isQuotationSentStage ? 'Quotation Sent' : ((String(account.status || account.accountStatus || '').trim().toLowerCase() === 'pending' || String(account.status || account.accountStatus || '').trim().toLowerCase() === 'new') ? 'New' : titleize(account.status || account.accountStatus || account.accountState || stageMeta.label))))
+    : (isPoConvertedStage ? 'PO Converted' : (isQuoteRevisionStage ? 'Quote Revision' : (isQuotationSentStage ? 'Quotation Sent' : ((String(account.status || account.accountStatus || '').trim().toLowerCase() === 'pending' || String(account.status || account.accountStatus || '').trim().toLowerCase() === 'new') ? 'New' : titleize(account.status || account.accountStatus || account.accountState || stageMeta.label)))))
   const accountStatus = isNotQuotedStage
     ? 'Not Quoted'
-    : (isPoConvertedStage ? 'convert_to_po' : (isQuotationSentStage ? 'Quotation Sent' : status))
+    : (isPoConvertedStage ? 'convert_to_po' : (isQuoteRevisionStage ? 'Quote Revision' : (isQuotationSentStage ? 'Quotation Sent' : status)))
   const accountState = isNotQuotedStage
     ? 'Not Quoted'
-    : (isPoConvertedStage ? 'convert_to_po' : (isQuotationSentStage ? 'Quotation Sent' : titleize(account.accountState || account.status || account.accountStatus || stageMeta.label)))
+    : (isPoConvertedStage ? 'convert_to_po' : (isQuoteRevisionStage ? 'Quote Revision' : (isQuotationSentStage ? 'Quotation Sent' : titleize(account.accountState || account.status || account.accountStatus || stageMeta.label))))
   const reasonForLost =
     account.reasonForLost ||
     ((stage === 'order_lost' || stage === 'rejected') ? account.remark || 'Not specified' : '')

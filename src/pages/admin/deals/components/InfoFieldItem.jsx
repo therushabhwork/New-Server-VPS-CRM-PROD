@@ -9,7 +9,13 @@ const hasDisplayValue = (value) => {
 const renderDisplayValue = (value, options = null, fallback = 'Not Available') => {
   if (!hasDisplayValue(value)) return fallback
   if (options && Array.isArray(options)) {
-    const opt = options.find((o) => String(o.value) === String(value))
+    const normVal = String(value).trim().toLowerCase().replace(/[-_]/g, ' ')
+    const opt = options.find((o) => {
+      if (String(o.value) === String(value)) return true
+      const normOptVal = String(o.value || '').trim().toLowerCase().replace(/[-_]/g, ' ')
+      const normOptLabel = String(o.label || '').trim().toLowerCase().replace(/[-_]/g, ' ')
+      return normOptVal === normVal || normOptLabel === normVal
+    })
     if (opt && opt.label) return opt.label
   }
   return value

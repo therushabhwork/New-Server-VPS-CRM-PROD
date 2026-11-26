@@ -1,0 +1,2 @@
+{"_id":{"$oid":"6ab904976aeb0d52d96f18c8"},"name":"deals","__v":{"$numberInt":"0"},"createdAt":{"$date":{"$numberLong":"1790510231666"}},"updatedAt":{"$date":{"$numberLong":"1790681317981"}},"value":{"$numberInt":"0"}}
+{"_id":{"$oid":"6abba0e5511d7af6d247c258"},"name":"leads","__v":{"$numberInt":"0"},"createdAt":{"$date":{"$numberLong":"1790681317970"}},"updatedAt":{"$date":{"$numberLong":"1790681317970"}},"value":{"$numberInt":"0"}}

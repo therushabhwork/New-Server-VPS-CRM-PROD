@@ -1,61 +1,6 @@
 import React from 'react'
 import { FaArrowRight, FaClock, FaUser, FaCheckCircle } from 'react-icons/fa'
-
-const DEFAULT_ACCOUNT_STAGES = [
-  { key: 'new', label: 'New', aliases: ['new'] },
-  { key: 'quotation_sent', label: 'Quotation Sent', aliases: ['quote sent', 'quotation sent', 'quotationsent', 'quote_revision', 'commercial_offer', 'priority_2'] },
-  { key: 'order_received', label: 'Order Received', aliases: ['order received', 'orderreceived'] },
-  { key: 'convert_to_po', label: 'PO Converted', aliases: ['convert to po', 'convert_to_po', 'po converted', 'poconverted', 'converted', 'closed'] },
-]
-
-const formatStageTime = (dateStr) => {
-  if (!dateStr) return ''
-  try {
-    const d = new Date(dateStr)
-    if (isNaN(d.getTime())) return ''
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  } catch {
-    return ''
-  }
-}
-
-const formatStageDate = (dateStr) => {
-  if (!dateStr) return ''
-  try {
-    const d = new Date(dateStr)
-    if (isNaN(d.getTime())) return ''
-    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-  } catch {
-    return ''
-  }
-}
-
-const normalizeStageString = (val) => String(val || '').toLowerCase().trim().replace(/[-_]/g, ' ')
-
-const resolveStageIndex = (stageStr) => {
-  const normalized = normalizeStageString(stageStr)
-  if (!normalized) return 0
-
-  if (
-    normalized.includes('po') ||
-    normalized.includes('convert') ||
-    normalized.includes('closed')
-  ) {
-    return 3
-  }
-  if (normalized.includes('order received') || normalized.includes('order_received')) {
-    return 2
-  }
-  if (
-    normalized.includes('quotation') ||
-    normalized.includes('quote') ||
-    normalized.includes('commercial offer') ||
-    normalized.includes('priority 2')
-  ) {
-    return 1
-  }
-  return 0
-}
+import { getDynamicPipelineStages, isQuoteRevisionStatus } from '../../../../../utils/pipelineStageHelper'
 
 export default function AccountStageTimeline({ account, deal, form }) {
   if (!account) return null
@@ -63,22 +8,53 @@ export default function AccountStageTimeline({ account, deal, form }) {
   // 1. Dual Data Source Resolution:
   // Inspect MongoDB linked deal status if available, or account stage
   const dealStage = deal?.dealStatus || deal?.status || deal?.stage || ''
-  const accountStage = form?.stage || account?.stage || account?.accountStatus || account?.status || 'new'
+  const accountStage = form?.stage || account?.stage || account?.accountStatus || account?.accountState || account?.status || 'new'
 
-  const dealStageIndex = dealStage ? resolveStageIndex(dealStage) : -1
-  const accountStageIndex = resolveStageIndex(accountStage)
+  const isRev =
+    isQuoteRevisionStatus(form?.stage) ||
+    isQuoteRevisionStatus(form?.status) ||
+    isQuoteRevisionStatus(form?.accountStatus) ||
+    isQuoteRevisionStatus(form?.accountState) ||
+    isQuoteRevisionStatus(account?.stage) ||
+    isQuoteRevisionStatus(account?.status) ||
+    isQuoteRevisionStatus(account?.accountStatus) ||
+    isQuoteRevisionStatus(account?.accountState) ||
+    isQuoteRevisionStatus(account?.raw?.stage) ||
+    isQuoteRevisionStatus(account?.raw?.status) ||
+    isQuoteRevisionStatus(account?.raw?.accountStatus) ||
+    isQuoteRevisionStatus(account?.raw?.accountState) ||
+    isQuoteRevisionStatus(account?.formData?.stage) ||
+    isQuoteRevisionStatus(account?.formData?.status) ||
+    isQuoteRevisionStatus(account?.formData?.accountStatus) ||
+    isQuoteRevisionStatus(account?.data?.stage) ||
+    isQuoteRevisionStatus(account?.data?.status) ||
+    isQuoteRevisionStatus(deal?.dealStatus) ||
+    isQuoteRevisionStatus(deal?.status) ||
+    isQuoteRevisionStatus(deal?.stage) ||
+    isQuoteRevisionStatus(deal?.quotationCustomerStatus)
 
-  // Use the highest progressed index between linked deal in MongoDB and account
-  const activeIndex = Math.max(0, dealStageIndex >= 0 ? Math.max(dealStageIndex, accountStageIndex) : accountStageIndex)
+  // Pick specific non-default status if set on account or deal
+  const effectiveStatus = isRev
+    ? 'quote_revision'
+    : (accountStage && accountStage !== 'new' && accountStage !== 'pending')
+      ? accountStage
+      : (dealStage || accountStage || 'new')
 
   // 2. Stage History resolution if present in deal or account
-  const historyList = Array.isArray(deal?.stageHistory) && deal.stageHistory.length > 0
-    ? deal.stageHistory
-    : Array.isArray(account?.stageHistory) && account.stageHistory.length > 0
-      ? account.stageHistory
-      : Array.isArray(account?.statusHistory) && account.statusHistory.length > 0
-        ? account.statusHistory
-        : []
+  const rawHistory = [
+    ...(Array.isArray(deal?.stageHistory) ? deal.stageHistory : []),
+    ...(Array.isArray(deal?.dealTimeline) ? deal.dealTimeline : []),
+    ...(Array.isArray(deal?.history) ? deal.history : []),
+    ...(Array.isArray(deal?.remarks) ? deal.remarks : []),
+    ...(Array.isArray(account?.stageHistory) ? account.stageHistory : []),
+    ...(Array.isArray(account?.statusHistory) ? account.statusHistory : []),
+    ...(Array.isArray(account?.history) ? account.history : []),
+    ...(Array.isArray(account?.remarks) ? account.remarks : []),
+  ]
+
+  const historyList = rawHistory.length > 0 ? rawHistory : []
+
+  const accountId = account?.id || account?._id || account?.accountId || ''
 
   const assignedOwner =
     deal?.dealOwner ||
@@ -98,34 +74,16 @@ export default function AccountStageTimeline({ account, deal, form }) {
     account?.createdAt ||
     ''
 
-  const stageCards = DEFAULT_ACCOUNT_STAGES.map((s, idx) => {
-    const isCompleted = idx < activeIndex
-    const isCurrent = idx === activeIndex
-    const hasOccurred = idx <= activeIndex
+  const fallbackDate = account?.accountDate || account?.createdAt || lastUpdatedTime
 
-    // Check if there is a matching history record for this stage
-    const matchedHistory = historyList.find((h) => {
-      const hStage = normalizeStageString(h?.stageName || h?.stage || h?.status)
-      return s.aliases.some((alias) => normalizeStageString(alias) === hStage)
-    })
-
-    const stageUser = matchedHistory
-      ? (matchedHistory.userName || matchedHistory.changedBy || matchedHistory.user || assignedOwner)
-      : (hasOccurred ? assignedOwner : '')
-
-    const stageDateSource = matchedHistory
-      ? (matchedHistory.timestamp || matchedHistory.date || matchedHistory.createdAt)
-      : (isCurrent ? lastUpdatedTime : (account?.accountDate || account?.createdAt || lastUpdatedTime))
-
-    return {
-      id: s.key,
-      name: s.label,
-      user: stageUser,
-      time: hasOccurred && stageDateSource ? formatStageTime(stageDateSource) : '',
-      date: hasOccurred && stageDateSource ? formatStageDate(stageDateSource) : '',
-      isCurrent,
-      isCompleted,
-    }
+  const stageCards = getDynamicPipelineStages({
+    status: effectiveStatus,
+    historyList,
+    assignedOwner,
+    lastUpdatedTime,
+    fallbackDate,
+    recordId: accountId,
+    entityType: 'account',
   })
 
   return (

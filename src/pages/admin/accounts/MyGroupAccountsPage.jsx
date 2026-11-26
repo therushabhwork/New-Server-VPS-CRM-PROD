@@ -527,7 +527,7 @@ const getConvertedAccountsFieldText = (row = {}, fieldKey = '') => {
       if (lower === 'follow_up' || lower === 'follow-up' || lower === 'follow up') return 'Follow-Up'
       if (lower === 'technical_offer' || lower === 'technical offer') return 'Technical Offer'
       if (lower === 'commercial_offer' || lower === 'commercial offer') return 'Commercial Offer'
-      if (lower === 'quote_revision' || lower === 'quotation revision' || lower === 'quote revision') return 'Quotation Revision'
+      if (lower === 'quote_revision' || lower === 'quotation revision' || lower === 'quote revision') return 'Quote Revision'
       if (lower === 'order_received' || lower === 'order received') return 'Order Received'
       if (lower === 'convert_to_po' || lower === 'convert to po' || lower === 'po_converted' || lower === 'po converted') return 'Convert To PO'
       if (lower === 'new' || lower === 'pending') return 'New'

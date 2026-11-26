@@ -11,6 +11,7 @@ import {
 import { FiEdit2, FiCheck, FiLoader } from 'react-icons/fi'
 import { useAuth } from '../../../../../context/AuthContext'
 import { ACCOUNT_CATEGORY_OPTIONS } from '../../../../../features/accounts/config/accountDropdownOptions'
+import { isQuoteRevisionStatus } from '../../../../../utils/pipelineStageHelper'
 
 const formatDateDisplay = (value) => {
   if (!value) return ''
@@ -40,7 +41,27 @@ export default function AccountSnapshotStrip({
   const effectiveCanEdit = Boolean(canEdit || user?.role === 'admin' || user?.role === 'super_admin')
   const accountDate = form.accountDate || account.accountDate || account.createdAt || ''
   const category = form.accountCategory || account.accountCategory || account.category || ''
-  const status = form.status || account.status || account.stage || ''
+  const isRev =
+    isQuoteRevisionStatus(form.status) ||
+    isQuoteRevisionStatus(form.stage) ||
+    isQuoteRevisionStatus(form.accountStatus) ||
+    isQuoteRevisionStatus(form.accountState) ||
+    isQuoteRevisionStatus(account.status) ||
+    isQuoteRevisionStatus(account.accountStatus) ||
+    isQuoteRevisionStatus(account.accountState) ||
+    isQuoteRevisionStatus(account.stage) ||
+    isQuoteRevisionStatus(account.raw?.status) ||
+    isQuoteRevisionStatus(account.raw?.accountStatus) ||
+    isQuoteRevisionStatus(account.raw?.accountState) ||
+    isQuoteRevisionStatus(account.raw?.stage) ||
+    isQuoteRevisionStatus(account.formData?.status) ||
+    isQuoteRevisionStatus(account.formData?.accountStatus) ||
+    isQuoteRevisionStatus(account.formData?.stage) ||
+    isQuoteRevisionStatus(account.data?.status) ||
+    isQuoteRevisionStatus(account.data?.stage)
+  const status = isRev
+    ? 'quote_revision'
+    : (form.status || form.accountStatus || form.stage || account.status || account.accountStatus || account.stage || '')
   const state = form.state || account.state || ''
   const gstin = form.gstin || account.gstin || ''
   const ageing = calculateAgeing(accountDate)
@@ -142,7 +163,7 @@ export default function AccountSnapshotStrip({
         { value: 'technical_offer', label: 'Technical Offer' },
         { value: 'commercial_offer', label: 'Commercial Offer' },
         { value: 'quotation_sent', label: 'Quotation Sent' },
-        { value: 'quote_revision', label: 'Quotation Revision' },
+        { value: 'quote_revision', label: 'Quote Revision' },
         { value: 'order_received', label: 'Order Received' },
         { value: 'not_quoted', label: 'Not Quoted' },
         { value: 'convert_to_po', label: 'Convert To PO' },
@@ -278,7 +299,7 @@ export default function AccountSnapshotStrip({
                       if (s === 'follow_up' || s === 'follow-up' || s === 'follow up') return 'Follow-Up'
                       if (s === 'technical_offer' || s === 'technical offer') return 'Technical Offer'
                       if (s === 'commercial_offer' || s === 'commercial offer') return 'Commercial Offer'
-                      if (s === 'quote_revision' || s === 'quotation revision' || s === 'quote revision') return 'Quotation Revision'
+                      if (s === 'quote_revision' || s === 'quotation revision' || s === 'quote revision' || s.includes('revision')) return 'Quote Revision'
                       if (s === 'order_received' || s === 'order received') return 'Order Received'
                       if (s === 'convert_to_po' || s === 'convert to po' || s === 'po_converted' || s === 'po converted') return 'Convert To PO'
                       if (s === 'new') return 'New'

@@ -219,7 +219,7 @@ const resolveBoardStageKey = (deal) => {
     return 'closedLost'
   }
 
-  if (stage.includes('revision') || quotationStatus.includes('revision') || orderStatus.includes('revision')) {
+  if (status.includes('revision') || stage.includes('revision') || quotationStatus.includes('revision') || orderStatus.includes('revision')) {
     return 'quotationRevision'
   }
 

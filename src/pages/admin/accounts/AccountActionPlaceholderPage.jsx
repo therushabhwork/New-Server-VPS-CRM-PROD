@@ -262,7 +262,7 @@ const AccountActionPlaceholderPage = () => {
         stage: targetStageKey,
         status: isQuotationSent ? 'quotation_sent' : (isNotQuoted ? 'not_quoted' : selectedStatusLabel),
         accountStatus: isQuotationSent ? 'Quotation Sent' : (isNotQuoted ? 'not_quoted' : (targetStageKey === 'convert_to_po' ? 'convert_to_po' : selectedStatusLabel)),
-        accountState: isQuotationSent ? 'Quotation Sent' : (isNotQuoted ? 'not_quoted' : (targetStageKey === 'convert_to_po' ? 'convert_to_po' : (accountState || selectedStatusLabel))),
+        accountState: isQuotationSent ? 'Quotation Sent' : (isNotQuoted ? 'not_quoted' : (targetStageKey === 'convert_to_po' ? 'convert_to_po' : selectedStatusLabel)),
         latestRemark: statusNote.trim() || selectedAccount.latestRemark,
         ...(stage === 'rejected' ? {
           stage: 'rejected',

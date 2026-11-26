@@ -187,7 +187,7 @@ const formatAccountStatusDisplay = (value, row = {}) => {
   if (lower === 'follow_up') return 'Follow-Up'
   if (lower === 'technical_offer') return 'Technical Offer'
   if (lower === 'commercial_offer') return 'Commercial Offer'
-  if (lower === 'quote_revision' || lower === 'quotation_revision') return 'Quotation Revision'
+  if (lower === 'quote_revision' || lower === 'quotation_revision') return 'Quote Revision'
   if (lower === 'order_received') return 'Order Received'
   if (lower === 'convert_to_po' || lower === 'po_converted') return 'Convert To PO'
   if (lower === 'new' || lower === 'pending') return 'New'

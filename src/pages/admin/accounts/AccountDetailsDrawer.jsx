@@ -33,6 +33,7 @@ import { ACCOUNT_CHANGE_STATUS_OPTIONS, ACCOUNT_ORDER_STATUS_OPTIONS, ACCOUNT_QU
 import { buildAdminAccountActionUrl } from '../../../features/adminAccounts/utils/accountNavigation'
 import { getAccountOwnerOptionLabel, getCachedAccountOwnerOptions, loadAccountOwnerOptions, filterAccountOwnerOptionsByVertical } from '../../../features/adminAccounts/utils/accountOwnerOptions'
 import { formatCurrency, formatDate } from '../../../utils/helpers'
+import { isQuoteRevisionStatus } from '../../../utils/pipelineStageHelper'
 import { useAuth } from '../../../context/AuthContext'
 import AccountActionModal from './AccountActionModal'
 import './MyGroupAccounts.css'
@@ -246,16 +247,25 @@ const resolveAddedByDisplay = (account = {}) => (
   || ''
 )
 
-const buildInitialForm = (account, deal = {}) => ({
+const buildInitialForm = (account, deal = {}) => {
+  const isRev =
+    isQuoteRevisionStatus(account.stage) ||
+    isQuoteRevisionStatus(account.status) ||
+    isQuoteRevisionStatus(account.accountStatus) ||
+    isQuoteRevisionStatus(account.raw?.stage) ||
+    isQuoteRevisionStatus(account.raw?.status) ||
+    isQuoteRevisionStatus(account.raw?.accountStatus)
+
+  return {
   accountNumber: account.accountNumber || '',
   accountName: account.name || account.accountName || '',
   company: account.raw?.company || account.company || '',
   industry: account.industryType || account.raw?.industry || '',
   accountCategory: account.accountCategory || '',
   accountSource: account.accountSource || account.source || '',
-  status: String(account.raw?.status || account.status || '').trim().toLowerCase(),
-  accountState: account.accountState || account.raw?.accountState || getAccountStatusLabel(account.raw?.status || account.status || ''),
-  stage: getAllowedAccountInformationStage(account.stage || ''),
+  status: isRev ? 'quote_revision' : String(account.raw?.status || account.status || '').trim().toLowerCase(),
+  accountState: isRev ? 'Quote Revision' : (account.accountState || account.raw?.accountState || getAccountStatusLabel(account.raw?.status || account.status || '')),
+  stage: isRev ? 'quote_revision' : getAllowedAccountInformationStage(account.stage || ''),
   accountDate: normalizeDateInput(account.accountDate || account.createdAt) || '',
   accountOwner: account.accountOwnerName || account.accountOwner || '',
   addedBy: resolveAddedByDisplay(account),
@@ -335,7 +345,8 @@ const buildInitialForm = (account, deal = {}) => ({
   dealType: account.dealType || deal.dealType || '',
   probability: account.probability || deal.probability || '',
   dealScore: account.dealScore || deal.dealScore || '',
-})
+  }
+}
 
 const buildUpdatePayload = (form) => ({
   name: form.accountName,
@@ -933,7 +944,7 @@ const AccountDetailsDrawer = ({
         status: cleanStatusVal,
         stage: cleanStatusVal,
         accountStatus: cleanStatusVal === 'not_quoted' ? 'not_quoted' : (cleanStatusVal === 'convert_to_po' ? 'convert_to_po' : cleanStatusVal),
-        accountState: cleanStatusVal === 'not_quoted' ? 'not_quoted' : (cleanStatusVal === 'convert_to_po' ? 'convert_to_po' : (form.accountState || cleanStatusVal)),
+        accountState: cleanStatusVal === 'not_quoted' ? 'not_quoted' : (cleanStatusVal === 'convert_to_po' ? 'convert_to_po' : (cleanStatusVal === 'quote_revision' ? 'Quote Revision' : cleanStatusVal)),
       } : {}),
     }
     setForm(updatedForm)

@@ -202,7 +202,11 @@ const buildNormalizedDeal = ({ deal, accounts, customers, users, currentUser }) 
     customerName: deal.customerName || deal.linkedAccountName || deal.accountName || linkedCustomer?.customerName || linkedAccount?.customerName || linkedAccount?.name || '',
     customerNumber: deal.customerNumber || linkedCustomer?.customerNumber || linkedAccount?.accountNumber || '',
     dealType: deal.dealType || deal.customerCategory || linkedAccount?.accountCategory || deal.stage || '',
-    dealStatus: deal.status || '',
+    dealStatus: (
+      String(deal.dealStatus || deal.status || deal.stage || deal.quotationCustomerStatus || '').toLowerCase().includes('revision')
+        ? 'quote_revision'
+        : (deal.dealStatus || deal.status || deal.stage || '')
+    ),
     dealOwner: deal.dealOwnerDisplay || getCrmOwnerDisplay(ownerName) || ownerName,
     dealSource: deal.dealSource || deal.source || linkedAccount?.accountOwner || '',
     dealSubsource: deal.dealSubsource || deal.subsource || '',
