@@ -772,8 +772,8 @@ const AddAccountWizard = () => {
             message: formData.remark?.trim() || '',
             remindAt: formData.reminderDate ? `${formData.reminderDate}T10:00:00` : new Date().toISOString(),
             status: 'scheduled',
-            relatedEntityType: 'account',
-            relatedEntityId: result?.lead?.id || '',
+            relatedEntityType: result?.deal?.id ? 'deal' : 'account',
+            relatedEntityId: result?.deal?.id || result?.lead?.id || '',
             assignedTo: finalOwnerName,
             reminderDate: formData.reminderDate,
             reminderTime: '10:00',
@@ -784,7 +784,7 @@ const AddAccountWizard = () => {
         addNotification(
           'success',
           'Project Deal Created',
-          `${formData.projectName || formData.dealName || formData.customerName || 'Project'} is now saved in Accounts and Deals.`
+          `${formData.projectName || formData.dealName || formData.customerName || 'Project'} is now saved in Deals.`
         )
 
         const createdLead = result?.lead ? normalizeAccountRecord(result.lead) : null
@@ -802,7 +802,18 @@ const AddAccountWizard = () => {
             },
           })
         } else {
-          navigate(backPath)
+          const createdDealId = result?.deal?.id || result?.deal?._id
+          if (createdDealId) {
+            const targetDealRoute = isAdmin ? '/admin/deals/view' : '/deals/view'
+            navigate(targetDealRoute, {
+              state: {
+                newDealId: createdDealId,
+                newDealName: result?.deal?.name || result?.deal?.title || formData.projectName,
+              },
+            })
+          } else {
+            navigate(backPath)
+          }
         }
       } catch (error) {
         addNotification('error', 'Save Failed', error?.response?.data?.message || error?.message || 'Unable to create project deal.')
@@ -815,6 +826,7 @@ const AddAccountWizard = () => {
     const projectLabel = String(formData.projectName || formData.dealName || '').trim()
     const resolvedCustomerName = String(formData.customerName || '').trim() || formData.accountName
     const accountPayload = {
+      isRepeatedAccount: false,
       name: formData.accountName,
       email: formData.contactEmail,
       phone: formData.contactMobile || formData.contactPhone,

@@ -1373,6 +1373,47 @@ module.exports = {
             { 'data.quotationOwnerName': userName },
           ],
         }
+
+        const LeadModel = getMongoModel('leads')
+        const actorId = actor?.id
+        if (LeadModel && (actorId || userName)) {
+          const reassignedLeads = await LeadModel.find(
+            {
+              $and: [
+                {
+                  $or: [
+                    { lastReassignedAt: { $exists: true, $ne: null } },
+                    { reassignedBy: { $exists: true, $ne: null } },
+                    { reassignedByUserId: { $exists: true, $ne: null } },
+                    { reassignedByUserIds: { $exists: true, $ne: [] } },
+                    { 'ownershipHistory.0': { $exists: true } },
+                  ],
+                },
+                {
+                  $or: [
+                    ...(actorId ? [{ ownerUserId: actorId }, { assignedTo: actorId }, { assignedUserId: actorId }] : []),
+                    ...(userName ? [{ accountOwner: userName }, { accountOwnerName: userName }, { 'formData.accountOwner': userName }, { 'formData.accountOwnerName': userName }] : []),
+                  ],
+                },
+              ],
+            },
+            { quotationNumber: 1, quoteNumber: 1, latestQuotationNumber: 1, 'formData.quotationNumber': 1 }
+          ).lean()
+
+          const reassignedQuoteNumbers = Array.from(new Set(reassignedLeads.map((l) => (
+            l.quotationNumber || l.quoteNumber || l.latestQuotationNumber || l.formData?.quotationNumber || ''
+          )).filter(Boolean)))
+
+          if (reassignedQuoteNumbers.length > 0) {
+            extraFilter.$or.push(
+              { quoteNumber: { $in: reassignedQuoteNumbers } },
+              { quotationNumber: { $in: reassignedQuoteNumbers } },
+              { 'data.quoteNumber': { $in: reassignedQuoteNumbers } },
+              { 'data.quotationNumber': { $in: reassignedQuoteNumbers } }
+            )
+          }
+        }
+
         const extraDocs = await QuotationModel.find(extraFilter).lean()
         const { mapMongoDocument } = require('../utils/mongoRecordMapper')
         const mappedExtras = extraDocs.map(mapMongoDocument)

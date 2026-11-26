@@ -359,6 +359,8 @@ const AccountActionPlaceholderPage = () => {
         lastReassignedAt: reassignTimestamp,
         updatedAt: reassignTimestamp,
         latestRemark: reassignMessage,
+        quotationNumber: selectedAccount.quotationNumber || selectedAccount.raw?.quotationNumber || selectedAccount.formData?.quotationNumber || '',
+        quotationOwnerName: selectedAccount.quotationOwnerName || selectedAccount.raw?.quotationOwnerName || selectedAccount.formData?.quotationOwnerName || '',
         ownershipHistory: [
           ...(Array.isArray(selectedAccount.ownershipHistory) ? selectedAccount.ownershipHistory : (Array.isArray(selectedAccount.raw?.ownershipHistory) ? selectedAccount.raw.ownershipHistory : [])),
           newOwnershipEntry,

@@ -365,6 +365,8 @@ const AccountActionModal = ({ account, actionKey, onClose, onSaved }) => {
         lastReassignedAt: reassignTimestamp,
         updatedAt: reassignTimestamp,
         latestRemark: reassignMessage,
+        quotationNumber: account.quotationNumber || account.raw?.quotationNumber || account.formData?.quotationNumber || '',
+        quotationOwnerName: account.quotationOwnerName || account.raw?.quotationOwnerName || account.formData?.quotationOwnerName || '',
         ownershipHistory: [
           ...(Array.isArray(account.ownershipHistory) ? account.ownershipHistory : (Array.isArray(account.raw?.ownershipHistory) ? account.raw.ownershipHistory : [])),
           newOwnershipEntry,

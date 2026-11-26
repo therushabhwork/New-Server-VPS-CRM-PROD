@@ -286,8 +286,49 @@ const resolveQuotationProjectName = (quotation = {}) => {
   return normalizeMatchValue(match || '')
 }
 
+const isReassignedAccountRow = (row = {}) => Boolean(
+  row.lastReassignedAt
+  || row.raw?.lastReassignedAt
+  || row.reassignedBy
+  || row.raw?.reassignedBy
+  || row.reassignedByUserId
+  || row.raw?.reassignedByUserId
+  || row.reassignedByUserName
+  || row.raw?.reassignedByUserName
+  || (Array.isArray(row.reassignedByUserIds) && row.reassignedByUserIds.length > 0)
+  || (Array.isArray(row.raw?.reassignedByUserIds) && row.raw.reassignedByUserIds.length > 0)
+  || (Array.isArray(row.ownershipHistory) && row.ownershipHistory.length > 0)
+  || (Array.isArray(row.raw?.ownershipHistory) && row.raw.ownershipHistory.length > 0)
+  || row.formData?.lastReassignedAt
+  || row.formData?.reassignedBy
+  || (Array.isArray(row.formData?.ownershipHistory) && row.formData.ownershipHistory.length > 0)
+)
+
 const getQuotationScoreForAccount = (quotation = {}, account = {}) => {
   const raw = account.raw || {}
+
+  const aQuoteNo = normalizeMatchValue(
+    account.quotationNumber
+    || account.quoteNumber
+    || account.latestQuotationNumber
+    || raw.quotationNumber
+    || raw.quoteNumber
+    || raw.latestQuotationNumber
+    || account.formData?.quotationNumber
+    || raw.formData?.quotationNumber
+    || ''
+  )
+  const qQuoteNo = normalizeMatchValue(
+    quotation.quoteNumber
+    || quotation.quotationNumber
+    || quotation.data?.quoteNumber
+    || quotation.data?.quotationNumber
+    || ''
+  )
+
+  if (aQuoteNo && qQuoteNo && aQuoteNo === qQuoteNo) {
+    return 200
+  }
 
   const qDealId = String(quotation.dealId || quotation.data?.dealId || quotation.selectedDealId || '').trim()
   const aDealId = String(account.dealId || account.convertedDealId || raw.dealId || raw.convertedDealId || '').trim()
@@ -308,6 +349,8 @@ const getQuotationScoreForAccount = (quotation = {}, account = {}) => {
 
 const enrichBoardDataWithQuotationFields = (boardData, quotations = [], availableUsers = []) => {
   const enrichRow = (row = {}) => {
+    const isReassigned = isReassignedAccountRow(row)
+
     const matchedQuotations = (quotations || [])
       .map((q) => ({ q, score: getQuotationScoreForAccount(q, row) }))
       .filter((item) => item.score > 0)
@@ -318,6 +361,18 @@ const enrichBoardDataWithQuotationFields = (boardData, quotations = [], availabl
 
     const latestQuotation = matchedQuotations[0]?.q
     if (!latestQuotation) {
+      if (isReassigned) {
+        const existingQuoteNumber = row.quotationNumber || row.quoteNumber || row.raw?.quotationNumber || row.raw?.quoteNumber || row.formData?.quotationNumber || ''
+        const existingOwner = row.quotationOwnerName || row.raw?.quotationOwnerName || row.formData?.quotationOwnerName || ''
+        if (existingQuoteNumber || existingOwner) {
+          return {
+            ...row,
+            quotationNumber: existingQuoteNumber,
+            quotationOwnerName: existingOwner,
+          }
+        }
+      }
+
       const isNewlyGeneratedOrNoQuote =
         row.stage === 'new' ||
         row.creationMode === 'existing-source-project' ||
@@ -331,8 +386,8 @@ const enrichBoardDataWithQuotationFields = (boardData, quotations = [], availabl
       }
     }
 
-    const resolvedNumber = latestQuotation.quoteNumber || latestQuotation.quotationNumber || latestQuotation.data?.quoteNumber || latestQuotation.data?.quotationNumber || ''
-    const resolvedOwner = getQuotationOwnerName(latestQuotation, availableUsers)
+    const resolvedNumber = latestQuotation.quoteNumber || latestQuotation.quotationNumber || latestQuotation.data?.quoteNumber || latestQuotation.data?.quotationNumber || row.quotationNumber || ''
+    const resolvedOwner = getQuotationOwnerName(latestQuotation, availableUsers) || (isReassigned ? (row.quotationOwnerName || row.raw?.quotationOwnerName || '') : '')
 
     return {
       ...row,

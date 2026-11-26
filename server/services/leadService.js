@@ -357,6 +357,7 @@ const buildLeadPayload = async (payload = {}, actor, existingLead = null) => {
     actualDealStatusDate: (isPoConvertedStage || isRejectedStage) ? nowIso : (sanitizedPayload.actualDealStatusDate || existingLead?.actualDealStatusDate || null),
     reasonForLost: resolvedReasonForLost,
     reasonForLostOrder: resolvedReasonForLost,
+    isRepeatedAccount: sanitizedPayload.isRepeatedAccount !== undefined ? Boolean(sanitizedPayload.isRepeatedAccount) : (existingLead?.isRepeatedAccount ?? false),
     assignedTo: assignedUser?.id || existingLead?.assignedTo || null,
     createdBy: existingLead?.createdBy || actor.id,
     ownerName,
@@ -374,6 +375,7 @@ const buildLeadPayload = async (payload = {}, actor, existingLead = null) => {
     formData: {
       ...(existingLead || {}),
       ...sanitizedPayload,
+      isRepeatedAccount: sanitizedPayload.isRepeatedAccount !== undefined ? Boolean(sanitizedPayload.isRepeatedAccount) : (existingLead?.formData?.isRepeatedAccount ?? existingLead?.isRepeatedAccount ?? false),
       accountCategory: resolvedCategory,
       customerCategory: resolvedCategory,
       customerType: resolvedCustomerType,
@@ -534,10 +536,223 @@ const augmentLeadsWithOwnerCode = async (leads) => {
   })
 }
 
+const enrichReassignedLeadsWithQuotationOwner = async (leads) => {
+  if (!Array.isArray(leads) || leads.length === 0) return leads
+
+  const reassignedLeadsWithQuote = leads.filter((lead) => {
+    if (!lead) return false
+    const isReassigned = Boolean(
+      lead.lastReassignedAt ||
+      lead.reassignedBy ||
+      lead.reassignedByUserId ||
+      lead.reassignedByUserName ||
+      (Array.isArray(lead.reassignedByUserIds) && lead.reassignedByUserIds.length > 0) ||
+      (Array.isArray(lead.ownershipHistory) && lead.ownershipHistory.length > 0) ||
+      lead.formData?.lastReassignedAt ||
+      lead.formData?.reassignedBy ||
+      (Array.isArray(lead.formData?.ownershipHistory) && lead.formData.ownershipHistory.length > 0)
+    )
+    if (!isReassigned) return false
+
+    const quoteNo = String(
+      lead.quotationNumber ||
+      lead.quoteNumber ||
+      lead.latestQuotationNumber ||
+      lead.formData?.quotationNumber ||
+      lead.formData?.['Quotation No'] ||
+      lead.formData?.['Quotation No.'] ||
+      ''
+    ).trim()
+    return Boolean(quoteNo)
+  })
+
+  if (reassignedLeadsWithQuote.length === 0) return leads
+
+  try {
+    const { getMongoModel } = require('../models/mongoModels')
+    const QuotationModel = getMongoModel('quotations')
+    if (!QuotationModel) return leads
+
+    const quoteNumbers = Array.from(new Set(reassignedLeadsWithQuote.map((lead) => (
+      String(
+        lead.quotationNumber ||
+        lead.quoteNumber ||
+        lead.latestQuotationNumber ||
+        lead.formData?.quotationNumber ||
+        lead.formData?.['Quotation No'] ||
+        lead.formData?.['Quotation No.'] ||
+        ''
+      ).trim()
+    )).filter(Boolean)))
+
+    if (quoteNumbers.length === 0) return leads
+
+    const quotes = await QuotationModel.find(
+      {
+        $or: [
+          { quoteNumber: { $in: quoteNumbers } },
+          { quotationNumber: { $in: quoteNumbers } },
+          { 'data.quoteNumber': { $in: quoteNumbers } },
+          { 'data.quotationNumber': { $in: quoteNumbers } },
+        ],
+      },
+      {
+        quoteNumber: 1,
+        quotationNumber: 1,
+        'data.quoteNumber': 1,
+        'data.quotationNumber': 1,
+        quotationOwnerName: 1,
+        quotationOwner: 1,
+        selectedAccountOwner: 1,
+        createdByName: 1,
+        ownerName: 1,
+        addedByName: 1,
+        createdBy: 1,
+        userId: 1,
+        'data.quotationOwnerName': 1,
+        'data.quotationOwner': 1,
+        'data.selectedAccountOwner': 1,
+        revisions: 1,
+        'data.revisions': 1,
+      }
+    ).lean()
+
+    const quoteOwnerMap = new Map()
+    const unresolvedUserIds = new Set()
+
+    for (const q of quotes) {
+      const qNums = [
+        q.quoteNumber,
+        q.quotationNumber,
+        q.data?.quoteNumber,
+        q.data?.quotationNumber,
+      ].filter(Boolean).map((n) => String(n).trim().toLowerCase())
+
+      let resolvedOwner = ''
+      const revisions = q.revisions || q.data?.revisions
+      if (Array.isArray(revisions) && revisions.length > 0) {
+        const latestRev = revisions[revisions.length - 1]
+        const latestOwner = latestRev?.owner || latestRev?.createdByName || latestRev?.ownerName
+        if (latestOwner && typeof latestOwner === 'string' && latestOwner.trim() && latestOwner.trim() !== '-' && latestOwner.trim().toLowerCase() !== 'null' && latestOwner.trim().toLowerCase() !== 'undefined') {
+          resolvedOwner = latestOwner.trim()
+        }
+      }
+
+      if (!resolvedOwner) {
+        const rawOwner = (
+          q.selectedAccountOwner ||
+          q.data?.selectedAccountOwner ||
+          q.quotationOwnerName ||
+          q.quotationOwner ||
+          q.createdByName ||
+          q.ownerName ||
+          q.addedByName ||
+          q.data?.quotationOwnerName ||
+          q.data?.quotationOwner ||
+          ''
+        )
+        if (rawOwner && typeof rawOwner === 'string' && rawOwner.trim() && rawOwner.trim() !== '-' && rawOwner.trim().toLowerCase() !== 'null' && rawOwner.trim().toLowerCase() !== 'undefined') {
+          resolvedOwner = rawOwner.trim()
+        }
+      }
+
+      const uid = String(q.userId || q.createdBy || q.data?.userId || q.data?.createdBy || '').trim()
+      for (const num of qNums) {
+        if (!quoteOwnerMap.has(num)) {
+          quoteOwnerMap.set(num, { ownerName: resolvedOwner, userId: uid })
+          if (!resolvedOwner && uid) {
+            unresolvedUserIds.add(uid)
+          }
+        }
+      }
+    }
+
+    if (unresolvedUserIds.size > 0) {
+      const UserModel = getMongoModel('users')
+      if (UserModel) {
+        const idList = Array.from(unresolvedUserIds)
+        const numericIds = idList.map(Number).filter((n) => !isNaN(n))
+        const userDocs = await UserModel.find(
+          {
+            $or: [
+              { _id: { $in: idList } },
+              { id: { $in: idList } },
+              ...(numericIds.length > 0 ? [{ legacyId: { $in: numericIds } }] : []),
+            ],
+          },
+          { name: 1, username: 1, email: 1, id: 1, legacyId: 1 }
+        ).lean()
+
+        const userMap = new Map()
+        for (const u of userDocs) {
+          const uName = String(u.name || u.username || u.email || '').trim()
+          if (uName) {
+            if (u._id) userMap.set(String(u._id), uName)
+            if (u.id) userMap.set(String(u.id), uName)
+            if (u.legacyId !== undefined) userMap.set(String(u.legacyId), uName)
+          }
+        }
+
+        for (const [, entry] of quoteOwnerMap.entries()) {
+          if (!entry.ownerName && entry.userId && userMap.has(entry.userId)) {
+            entry.ownerName = userMap.get(entry.userId)
+          }
+        }
+      }
+    }
+
+    return leads.map((lead) => {
+      if (!lead) return lead
+      const isReassigned = Boolean(
+        lead.lastReassignedAt ||
+        lead.reassignedBy ||
+        lead.reassignedByUserId ||
+        lead.reassignedByUserName ||
+        (Array.isArray(lead.reassignedByUserIds) && lead.reassignedByUserIds.length > 0) ||
+        (Array.isArray(lead.ownershipHistory) && lead.ownershipHistory.length > 0) ||
+        lead.formData?.lastReassignedAt ||
+        lead.formData?.reassignedBy ||
+        (Array.isArray(lead.formData?.ownershipHistory) && lead.formData.ownershipHistory.length > 0)
+      )
+      if (!isReassigned) return lead
+
+      const quoteNo = String(
+        lead.quotationNumber ||
+        lead.quoteNumber ||
+        lead.latestQuotationNumber ||
+        lead.formData?.quotationNumber ||
+        lead.formData?.['Quotation No'] ||
+        lead.formData?.['Quotation No.'] ||
+        ''
+      ).trim().toLowerCase()
+
+      if (!quoteNo) return lead
+
+      const resolved = quoteOwnerMap.get(quoteNo)
+      if (resolved?.ownerName) {
+        return {
+          ...lead,
+          quotationOwnerName: resolved.ownerName,
+          formData: {
+            ...(lead.formData || {}),
+            quotationOwnerName: resolved.ownerName,
+          },
+        }
+      }
+
+      return lead
+    })
+  } catch (err) {
+    console.error('Error enriching reassigned leads with quotation owner:', err)
+    return leads
+  }
+}
+
 const augmentLeadWithOwnerCode = async (lead) => {
   if (!lead) return lead
   const augmented = await augmentLeadsWithOwnerCode([lead])
-  return augmented[0]
+  const enriched = await enrichReassignedLeadsWithQuotationOwner(augmented)
+  return enriched[0]
 }
 
 const listLeads = async (actor, query = {}) => {
@@ -565,13 +780,15 @@ const listLeads = async (actor, query = {}) => {
 
   if (leads && typeof leads === 'object' && Array.isArray(leads.records)) {
     const augmented = await augmentLeadsWithOwnerCode(leads.records)
+    const enriched = await enrichReassignedLeadsWithQuotationOwner(augmented)
     return {
       ...leads,
-      records: augmented,
+      records: enriched,
     }
   }
 
-  return augmentLeadsWithOwnerCode(leads)
+  const augmented = await augmentLeadsWithOwnerCode(leads)
+  return enrichReassignedLeadsWithQuotationOwner(augmented)
 }
 
 

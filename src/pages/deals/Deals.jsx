@@ -949,10 +949,38 @@ const isDealNumberFallback = (value = '', deal = {}) => {
   return normalizedValue && normalizedValue === normalizeSearchValue(deal.dealNumber)
 }
 
-const getDealQuotationNumber = (deal = {}, quotationNumberByDealId = {}, quotationNumberByDealNumber = {}, quotationNumberByCustomerId = {}) => {
+const getDealQuotationOwnerName = (deal = {}, quotationOwnerByDealId = {}, quotationOwnerByDealNumber = {}, quotationOwnerByCustomerId = {}) => {
+  const isRepeated = Boolean(deal.isRepeatedAccount || deal.rawDeal?.isRepeatedAccount || deal.data?.isRepeatedAccount || deal.rawDeal?.data?.isRepeatedAccount)
   const dealIdKey = String(deal.id || deal.legacyId || '').trim()
   const dealNumberKey = String(deal.dealNumber || '').trim()
-  const customerIdKey = String(deal.customerId || deal.accountId || deal.data?.customerId || deal.data?.accountId || '').trim()
+  const customerIdKey = !isRepeated ? String(deal.customerId || deal.accountId || deal.data?.customerId || deal.data?.accountId || '').trim() : ''
+
+  const lookupOwner = (
+    (dealIdKey && quotationOwnerByDealId[dealIdKey])
+    || (dealNumberKey && quotationOwnerByDealNumber[dealNumberKey])
+    || (customerIdKey && quotationOwnerByCustomerId?.[customerIdKey])
+    || ''
+  )
+  if (lookupOwner) return lookupOwner
+
+  if (isRepeated) {
+    const hasDirectQuote = Boolean(
+      (dealIdKey && quotationOwnerByDealId[dealIdKey])
+      || (dealNumberKey && quotationOwnerByDealNumber[dealNumberKey])
+      || deal.quotationNumber
+      || deal.quoteNumber
+    )
+    if (!hasDirectQuote) return ''
+  }
+
+  return deal.quotationOwnerName || deal.quotationOwner || deal.latestQuotationOwner || ''
+}
+
+const getDealQuotationNumber = (deal = {}, quotationNumberByDealId = {}, quotationNumberByDealNumber = {}, quotationNumberByCustomerId = {}) => {
+  const isRepeated = Boolean(deal.isRepeatedAccount || deal.rawDeal?.isRepeatedAccount || deal.data?.isRepeatedAccount || deal.rawDeal?.data?.isRepeatedAccount)
+  const dealIdKey = String(deal.id || deal.legacyId || '').trim()
+  const dealNumberKey = String(deal.dealNumber || '').trim()
+  const customerIdKey = !isRepeated ? String(deal.customerId || deal.accountId || deal.data?.customerId || deal.data?.accountId || '').trim() : ''
 
   const lookupQuotationNumber = (
     (dealIdKey && quotationNumberByDealId[dealIdKey])
@@ -1832,11 +1860,13 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
           || userDirectory[deal.userId]
           || 'Unassigned'
 
+        const isRepeatedAccountDeal = Boolean(deal.isRepeatedAccount || deal.data?.isRepeatedAccount)
         const primaryProjectName = deal.projectName || deal.data?.projectName || linkedAccount?.projectName || deal.title || deal.name || deal.dealName || ''
         const primaryDealName = deal.name || deal.dealName || deal.title || deal.data?.dealName || deal.data?.name || primaryProjectName || ''
 
         return {
           ...deal,
+          isRepeatedAccount: isRepeatedAccountDeal,
           projectName: primaryProjectName,
           dealName: primaryDealName,
           title: primaryProjectName || primaryDealName,
@@ -1856,8 +1886,8 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
           orderCustomerStatus: deal.orderCustomerStatus || '',
           poValue: deal.poValue || '',
           jobNo: deal.jobNo || linkedAccount?.jobNo || '',
-          quotationNumber: deal.quotationNumber || deal.quotationNo || deal.latestQuotationNo || linkedAccount?.quotationNumber || '',
-          quotationOwnerName: deal.quotationOwnerName || deal.quotationOwner || deal.latestQuotationOwner || linkedAccount?.quotationOwnerName || '',
+          quotationNumber: deal.quotationNumber || deal.quotationNo || deal.latestQuotationNo || (isRepeatedAccountDeal ? '' : (linkedAccount?.quotationNumber || '')),
+          quotationOwnerName: deal.quotationOwnerName || deal.quotationOwner || deal.latestQuotationOwner || (isRepeatedAccountDeal ? '' : (linkedAccount?.quotationOwnerName || '')),
           consultantName: deal.consultantName || linkedAccount?.consultantName || '',
           reasonForLost: deal.reasonForLost || '',
           reminderDate: deal.reminderDate || '',
@@ -2082,7 +2112,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
         dealId: deal.id || '',
         dealNumber: formatDealSequenceNumber(deal, index),
         quotationNumber: getDealQuotationNumber(deal, quotationNumberByDealId, quotationNumberByDealNumber),
-        quotationOwnerName: quotationOwnerByDealId[String(deal.id || '')] || quotationOwnerByDealNumber[String(deal.dealNumber || '')] || deal.quotationOwnerName || deal.quotationOwner || '',
+        quotationOwnerName: getDealQuotationOwnerName(deal, quotationOwnerByDealId, quotationOwnerByDealNumber),
         location: deal.city || deal.location || linkedCustomer?.city || linkedCustomer?.location || '',
         customerNumber: deal.customerNumber || linkedCustomer?.customerNumber || '',
         accountName: deal.linkedAccountName || deal.accountName || getDealCompanyCustomerName(deal, linkedCustomer),
@@ -2477,7 +2507,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
         dealId: deal.id || '',
         dealNumber: deal.dealNumber || `DL-${String(index + 1).padStart(3, '0')}`,
         quotationNumber: getDealQuotationNumber(deal, quotationNumberByDealId, quotationNumberByDealNumber, quotationNumberByCustomerId),
-        quotationOwnerName: deal.quotationOwnerName || deal.quotationOwner || quotationOwnerByDealId[String(deal.id || '')] || quotationOwnerByDealNumber[String(deal.dealNumber || '')] || quotationOwnerByCustomerId[String(deal.customerId || deal.accountId || '')] || '',
+        quotationOwnerName: getDealQuotationOwnerName(deal, quotationOwnerByDealId, quotationOwnerByDealNumber, quotationOwnerByCustomerId),
         location: getDealBranchLocation(deal, linkedCustomer),
         customerName: getDealCustomerName(deal, linkedCustomer),
         customerNumber: deal.customerNumber || linkedCustomer?.customerNumber || '',
@@ -2523,7 +2553,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
           dealId: deal.id || '',
           dealNumber: deal.dealNumber || `DL-${String(index + 1).padStart(3, '0')}`,
           quotationNumber: getDealQuotationNumber(deal, quotationNumberByDealId, quotationNumberByDealNumber, quotationNumberByCustomerId),
-          quotationOwnerName: deal.quotationOwnerName || deal.quotationOwner || quotationOwnerByDealId[String(deal.id || '')] || quotationOwnerByDealNumber[String(deal.dealNumber || '')] || quotationOwnerByCustomerId[String(deal.customerId || deal.accountId || '')] || '',
+          quotationOwnerName: getDealQuotationOwnerName(deal, quotationOwnerByDealId, quotationOwnerByDealNumber, quotationOwnerByCustomerId),
           location: getDealBranchLocation(deal, linkedCustomer),
           customerName: getDealCustomerName(deal, linkedCustomer),
           customerNumber: deal.customerNumber || linkedCustomer?.customerNumber || '',
@@ -2566,7 +2596,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
         dealId: deal.id || '',
         dealNumber: deal.dealNumber || `DL-${String(index + 1).padStart(3, '0')}`,
         quotationNumber: getDealQuotationNumber(deal, quotationNumberByDealId, quotationNumberByDealNumber, quotationNumberByCustomerId),
-        quotationOwnerName: deal.quotationOwnerName || deal.quotationOwner || quotationOwnerByDealId[String(deal.id || '')] || quotationOwnerByDealNumber[String(deal.dealNumber || '')] || quotationOwnerByCustomerId[String(deal.customerId || deal.accountId || '')] || '',
+        quotationOwnerName: getDealQuotationOwnerName(deal, quotationOwnerByDealId, quotationOwnerByDealNumber, quotationOwnerByCustomerId),
         location: getDealBranchLocation(deal, linkedCustomer),
         customerName: getDealCustomerName(deal, linkedCustomer),
         customerNumber: deal.customerNumber || linkedCustomer?.customerNumber || '',
@@ -2610,7 +2640,7 @@ const Deals = ({ isAdmin = false, variantKey = 'default', customViewDefinition =
         dealId: deal.id || '',
         dealNumber: deal.dealNumber || `DL-${String(index + 1).padStart(3, '0')}`,
         quotationNumber: getDealQuotationNumber(deal, quotationNumberByDealId, quotationNumberByDealNumber, quotationNumberByCustomerId),
-        quotationOwnerName: deal.quotationOwnerName || deal.quotationOwner || quotationOwnerByDealId[String(deal.id || '')] || quotationOwnerByDealNumber[String(deal.dealNumber || '')] || quotationOwnerByCustomerId[String(deal.customerId || deal.accountId || '')] || '',
+        quotationOwnerName: getDealQuotationOwnerName(deal, quotationOwnerByDealId, quotationOwnerByDealNumber, quotationOwnerByCustomerId),
         location: getDealBranchLocation(deal, linkedCustomer),
         customerName: getDealCustomerName(deal, linkedCustomer),
         customerNumber: deal.customerNumber || linkedCustomer?.customerNumber || '',

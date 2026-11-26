@@ -268,49 +268,111 @@ const createExistingSourceProject = async (actor, body = {}) => {
   const ownerRecord = await getCrmOwnerRecord(payload.ownerName || actor.ownerCode || actor.name)
   const finalOwnerCode = ownerRecord?.ownerCode || payload.accountOwnerCode || actor.ownerCode || null
 
-  const lead = await leadService.createLead(actor, {
-    ...payload,
-    accountOwner: payload.ownerName,
-    dealOwner: payload.ownerName,
-    accountOwnerCode: finalOwnerCode,
-    ownerCode: finalOwnerCode,
-    status: 'new',
-    stage: 'new',
-    accountState: 'new',
-    accountStatus: 'new',
-    formType: 'account',
-    creationMode: 'existing-source-project',
-  })
+  const existingAccountId = source.accountId || source.sourceId || ''
+  const existingAccountName = source.accountName || source.customerName || payload.accountName || ''
+  const existingCustomerNumber = source.customerNumber || source.accountNumber || source.accountNo || payload.customerNumber || ''
+  const existingAccountOwner = payload.accountOwner || source.customerOwner || payload.ownerName || ''
+  const existingCategory = source.customerCategory || payload.accountCategory || 'SWATI'
+  const existingCustomerType = source.customerType || payload.customerType || ''
+  const existingIndustryType = source.industryType || payload.industryType || ''
+  const existingState = payload.state || source.state || ''
+  const existingAddress = payload.address || source.address || ''
+  const existingGstin = payload.gstin || source.gstin || ''
+  const existingContacts = (Array.isArray(source.contacts) && source.contacts.length > 0) ? source.contacts : (payload.contacts || [])
 
+  // Create isolated Deal in MongoDB deals collection only with isRepeatedAccount: true
+  // Re-stores existing Account information directly in the Deal document
   const deal = await dealService.create(actor, {
     ...payload,
+    isRepeatedAccount: true,
+    creationMode: 'existing-source-project',
     name: payload.dealName || payload.projectName,
     title: payload.dealName || payload.projectName,
+    dealName: payload.dealName || payload.projectName,
+    projectName: payload.projectName || payload.dealName,
     description: payload.dealDescription,
     amount: payload.dealValue,
     value: payload.dealValue,
     dealValue: payload.dealValue,
+    poValue: payload.poValue || 0,
     currency: payload.valueCurrency,
-    dealOwner: payload.ownerName,
-    accountOwner: payload.ownerName,
-    accountOwnerCode: finalOwnerCode,
-    ownerCode: finalOwnerCode,
+    valueCurrency: payload.valueCurrency,
+    dealDate: payload.dealDate || new Date().toISOString().slice(0, 10),
+    closeDate: payload.expectedClosureDate || '',
+    expectedClosureDate: payload.expectedClosureDate || '',
+    dealType: payload.dealType || existingCategory,
+    dealSource: payload.dealSource || payload.accountSource || source.sourceType,
+    dealCity: payload.dealCity || '',
     stage: 'new',
     status: 'new',
-    accountId: lead.id,
-    accountName: lead.accountName || payload.accountName,
-    accountNumber: lead.accountNumber || lead.accountNo || payload.customerNumber,
+    dealOwner: payload.ownerName,
+    dealOwnerCode: finalOwnerCode,
+    ownerName: payload.ownerName,
+    ownerCode: finalOwnerCode,
+    accountId: existingAccountId,
+    accountName: existingAccountName,
+    customerName: source.customerName || existingAccountName,
+    accountNumber: existingCustomerNumber,
+    customerNumber: existingCustomerNumber,
+    accountOwner: existingAccountOwner,
+    accountOwnerCode: finalOwnerCode,
+    accountCategory: existingCategory,
+    customerCategory: existingCategory,
+    customerType: existingCustomerType,
+    industryType: existingIndustryType,
+    state: existingState,
+    address: existingAddress,
+    gstin: existingGstin,
+    contacts: existingContacts,
+    secondaryPhone: payload.secondaryPhone || source.secondaryPhone || '',
+    secondaryPhoneNumber: payload.secondaryPhoneNumber || source.secondaryPhoneNumber || '',
+    consultantName: payload.consultantName || source.consultantName || '',
+    architectName: payload.architectName || source.architectName || '',
+    pmcName: payload.pmcName || source.pmcName || '',
+    productCategory: payload.productCategory || source.productCategory || '',
+    customerRefNo: payload.customerRefNo || source.customerRefNo || '',
+    customerRefDate: payload.customerRefDate || source.customerRefDate || '',
+    jobNo: payload.jobNo || source.jobNo || '',
+    quotationNumber: '',
+    quoteNumber: '',
+    latestQuotationNumber: '',
+    quotationOwner: '',
+    quotationOwnerName: '',
     data: {
       ...payload,
-      accountId: lead.id,
-      sourceLeadId: lead.id,
+      ...source,
+      isRepeatedAccount: true,
       creationMode: 'existing-source-project',
+      quotationNumber: '',
+      quoteNumber: '',
+      latestQuotationNumber: '',
+      quotationOwner: '',
+      quotationOwnerName: '',
+      accountId: existingAccountId,
+      accountName: existingAccountName,
+      customerName: source.customerName || existingAccountName,
+      accountNumber: existingCustomerNumber,
+      customerNumber: existingCustomerNumber,
+      accountOwner: existingAccountOwner,
+      accountOwnerCode: finalOwnerCode,
+      dealOwner: payload.ownerName,
+      dealOwnerCode: finalOwnerCode,
+      ownerName: payload.ownerName,
+      ownerCode: finalOwnerCode,
+      accountCategory: existingCategory,
+      customerCategory: existingCategory,
+      customerType: existingCustomerType,
+      industryType: existingIndustryType,
+      state: existingState,
+      address: existingAddress,
+      gstin: existingGstin,
+      contacts: existingContacts,
       status: 'new',
       stage: 'new',
     },
   })
 
-  return { lead, deal, source }
+  return { lead: null, deal, source, isRepeatedAccount: true }
 }
 
 module.exports = {
