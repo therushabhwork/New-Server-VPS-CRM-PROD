@@ -505,17 +505,32 @@ html.is-admin .sidebar--admin .sb-today-section {
 /* ============================================================
    Base styles
    ============================================================ */
+:root {
+  --app-zoom: 0.8;
+  --app-vh: calc(100vh / var(--app-zoom));
+  --app-dvh: calc(100dvh / var(--app-zoom));
+}
+
+@media (max-width: 980px) {
+  :root {
+    --app-zoom: 1;
+  }
+}
+
 html {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   background-color: #FAF7F1;
+  zoom: var(--app-zoom);
+  min-height: var(--app-vh);
 }
 
 body {
   position: relative;
-  min-height: 100vh;
+  min-height: var(--app-vh);
+  min-height: var(--app-dvh);
   overflow-x: hidden;
   font-family: var(--font-sans);
   font-size: 14px;
@@ -535,7 +550,8 @@ body::after {
 }
 
 #root {
-  min-height: 100vh;
+  min-height: var(--app-vh);
+  min-height: var(--app-dvh);
   position: relative;
   background-color: transparent !important;
   background-size: cover !important;

@@ -149,20 +149,20 @@ const fieldGroups = {
   basicLeft: [
     { name: 'accountName', label: 'Account Name', required: true, icon: <FaRegBuilding /> },
     { name: 'accountCategory', label: 'Vertical Name', type: 'select', options: accountCategories, icon: <FaLayerGroup /> },
-    { name: 'accountOwner', label: 'Account Owner', type: 'select', options: [], icon: <FaUserAlt /> },
-    { name: 'state', label: 'State', type: 'select', options: states, icon: <FaMapMarkerAlt /> },
+    { name: 'accountOwner', label: 'Account Owner', type: 'select', searchable: true, options: [], icon: <FaUserAlt /> },
+    { name: 'state', label: 'State', type: 'select', searchable: true, options: states, icon: <FaMapMarkerAlt /> },
     { name: 'description', label: 'Remark', type: 'textarea', textareaRows: 3, fieldClassName: 'min-h-[88px]', icon: <FaRegFileAlt /> },
     { name: 'address', label: 'Address', type: 'textarea', textareaRows: 3, fieldClassName: 'min-h-[88px]', icon: <FaRegMap /> },
   ],
   basicRight: [
     { name: 'accountDate', label: 'Account Date', type: 'date', icon: <FaCalendarAlt /> },
-    { name: 'accountSource', label: 'Account Source', type: 'select', options: accountSources, icon: <FaCodeBranch /> },
+    { name: 'accountSource', label: 'Account Source', type: 'select', searchable: true, options: accountSources, icon: <FaCodeBranch /> },
     { name: 'customerName', label: 'Customer Name', icon: <FaRegUser /> },
     { name: 'consultantName', label: 'Consultant/AR Name', icon: <FaUserTie /> },
-    { name: 'customerType', label: 'Customer Type', type: 'select', options: customerTypes, icon: <FaBuilding /> },
+    { name: 'customerType', label: 'Customer Type', type: 'select', searchable: true, options: customerTypes, icon: <FaBuilding /> },
     { name: 'customerRefNo', label: 'Inquiry Ref No.', icon: <FaHashtag /> },
     { name: 'customerRefDate', label: 'Inquiry Ref Date', type: 'date', icon: <FaCalendarDay /> },
-    { name: 'industryType', label: 'Industry Type', type: 'select', options: industryTypes, icon: <FaIndustry /> },
+    { name: 'industryType', label: 'Industry Type', type: 'select', searchable: true, options: industryTypes, icon: <FaIndustry /> },
   ],
   dealDetailsLeft: [
     { name: 'dealDate', label: 'Deal Date', type: 'date', icon: <FaCalendarAlt /> },
@@ -172,21 +172,21 @@ const fieldGroups = {
     { name: 'dealValue', label: 'Deal Value', type: 'number', icon: <FaHashtag /> },
     { name: 'consultantName', label: 'Consultant/AR Name', icon: <FaUserTie /> },
     { name: 'customerRefNo', label: 'Customer Ref. No.', icon: <FaHashtag /> },
-    { name: 'customerQuotationStatus', label: 'Status Of Customer as per quotation Given', type: 'select', options: CUSTOMER_QUOTATION_STATUS_OPTIONS, icon: <FaRegFileAlt /> },
-    { name: 'dealType', label: 'Deal Type', type: 'select', options: dealTypes, icon: <FaLayerGroup /> },
+    { name: 'customerQuotationStatus', label: 'Status Of Customer as per quotation Given', type: 'select', searchable: true, options: CUSTOMER_QUOTATION_STATUS_OPTIONS, icon: <FaRegFileAlt /> },
+    { name: 'dealType', label: 'Deal Type', type: 'select', searchable: true, options: dealTypes, icon: <FaLayerGroup /> },
   ],
   dealDetailsRight: [
-    { name: 'dealOwner', label: 'Deal Owner', type: 'select', options: [], required: true, icon: <FaUserAlt /> },
+    { name: 'dealOwner', label: 'Deal Owner', type: 'select', searchable: true, options: [], required: true, icon: <FaUserAlt /> },
     { name: 'pmcName', label: 'PMC Name', icon: <FaHardHat /> },
     { name: 'address', label: 'Address', type: 'textarea', textareaRows: 2, icon: <FaRegMap /> },
     { name: 'dealCity', label: 'City', icon: <FaMapMarkerAlt /> },
     { name: 'expectedClosureDate', label: 'Expected Closure Date', type: 'date', icon: <FaCalendarDay /> },
     { name: 'probability', label: 'Probability (%)', type: 'range', icon: <FaHashtag /> },
-    { name: 'productCategory', label: 'Product Category', type: 'select', options: [{ value: 'LT/TTA', label: 'LT/TTA' }, { value: 'LT/Non TTA', label: 'LT/Non TTA' }, { value: 'HT', label: 'HT' }, { value: 'BUSDUCT', label: 'BUSDUCT' }, { value: 'AUTOMATION', label: 'AUTOMATION' }], icon: <FaLayerGroup /> },
+    { name: 'productCategory', label: 'Product Category', type: 'select', searchable: true, options: [{ value: 'LT/TTA', label: 'LT/TTA' }, { value: 'LT/Non TTA', label: 'LT/Non TTA' }, { value: 'HT', label: 'HT' }, { value: 'BUSDUCT', label: 'BUSDUCT' }, { value: 'AUTOMATION', label: 'AUTOMATION' }], icon: <FaLayerGroup /> },
     { name: 'customerRefDate', label: 'Customer Ref. Date', type: 'date', icon: <FaCalendarAlt /> },
     { name: 'gstin', label: 'GSTIN', icon: <FaHashtag /> },
     { name: 'jobNo', label: 'Job No', icon: <FaBriefcase /> },
-    { name: 'customerOrderStatus', label: 'Status of Customer as per Order Received', type: 'select', options: DEAL_LIFECYCLE_STATUS_OPTIONS, icon: <FaRegFileAlt /> },
+    { name: 'customerOrderStatus', label: 'Status of Customer as per Order Received', type: 'select', searchable: true, options: DEAL_LIFECYCLE_STATUS_OPTIONS, icon: <FaRegFileAlt /> },
   ],
   contactsLeft: [
     { name: 'contactPerson', label: 'Contact Person', icon: <FaRegUser /> },
@@ -1060,6 +1060,7 @@ const AddAccountWizard = () => {
           onChange={handleChange}
           required={isRequired}
           options={field.options}
+          searchable={Boolean(field.searchable)}
           error={errors[field.name]}
           placeholder={field.placeholder}
           textareaRows={field.textareaRows}

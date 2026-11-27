@@ -6,8 +6,8 @@
 
 .login-page-container {
   position: relative;
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: var(--app-vh, 100vh);
+  min-height: var(--app-dvh, 100dvh);
   width: 100%;
   display: flex;
   align-items: center;
@@ -383,8 +383,8 @@
   position: relative;
   overflow-x: clip;
   overflow-y: auto;
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: var(--app-vh, 100vh);
+  min-height: var(--app-dvh, 100dvh);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -537,8 +537,8 @@
 
 .logout-shell {
   position: relative;
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: var(--app-vh, 100vh);
+  min-height: var(--app-dvh, 100dvh);
   width: 100%;
   display: flex;
   align-items: center;

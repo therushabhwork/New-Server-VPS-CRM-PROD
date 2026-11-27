@@ -905,8 +905,8 @@
 .admin-accounts-page--detail-view {
   padding: 0 !important;
   background: var(--surface-app, #f8fafc) !important;
-  height: calc(100vh - var(--header-height, 56px) - 16px) !important;
-  max-height: calc(100vh - var(--header-height, 56px) - 16px) !important;
+  height: calc(var(--app-vh, 100vh) - var(--header-height, 56px) - 16px) !important;
+  max-height: calc(var(--app-vh, 100vh) - var(--header-height, 56px) - 16px) !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
   overscroll-behavior: contain;

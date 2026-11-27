@@ -80,6 +80,9 @@ async function restoreDatabase() {
 
     let totalRestoredDocs = 0
 
+    const MAX_BATCH_DOCS = 2000
+    const MAX_BATCH_BYTES = 4 * 1024 * 1024
+
     // 3. Process each collection file
     for (let i = 0; i < dataFiles.length; i++) {
       const dataFile = dataFiles[i]
@@ -87,41 +90,62 @@ async function restoreDatabase() {
       const filePath = path.join(collectionsDir, dataFile)
       const col = db.collection(colName)
 
-      const rl = readline.createInterface({
-        input: fs.createReadStream(filePath, { encoding: 'utf-8' }),
-        crlfDelay: Infinity,
-      })
-
-      let count = 0
-      let batch = []
-
-      // If live and clean mode enabled, clear target collection first
+      // O(1) collection drop before opening any read stream
       if (!isDryRun && shouldClean) {
-        await col.deleteMany({})
+        await col.drop().catch((err) => {
+          if (err && (err.code === 26 || err.codeName === 'NamespaceNotFound' || /ns not found/i.test(err.message))) {
+            return
+          }
+          throw err
+        })
       }
 
-      for await (const line of rl) {
-        const trimmed = line.trim()
-        if (!trimmed) continue
+      let count = 0
+      const fileSize = fs.statSync(filePath).size
 
-        const doc = EJSON.parse(trimmed)
-        count++
+      if (fileSize > 0) {
+        let batch = []
+        let batchBytes = 0
 
-        if (!isDryRun) {
-          batch.push(doc)
-          if (batch.length >= 1000) {
-            await col.insertMany(batch, { ordered: false })
-            batch = []
+        const stream = fs.createReadStream(filePath, {
+          encoding: 'utf-8',
+          highWaterMark: 256 * 1024,
+        })
+        const rl = readline.createInterface({
+          input: stream,
+          crlfDelay: Infinity,
+        })
+
+        for await (const line of rl) {
+          const trimmed = line.trim()
+          if (!trimmed) continue
+
+          const doc = EJSON.parse(trimmed)
+          count++
+
+          if (!isDryRun) {
+            batch.push(doc)
+            batchBytes += Buffer.byteLength(trimmed, 'utf8')
+            if (batch.length >= MAX_BATCH_DOCS || batchBytes >= MAX_BATCH_BYTES) {
+              await col.insertMany(batch, { ordered: false })
+              batch = []
+              batchBytes = 0
+            }
           }
+
+          if (count % 5000 === 0) {
+            console.log(`[Restore] [${i + 1}/${dataFiles.length}] "${colName}": ${count} document(s) processed...`)
+          }
+        }
+
+        if (!isDryRun && batch.length > 0) {
+          await col.insertMany(batch, { ordered: false })
+          batch = []
+          batchBytes = 0
         }
       }
 
-      if (!isDryRun && batch.length > 0) {
-        await col.insertMany(batch, { ordered: false })
-        batch = []
-      }
-
-      // Re-create indexes if index definitions exist
+      // Re-create indexes after inserts if index definitions exist
       const indexesFilePath = path.join(collectionsDir, `${colName}.indexes.json`)
       if (!isDryRun && fs.existsSync(indexesFilePath)) {
         try {
@@ -137,6 +161,7 @@ async function restoreDatabase() {
               if (idx.unique) spec.unique = idx.unique
               if (idx.sparse) spec.sparse = idx.sparse
               if (idx.expireAfterSeconds !== undefined) spec.expireAfterSeconds = idx.expireAfterSeconds
+              if (idx.partialFilterExpression) spec.partialFilterExpression = idx.partialFilterExpression
               return spec
             })
 
